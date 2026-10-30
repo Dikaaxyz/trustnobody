@@ -1,5 +1,6 @@
 --[[
-    GRAYS ON TOP v4.8 — Stable Error-Free
+    GRAYS ON TOP v5.0 — Hardcoded Jobs
+    NPC: Darrian Johnson | Crates: Workspace.Crates | Truck: Workspace.Truck
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -11,7 +12,6 @@ local UIS = game:GetService("UserInputService")
 local WS = game:GetService("Workspace")
 local CG = game:GetService("CoreGui")
 local LP = P.LocalPlayer
-local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
 
 local CFG = {
@@ -56,7 +56,6 @@ end
 local function clickDialog(txtMatch)
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
-    local found = false
     for _, g in pairs(pg:GetDescendants()) do
         if g:IsA("TextButton") or g:IsA("TextLabel") then
             if tostring(g.Text):lower():find(tostring(txtMatch):lower()) then
@@ -69,22 +68,26 @@ local function clickDialog(txtMatch)
                         if g.Parent.Activated then g.Parent.Activated:Fire() end
                     end
                 end)
-                found = true
+                return true
             end
         end
     end
-    return found
+    return false
 end
 
 local function setStatus(txt)
     if farmStatusLabel then farmStatusLabel.Text = "Tracker: " .. tostring(txt) end
 end
 
-local function interactPrompt(part)
+local function interactPart(part)
     if not part then return end
     local prompt = part:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
         pcall(function() if fireproximityprompt then fireproximityprompt(prompt) end end)
+    end
+    local clicker = part:FindFirstChildOfClass("ClickDetector")
+    if clicker then
+        pcall(function() fireclickdetector(clicker) end)
     end
     pcall(function()
         VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
@@ -163,8 +166,8 @@ addToggle(pgCombat, "Auto Fire (Equip)", "autoFire")
 addToggle(pgCombat, "Auto Fix Jam", "autoFix")
 
 local pgFarm = addTab("FARM", 50)
-addSection(pgFarm, "Dynamic Tracker")
-addToggle(pgFarm, "Auto Track Job", "farmBox")
+addSection(pgFarm, "Job Cycle")
+addToggle(pgFarm, "Enable Auto Job", "farmBox")
 addTextBox(pgFarm, "Target Money ($)", "targetMoney", "1000")
 farmStatusLabel = Instance.new("TextLabel"); farmStatusLabel.Size=UDim2.new(1,0,0,20); farmStatusLabel.BackgroundTransparency=1; farmStatusLabel.Text="Tracker: Idle"; farmStatusLabel.TextColor3=Color3.fromRGB(0,200,100); farmStatusLabel.Font=Enum.Font.GothamBold; farmStatusLabel.TextSize=11; farmStatusLabel.TextXAlignment=Enum.TextXAlignment.Left; farmStatusLabel.Parent=pgFarm
 
@@ -239,7 +242,7 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: HEARTBEAT FARM (STABLE)
+-- ENGINE: HARDCODED JOB CYCLE
 local farmThread = nil
 
 local function startFarm()
@@ -247,7 +250,6 @@ local function startFarm()
     farmThread = task.spawn(function()
         while CFG.farmBox do
             local success, err = pcall(function()
-                setStatus("Scanning...")
                 local myChar = LP.Character
                 local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 if not myHrp then return end
@@ -255,70 +257,80 @@ local function startFarm()
                 local money = getMoney()
                 local target = tonumber(CFG.targetMoney) or 1000
                 
+                -- CLAIM MONEY
                 if money >= target then
                     setStatus("Claiming...")
-                    local npc = nil
-                    for _, v in ipairs(WS:GetDescendants()) do
-                        if v:IsA("Model") and (tostring(v.Name):lower():find("darrian") or tostring(v.Name):lower():find("npc")) then
-                            local h = v:FindFirstChild("HumanoidRootPart")
-                            if h then npc = h break end
-                        end
-                    end
-                    if npc then
-                        if (myHrp.Position - npc.Position).Magnitude > 10 then
-                            myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
-                            task.wait(0.5)
-                        end
+                    local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
+                    local npcPart = npc and npc:FindFirstChild("HumanoidRootPart")
+                    if npcPart then
+                        myHrp.CFrame = npcPart.CFrame * CFrame.new(0, 0, -3)
+                        task.wait(0.5)
                         clickDialog("claim my money")
                         task.wait(2)
                         CFG.farmBox = false
                         setStatus("Done.")
                     end
                 else
-                    local hasCrate = myChar and myChar:FindFirstChildWhichIsA("Tool") ~= nil
+                    local hasCrate = myChar and myChar:FindFirstChildWhichIsA("Tool")
+                    
+                    -- DROP CRATE
                     if hasCrate then
                         setStatus("To Truck...")
-                        local truck = nil
-                        for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("BasePart") and (tostring(v.Name):lower():find("truck") or tostring(v.Name):lower():find("deliver") or tostring(v.Name):lower():find("trailer")) then
-                                truck = v break
+                        local truck = WS:FindFirstChild("Truck", true) or WS:FindFirstChild("Trailer", true) or WS:FindFirstChild("Mule", true)
+                        if not truck then
+                            -- Fallback ke scan nama
+                            for _, v in ipairs(WS:GetDescendants()) do
+                                if v:IsA("Model") or v:IsA("BasePart") then
+                                    local n = tostring(v.Name):lower()
+                                    if n:find("truck") or n:find("deliver") or n:find("trailer") then truck = v break end
+                                end
                             end
                         end
                         if truck then
-                            myHrp.CFrame = truck.CFrame * CFrame.new(0, 3, -5)
-                            task.wait(0.3)
-                            interactPrompt(truck)
-                            task.wait(1)
+                            local tPart = truck:IsA("BasePart") and truck or truck:FindFirstChild("HumanoidRootPart") or truck:FindFirstChildWhichIsA("BasePart")
+                            if tPart then
+                                myHrp.CFrame = tPart.CFrame * CFrame.new(0, 3, -5)
+                                task.wait(0.3)
+                                interactPart(tPart)
+                                task.wait(1.5)
+                            end
                         else
                             setStatus("No Truck.")
                         end
                     else
+                        -- GRAB CRATE
                         setStatus("To Crate...")
                         local crate = nil
-                        for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("BasePart") and (tostring(v.Name):lower():find("crate") or tostring(v.Name):lower():find("pickup") or tostring(v.Name):lower():find("box")) then
-                                crate = v break
+                        -- Cari di folder "Crates" atau "Boxes" dulu
+                        local crateFolder = WS:FindFirstChild("Crates") or WS:FindFirstChild("Boxes") or WS:FindFirstChild("Crate")
+                        if crateFolder then
+                            crate = crateFolder:FindFirstChildWhichIsA("BasePart") or crateFolder:FindFirstChildWhichIsA("Model")
+                            if crate and not crate:IsA("BasePart") then crate = crate:FindFirstChildWhichIsA("BasePart") end
+                        end
+                        
+                        if not crate then
+                            -- Fallback scan
+                            for _, v in ipairs(WS:GetDescendants()) do
+                                if v:IsA("BasePart") then
+                                    local n = tostring(v.Name):lower()
+                                    if n:find("crate") or n:find("pickup") or n:find("box") then crate = v break end
+                                end
                             end
                         end
+
                         if crate then
                             myHrp.CFrame = crate.CFrame * CFrame.new(0, 3, 0)
                             task.wait(0.3)
-                            interactPrompt(crate)
-                            task.wait(1)
+                            interactPart(crate)
+                            task.wait(1.5)
                         else
+                            -- GET JOB
                             setStatus("To NPC...")
-                            local npc = nil
-                            for _, v in ipairs(WS:GetDescendants()) do
-                                if v:IsA("Model") and (tostring(v.Name):lower():find("darrian") or tostring(v.Name):lower():find("npc")) then
-                                    local h = v:FindFirstChild("HumanoidRootPart")
-                                    if h then npc = h break end
-                                end
-                            end
-                            if npc then
-                                if (myHrp.Position - npc.Position).Magnitude > 10 then
-                                    myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
-                                    task.wait(0.5)
-                                end
+                            local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
+                            local npcPart = npc and (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart"))
+                            if npcPart then
+                                myHrp.CFrame = npcPart.CFrame * CFrame.new(0, 0, -3)
+                                task.wait(0.5)
                                 clickDialog("looking for work")
                                 task.wait(1.5)
                             else
@@ -431,4 +443,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v4.8 loaded.")
+print("[GRAYS ON TOP] v5.0 loaded.")
