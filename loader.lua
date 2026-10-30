@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v3.5 — Xeno Stable
-    ESP via Highlight (No Lag) | CFrame Fly (No Rubberband) | Silent Aim | Split Farm
+    GRAYS ON TOP v3.7 — No Speedhack
+    Silent Aim | ESP (Highlight) | Split Farm | Safe TP | Anti-Detect Fly
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -20,7 +20,7 @@ local CFG = {
     aim=false, aimFov=150, esp=false,
     farmMarsh=false, farmBox=false, farmInt=0.6, farmDist=30,
     tpSafe=false, tpDist=5,
-    noclip=false, speed=false, ws=16, fly=false, flySpeed=60,
+    noclip=false, fly=false, flySpeed=60,
     autoFire=false, autoFix=false,
     keyMenu=Enum.KeyCode.RightShift,
 }
@@ -152,13 +152,11 @@ addSlider(pgFarm, "Radius", "farmDist", 5, 100)
 
 local pgTp = addTab("TP", 40)
 addSection(pgTp, "Safe Teleport")
-addToggle(pgTp, "Teleport Nearest (Undetected)", "tpSafe")
+addToggle(pgTp, "Teleport Nearest", "tpSafe")
 
 local pgMove = addTab("MOVE", 50)
-addSection(pgMove, "Speed & Jump")
+addSection(pgMove, "Movement")
 addToggle(pgMove, "Noclip", "noclip")
-addToggle(pgMove, "Speed Hack", "speed")
-addSlider(pgMove, "Walkspeed", "ws", 16, 200)
 addToggle(pgMove, "Fly", "fly")
 addSlider(pgMove, "Fly Speed", "flySpeed", 10, 200)
 
@@ -250,7 +248,7 @@ if typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" and t
     setreadonly(mt,true)
 end
 
--- ENGINE: ESP (Highlight Method - No Lag)
+-- ENGINE: ESP (Highlight Method)
 local espHighlights = {}
 local function updateESP()
     if CFG.esp then
@@ -401,49 +399,71 @@ local function updateNoclip()
 end
 task.spawn(function() while true do updateNoclip(); task.wait(1) end end)
 
--- ENGINE: SPEED
-RS.Stepped:Connect(function()
-    local c=LP.Character; if not c then return end
-    local hum=c:FindFirstChildOfClass("Humanoid")
-    if hum and CFG.speed then hum.WalkSpeed=CFG.ws end
-end)
+-- ENGINE: FLY (Anti-Detect)
+local currentStopFly = nil
+local function startSecureFly()
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
 
--- ENGINE: FLY (Anti-Rubberband CFrame Method)
-local flyConn
+    local oldGrav = WS.Gravity
+    WS.Gravity = 0
+
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "GOT_Fly"
+    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bv.Parent = hrp
+
+    hum.PlatformStand = true
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+
+    local conn
+    conn = RS.RenderStepped:Connect(function()
+        local c = LP.Character
+        local h = c and c:FindFirstChild("HumanoidRootPart")
+        if not h or not bv then return end
+
+        local mv = Vector3.new(0, 0, 0)
+        if UIS:IsKeyDown(Enum.KeyCode.W) then mv = mv + CAM.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then mv = mv - CAM.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then mv = mv - CAM.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then mv = mv + CAM.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then mv = mv - Vector3.new(0, 1, 0) end
+
+        if mv.Magnitude > 0 then
+            bv.Velocity = mv.Unit * CFG.flySpeed
+        else
+            bv.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+
+    return function()
+        if conn then conn:Disconnect() end
+        if bv then bv:Destroy() end
+        WS.Gravity = oldGrav
+        if hum then
+            hum.PlatformStand = false
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+        end
+    end
+end
+
 task.spawn(function()
-    local was=false
+    local was = false
     while true do
         task.wait(0.1)
         if CFG.fly and not was then
-            local char = LP.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hrp and hum then
-                hum.PlatformStand = true
-                flyConn = RS.RenderStepped:Connect(function()
-                    local h=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-                    if not h then return end
-                    local mv=Vector3.new(0,0,0)
-                    if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+CAM.CFrame.LookVector end
-                    if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-CAM.CFrame.LookVector end
-                    if UIS:IsKeyDown(Enum.KeyCode.A) then mv=mv-CAM.CFrame.RightVector end
-                    if UIS:IsKeyDown(Enum.KeyCode.D) then mv=mv+CAM.CFrame.RightVector end
-                    if UIS:IsKeyDown(Enum.KeyCode.Space) then mv=mv+Vector3.new(0,1,0) end
-                    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then mv=mv-Vector3.new(0,1,0) end
-                    
-                    if mv.Magnitude > 0 then
-                        h.CFrame = h.CFrame + (mv.Unit * CFG.flySpeed * (1/60))
-                    end
-                end)
-            end
+            currentStopFly = startSecureFly()
         elseif not CFG.fly and was then
-            if flyConn then flyConn:Disconnect(); flyConn=nil end
-            local char = LP.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.PlatformStand = false end
+            if currentStopFly then
+                pcall(currentStopFly)
+                currentStopFly = nil
+            end
         end
-        was=CFG.fly
+        was = CFG.fly
     end
 end)
 
-print("[GRAYS ON TOP] v3.5 loaded.")
+print("[GRAYS ON TOP] v3.7 loaded.")
