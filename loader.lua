@@ -1,6 +1,5 @@
 --[[
-    GRAYS ON TOP v4.7
-    Heartbeat Farm (Unkillable) | Auto Track | Target Money
+    GRAYS ON TOP v4.8 — Stable Error-Free
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -36,7 +35,7 @@ local function getMoney()
     if ls then
         for _, v in pairs(ls:GetChildren()) do
             if v:IsA("IntValue") or v:IsA("NumberValue") then
-                if v.Name:lower():find("cash") or v.Name:lower():find("money") then
+                if tostring(v.Name):lower():find("cash") or tostring(v.Name):lower():find("money") then
                     return v.Value
                 end
             end
@@ -45,8 +44,8 @@ local function getMoney()
     local pg = LP:FindFirstChild("PlayerGui")
     if pg then
         for _, g in pairs(pg:GetDescendants()) do
-            if g:IsA("TextLabel") and g.Text:match("^%$%d+") then
-                local num = tonumber(g.Text:gsub("[^%d]", ""))
+            if g:IsA("TextLabel") and tostring(g.Text):match("^%$%d+") then
+                local num = tonumber(tostring(g.Text):gsub("[^%d]", ""))
                 if num then return num end
             end
         end
@@ -60,14 +59,14 @@ local function clickDialog(txtMatch)
     local found = false
     for _, g in pairs(pg:GetDescendants()) do
         if g:IsA("TextButton") or g:IsA("TextLabel") then
-            if g.Text:lower():find(txtMatch:lower()) then
+            if tostring(g.Text):lower():find(tostring(txtMatch):lower()) then
                 pcall(function()
                     if g:IsA("TextButton") then
                         g.MouseButton1Click:Fire()
-                        g.Activated:Fire()
+                        if g.Activated then g.Activated:Fire() end
                     elseif g.Parent and g.Parent:IsA("TextButton") then
                         g.Parent.MouseButton1Click:Fire()
-                        g.Parent.Activated:Fire()
+                        if g.Parent.Activated then g.Parent.Activated:Fire() end
                     end
                 end)
                 found = true
@@ -78,7 +77,7 @@ local function clickDialog(txtMatch)
 end
 
 local function setStatus(txt)
-    if farmStatusLabel then farmStatusLabel.Text = "Tracker: " .. txt end
+    if farmStatusLabel then farmStatusLabel.Text = "Tracker: " .. tostring(txt) end
 end
 
 local function interactPrompt(part)
@@ -240,7 +239,7 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: HEARTBEAT FARM (UNKILLABLE)
+-- ENGINE: HEARTBEAT FARM (STABLE)
 local farmThread = nil
 
 local function startFarm()
@@ -248,17 +247,19 @@ local function startFarm()
     farmThread = task.spawn(function()
         while CFG.farmBox do
             local success, err = pcall(function()
-                setStatus("Scanning Map...")
+                setStatus("Scanning...")
                 local myChar = LP.Character
                 local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 if not myHrp then return end
 
                 local money = getMoney()
-                if money >= tonumber(CFG.targetMoney) then
-                    setStatus("Claiming Money...")
+                local target = tonumber(CFG.targetMoney) or 1000
+                
+                if money >= target then
+                    setStatus("Claiming...")
                     local npc = nil
                     for _, v in ipairs(WS:GetDescendants()) do
-                        if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
+                        if v:IsA("Model") and (tostring(v.Name):lower():find("darrian") or tostring(v.Name):lower():find("npc")) then
                             local h = v:FindFirstChild("HumanoidRootPart")
                             if h then npc = h break end
                         end
@@ -274,12 +275,12 @@ local function startFarm()
                         setStatus("Done.")
                     end
                 else
-                    local hasCrate = myChar:FindFirstChildWhichIsA("Tool") ~= nil
+                    local hasCrate = myChar and myChar:FindFirstChildWhichIsA("Tool") ~= nil
                     if hasCrate then
-                        setStatus("Finding Truck...")
+                        setStatus("To Truck...")
                         local truck = nil
                         for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("BasePart") and (v.Name:lower():find("truck") or v.Name:lower():find("deliver") or v.Name:lower():find("trailer")) then
+                            if v:IsA("BasePart") and (tostring(v.Name):lower():find("truck") or tostring(v.Name):lower():find("deliver") or tostring(v.Name):lower():find("trailer")) then
                                 truck = v break
                             end
                         end
@@ -289,13 +290,13 @@ local function startFarm()
                             interactPrompt(truck)
                             task.wait(1)
                         else
-                            setStatus("No Truck Found.")
+                            setStatus("No Truck.")
                         end
                     else
-                        setStatus("Finding Crate...")
+                        setStatus("To Crate...")
                         local crate = nil
                         for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("BasePart") and (v.Name:lower():find("crate") or v.Name:lower():find("pickup") or v.Name:lower():find("box")) then
+                            if v:IsA("BasePart") and (tostring(v.Name):lower():find("crate") or tostring(v.Name):lower():find("pickup") or tostring(v.Name):lower():find("box")) then
                                 crate = v break
                             end
                         end
@@ -305,10 +306,10 @@ local function startFarm()
                             interactPrompt(crate)
                             task.wait(1)
                         else
-                            setStatus("Getting Job...")
+                            setStatus("To NPC...")
                             local npc = nil
                             for _, v in ipairs(WS:GetDescendants()) do
-                                if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
+                                if v:IsA("Model") and (tostring(v.Name):lower():find("darrian") or tostring(v.Name):lower():find("npc")) then
                                     local h = v:FindFirstChild("HumanoidRootPart")
                                     if h then npc = h break end
                                 end
@@ -321,7 +322,7 @@ local function startFarm()
                                 clickDialog("looking for work")
                                 task.wait(1.5)
                             else
-                                setStatus("NPC Not Found.")
+                                setStatus("No NPC.")
                             end
                         end
                     end
@@ -430,4 +431,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v4.7 loaded.")
+print("[GRAYS ON TOP] v4.8 loaded.")
