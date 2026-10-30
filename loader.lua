@@ -1,4 +1,4 @@
--- GRAYS ON TOP — Xeno-Safe Build (no metatable hook)
+-- GRAYS ON TOP — Xeno-Stable Build
 if not game:IsLoaded() then game.Loaded:Wait() end
 if getgenv().GOTGui then pcall(function() getgenv().GOTGui:Destroy() end) end
 
@@ -12,13 +12,13 @@ local CAM = WS.CurrentCamera
 
 local CFG = {
     aim=false, aimPart="Head", aimFov=250,
-    esp=false, espBox=true, espName=true, espHealth=true, espDist=true, espTracer=false, espMax=2000,
+    esp=false, espBox=true, espName=true, espHealth=true,
     noclip=false, speed=false, ws=16, jp=50,
     fly=false, flySpeed=60,
     bright=false,
     farm=false, farmTool="Marshmallow Bag", farmPrompt="Craft", farmInt=0.6, farmDist=20,
     click=false, cps=10,
-    tpOff=4, keyMenu=Enum.KeyCode.RightShift,
+    keyMenu=Enum.KeyCode.RightShift,
     lock=false,
 }
 
@@ -254,6 +254,7 @@ end
 local cTab=makeTab("COMBAT",74)
 local eTab=makeTab("ESP",54)
 local mTab=makeTab("MOVE",58)
+local fTab=makeTab("FARM",56)
 local xTab=makeTab("MISC",54)
 setTab(1)
 
@@ -274,17 +275,21 @@ slider(mTab,"WalkSpeed","ws",16,300,1)
 toggle(mTab,"Fly","fly")
 slider(mTab,"Fly Speed","flySpeed",10,300,5)
 
+section(fTab,"AUTO-FARM")
+toggle(fTab,"Farm","farm")
+slider(fTab,"Interval (s)","farmInt",0.2,3.0,0.1)
+slider(fTab,"Proximity","farmDist",5,100,1)
+
 section(xTab,"MISC")
 toggle(xTab,"Auto Clicker","click")
 slider(xTab,"CPS","cps",1,30,1)
 toggle(xTab,"Fullbright","bright")
 
--- CAMERA LOCK ENGINE (no metatable needed)
+-- CAMERA LOCK
 task.spawn(function()
     while true do
         task.wait()
         if CFG.lock then
-            local target=nil
             local best, bd = nil, math.huge
             local sc=Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
             for _,p in ipairs(P:GetPlayers()) do
@@ -312,7 +317,7 @@ task.spawn(function()
     end
 end)
 
--- NOCLIP / SPEED ENGINE
+-- NOCLIP / SPEED
 RS.Stepped:Connect(function()
     local c=LP.Character
     if not c then return end
@@ -331,7 +336,7 @@ RS.Stepped:Connect(function()
     end
 end)
 
--- FLY ENGINE
+-- FLY
 local flyBV, flyBG, flyConn
 local function stopFly()
     if flyConn then flyConn:Disconnect() flyConn=nil end
@@ -397,6 +402,40 @@ task.spawn(function()
     end
 end)
 
+-- FARM (Xeno Safe)
+task.spawn(function()
+    while true do
+        if CFG.farm then
+            pcall(function()
+                local c=LP.Character
+                local hrp=c and c:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    for _,d in ipairs(WS:GetDescendants()) do
+                        if d:IsA("ProximityPrompt") then
+                            local pp=d.Parent
+                            if pp and pp:IsA("BasePart") then
+                                local dist=(pp.Position-hrp.Position).Magnitude
+                                if dist<CFG.farmDist then
+                                    if d.ActionText==CFG.farmPrompt
+                                    or (d.ObjectText and d.ObjectText:find(CFG.farmTool,1,true))
+                                    or pp.Name:find(CFG.farmTool,1,true) then
+                                        if fireproximityprompt then
+                                            fireproximityprompt(d)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            task.wait(CFG.farmInt)
+        else
+            task.wait(0.2)
+        end
+    end
+end)
+
 -- FULLBRIGHT
 local Lighting=game:GetService("Lighting")
 local ob, oc, of = Lighting.Brightness, Lighting.ClockTime, Lighting.FogEnd
@@ -444,4 +483,4 @@ UIS.InputEnded:Connect(function(i)
     if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end
 end)
 
-print("[GRAYS ON TOP] Xeno-safe build loaded.")
+print("[GRAYS ON TOP] Xeno-stable build loaded.")
