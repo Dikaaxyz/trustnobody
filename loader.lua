@@ -1,7 +1,6 @@
 --[[
-    GRAYS ON TOP v3.0 — Redline Build
-    Silent Aim (FOV) | Auto-Farm | Teleport | Noclip/Speed/Fly | Mobile Toggle
-    Right Shift to toggle on PC. "GOT" logo to toggle on Mobile.
+    GRAYS ON TOP v3.3
+    Split Farm | Safe TP (Tween) | True Silent Aim | Xeno Optimized
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -12,13 +11,17 @@ local RS = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local WS = game:GetService("Workspace")
 local CG = game:GetService("CoreGui")
+local TS = game:GetService("TweenService")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
+local VIM = game:GetService("VirtualInputManager")
 
 local CFG = {
-    aim=false, aimFov=150, aimPart="Head",
-    farm=false, farmTool="Marshmallow Bag", farmPrompt="Craft", farmInt=0.5, farmDist=25,
-    tpDist=5, noclip=false, speed=false, ws=16, fly=false, flySpeed=60,
+    aim=false, aimFov=150,
+    farmMarsh=false, farmBox=false, farmInt=0.5, farmDist=25,
+    tpSafe=false, tpDist=5,
+    noclip=false, speed=false, ws=16, fly=false, flySpeed=60,
+    autoFire=false, autoFix=false,
     keyMenu=Enum.KeyCode.RightShift,
 }
 
@@ -27,11 +30,9 @@ local function getHui()
     return CG
 end
 
--- COLORS
 local COL = {
     bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(18,18,18), line=Color3.fromRGB(35,35,35),
     txt=Color3.fromRGB(240,240,240), dim=Color3.fromRGB(120,120,120), acc=Color3.fromRGB(255,40,40), 
-    dark=Color3.fromRGB(0,0,0), good=Color3.fromRGB(0,200,100)
 }
 
 local gui = Instance.new("ScreenGui")
@@ -42,159 +43,79 @@ gui.DisplayOrder=999999
 gui.Parent=getHui()
 getgenv().GOTGui=gui
 
--- MAIN WINDOW
 local main=Instance.new("Frame")
-main.Size=UDim2.new(0,360,0,420)
+main.Size=UDim2.new(0,360,0,440)
 main.Position=UDim2.new(0,20,0,50)
 main.BackgroundColor3=COL.bg
 main.BorderSizePixel=0
 main.Active=true
 main.Parent=gui
+local ms=Instance.new("UIStroke"); ms.Color=COL.line; ms.Thickness=1; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
 
-local ms=Instance.new("UIStroke")
-ms.Color=COL.line
-ms.Thickness=1
-ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
-ms.Parent=main
-
--- HEADER
 local head=Instance.new("Frame")
-head.Size=UDim2.new(1,0,0,40)
-head.BackgroundColor3=COL.panel
-head.BorderSizePixel=0
-head.Parent=main
-
-local hl=Instance.new("Frame")
-hl.Size=UDim2.new(1,0,0,1)
-hl.Position=UDim2.new(0,0,1,0)
-hl.BackgroundColor3=COL.acc
-hl.BorderSizePixel=0
-hl.Parent=head
+head.Size=UDim2.new(1,0,0,40); head.BackgroundColor3=COL.panel; head.BorderSizePixel=0; head.Parent=main
+local hl=Instance.new("Frame"); hl.Size=UDim2.new(1,0,0,1); hl.Position=UDim2.new(0,0,1,0); hl.BackgroundColor3=COL.acc; hl.BorderSizePixel=0; hl.Parent=head
 
 local wm=Instance.new("TextLabel")
-wm.Size=UDim2.new(1,-20,1,0)
-wm.Position=UDim2.new(0,12,0,0)
-wm.BackgroundTransparency=1
-wm.Text="GRAYS ON TOP"
-wm.TextColor3=COL.txt
-wm.Font=Enum.Font.GothamBlack
-wm.TextSize=14
-wm.TextXAlignment=Enum.TextXAlignment.Left
-wm.Parent=head
+wm.Size=UDim2.new(1,-20,1,0); wm.Position=UDim2.new(0,12,0,0); wm.BackgroundTransparency=1
+wm.Text="GRAYS ON TOP"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.GothamBlack; wm.TextSize=14; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
 
 local xBtn=Instance.new("TextButton")
-xBtn.Size=UDim2.new(0,30,1,0)
-xBtn.Position=UDim2.new(1,-30,0,0)
-xBtn.BackgroundTransparency=1
-xBtn.Text="×"
-xBtn.TextColor3=COL.dim
-xBtn.Font=Enum.Font.GothamBold
-xBtn.TextSize=20
-xBtn.Parent=head
+xBtn.Size=UDim2.new(0,30,1,0); xBtn.Position=UDim2.new(1,-30,0,0); xBtn.BackgroundTransparency=1; xBtn.Text="×"; xBtn.TextColor3=COL.dim; xBtn.Font=Enum.Font.GothamBold; xBtn.TextSize=20; xBtn.Parent=head
 xBtn.MouseButton1Click:Connect(function() main.Visible=false; if getgenv().mBtn then getgenv().mBtn.Text="GOT" end end)
 
--- CONTENT
-local scroll=Instance.new("ScrollingFrame")
-scroll.Size=UDim2.new(1,0,1,-40)
-scroll.Position=UDim2.new(0,0,0,40)
-scroll.BackgroundTransparency=1
-scroll.BorderSizePixel=0
-scroll.ScrollBarThickness=2
-scroll.ScrollBarImageColor3=COL.line
-scroll.CanvasSize=UDim2.new(0,0,0,0)
-scroll.Parent=main
+local tabBar=Instance.new("Frame")
+tabBar.Size=UDim2.new(1,0,0,30); tabBar.Position=UDim2.new(0,0,0,40); tabBar.BackgroundColor3=COL.panel; tabBar.BorderSizePixel=0; tabBar.Parent=main
+local tl=Instance.new("UIListLayout"); tl.FillDirection=Enum.FillDirection.Horizontal; tl.VerticalAlignment=Enum.VerticalAlignment.Center; tl.Parent=tabBar
 
-local list=Instance.new("UIListLayout")
-list.Padding=UDim.new(0,8)
-list.Parent=scroll
-local pad=Instance.new("UIPadding")
-pad.PaddingLeft=UDim.new(0,12)
-pad.PaddingRight=UDim.new(0,12)
-pad.PaddingTop=UDim.new(0,12)
-pad.Parent=scroll
-list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() scroll.CanvasSize=UDim2.new(0,0,0,list.AbsoluteContentSize.Y+24) end)
+local tabs, pages = {}, {}
 
-local function addSection(n)
-    local l=Instance.new("TextLabel")
-    l.Size=UDim2.new(1,0,0,16)
-    l.BackgroundTransparency=1
-    l.Text=string.upper(n)
-    l.TextColor3=COL.acc
-    l.Font=Enum.Font.GothamBold
-    l.TextSize=10
-    l.TextXAlignment=Enum.TextXAlignment.Left
-    l.Parent=scroll
-end
-
-local function addToggle(label,key)
-    local row=Instance.new("TextButton")
-    row.Size=UDim2.new(1,0,0,32)
-    row.BackgroundColor3=COL.panel
-    row.BorderSizePixel=0
-    row.AutoButtonColor=false
-    row.Text=""
-    row.Parent=scroll
-    
-    local lbl=Instance.new("TextLabel")
-    lbl.Size=UDim2.new(1,-40,1,0)
-    lbl.Position=UDim2.new(0,10,0,0)
-    lbl.BackgroundTransparency=1
-    lbl.Text=label
-    lbl.TextColor3=COL.txt
-    lbl.Font=Enum.Font.GothamBold
-    lbl.TextSize=12
-    lbl.TextXAlignment=Enum.TextXAlignment.Left
-    lbl.Parent=row
-    
-    local box=Instance.new("Frame")
-    box.Size=UDim2.new(0,14,0,14)
-    box.Position=UDim2.new(1,-24,0.5,-7)
-    box.BackgroundColor3=COL.bg
-    box.BorderSizePixel=0
-    box.Parent=row
-    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=box
-    
-    local fill=Instance.new("Frame")
-    fill.Size=UDim2.new(0,8,0,8)
-    fill.Position=UDim2.new(0.5,-4,0.5,-4)
-    fill.BackgroundColor3=COL.acc
-    fill.BorderSizePixel=0
-    fill.Visible=CFG[key]
-    fill.Parent=box
-    
-    row.MouseButton1Click:Connect(function()
-        CFG[key]=not CFG[key]
-        fill.Visible=CFG[key]
-    end)
-end
-
-local function addSlider(label,key,mn,mx)
-    local h=Instance.new("Frame")
-    h.Size=UDim2.new(1,0,0,36)
-    h.BackgroundColor3=COL.panel
-    h.Parent=scroll
-    local lbl=Instance.new("TextLabel")
-    lbl.Size=UDim2.new(1,-10,0,16)
-    lbl.Position=UDim2.new(0,10,0,4)
-    lbl.BackgroundTransparency=1
-    lbl.Text=label..": "..tostring(CFG[key])
-    lbl.TextColor3=COL.txt
-    lbl.Font=Enum.Font.GothamBold
-    lbl.TextSize=11
-    lbl.TextXAlignment=Enum.TextXAlignment.Left
-    lbl.Parent=h
-    local bar=Instance.new("Frame")
-    bar.Size=UDim2.new(1,-20,0,4)
-    bar.Position=UDim2.new(0,10,1,-10)
-    bar.BackgroundColor3=COL.bg
-    bar.Parent=h
-    local f=Instance.new("Frame")
-    f.Size=UDim2.new((CFG[key]-mn)/(mx-mn),0,1,0)
-    f.BackgroundColor3=COL.acc
-    f.Parent=bar
-    local drag=false
+local function addTab(name, width)
     local btn=Instance.new("TextButton")
-    btn.Size=UDim2.new(1,0,1,0); btn.BackgroundTransparency=1; btn.Text=""; btn.Parent=bar
+    btn.Size=UDim2.new(0,width,1,0); btn.BackgroundColor3=COL.panel; btn.BorderSizePixel=0; btn.Text=name
+    btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=tabBar
+    table.insert(tabs,btn)
+
+    local pg=Instance.new("ScrollingFrame")
+    pg.Size=UDim2.new(1,0,1,-70); pg.Position=UDim2.new(0,0,0,70); pg.BackgroundTransparency=1
+    pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.line; pg.CanvasSize=UDim2.new(0,0,0,0); pg.Visible=false; pg.Parent=main
+
+    local l=Instance.new("UIListLayout"); l.Padding=UDim.new(0,8); l.Parent=pg
+    local pd=Instance.new("UIPadding"); pd.PaddingLeft=UDim.new(0,12); pd.PaddingRight=UDim.new(0,12); pd.PaddingTop=UDim.new(0,12); pd.Parent=pg
+
+    local idx=#pages+1; table.insert(pages,pg)
+    btn.MouseButton1Click:Connect(function()
+        for i,p in ipairs(pages) do p.Visible=(i==idx) end
+        for i,b in ipairs(tabs) do
+            if i==idx then b.TextColor3=COL.acc; b.BackgroundColor3=COL.bg; b.Font=Enum.Font.GothamBold
+            else b.TextColor3=COL.dim; b.BackgroundColor3=COL.panel; b.Font=Enum.Font.GothamBold end
+        end
+    end)
+    l:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() pg.CanvasSize=UDim2.new(0,0,0,l.AbsoluteContentSize.Y+24) end)
+    return pg
+end
+
+local function addSection(p, n)
+    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,0,16); l.BackgroundTransparency=1
+    l.Text=string.upper(n); l.TextColor3=COL.dim; l.Font=Enum.Font.GothamBold; l.TextSize=10; l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=p
+end
+
+local function addToggle(p,label,key)
+    local row=Instance.new("TextButton"); row.Size=UDim2.new(1,0,0,32); row.BackgroundColor3=COL.panel; row.BorderSizePixel=0; row.AutoButtonColor=false; row.Text=""; row.Parent=p
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-40,1,0); lbl.Position=UDim2.new(0,10,0,0); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=12; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=row
+    local box=Instance.new("Frame"); box.Size=UDim2.new(0,14,0,14); box.Position=UDim2.new(1,-24,0.5,-7); box.BackgroundColor3=COL.bg; box.BorderSizePixel=0; box.Parent=row
+    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=box
+    local fill=Instance.new("Frame"); fill.Size=UDim2.new(0,8,0,8); fill.Position=UDim2.new(0.5,-4,0.5,-4); fill.BackgroundColor3=COL.acc; fill.BorderSizePixel=0; fill.Visible=CFG[key]; fill.Parent=box
+    row.MouseButton1Click:Connect(function() CFG[key]=not CFG[key]; fill.Visible=CFG[key] end)
+end
+
+local function addSlider(p,label,key,mn,mx)
+    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,36); h.BackgroundColor3=COL.panel; h.Parent=p
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,16); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label..": "..tostring(CFG[key]); lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=11; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
+    local bar=Instance.new("Frame"); bar.Size=UDim2.new(1,-20,0,4); bar.Position=UDim2.new(0,10,1,-10); bar.BackgroundColor3=COL.bg; bar.Parent=h
+    local f=Instance.new("Frame"); f.Size=UDim2.new((CFG[key]-mn)/(mx-mn),0,1,0); f.BackgroundColor3=COL.acc; f.Parent=bar
+    local drag=false
+    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,0,1,0); btn.BackgroundTransparency=1; btn.Text=""; btn.Parent=bar
     btn.MouseButton1Down:Connect(function() drag=true end)
     UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end)
     RS.RenderStepped:Connect(function()
@@ -202,73 +123,52 @@ local function addSlider(label,key,mn,mx)
         local mxPos=UIS:GetMouseLocation().X
         local fw=math.clamp((mxPos-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,0,1)
         CFG[key]=math.floor(mn+fw*(mx-mn))
-        f.Size=UDim2.new(fw,0,1,0)
-        lbl.Text=label..": "..tostring(CFG[key])
+        f.Size=UDim2.new(fw,0,1,0); lbl.Text=label..": "..tostring(CFG[key])
     end)
 end
 
--- UI BUILD
-addSection("Aim")
-addToggle("Silent Aim","aim")
-addSlider("FOV Radius","aimFov",50,400)
+local pgAim = addTab("AIM", 50)
+addSection(pgAim, "True Silent Aim")
+addToggle(pgAim, "Enable Silent Aim", "aim")
+addSlider(pgAim, "FOV Radius", "aimFov", 50, 400)
 
-addSection("Farm")
-addToggle("Auto-Farm","farm")
-addSlider("Farm Distance","farmDist",5,100)
+local pgCombat = addTab("COMBAT", 60)
+addSection(pgCombat, "Weapon")
+addToggle(pgCombat, "Auto Fire (Equip)", "autoFire")
+addToggle(pgCombat, "Auto Fix Jam", "autoFix")
 
-addSection("Teleport")
-addToggle("Teleport to Nearest","tpNearest")
+local pgFarm = addTab("FARM", 50)
+addSection(pgFarm, "Marshmallow")
+addToggle(pgFarm, "Auto Farm Marshmallow", "farmMarsh")
+addSection(pgFarm, "Box")
+addToggle(pgFarm, "Auto Farm Box", "farmBox")
+addSlider(pgFarm, "Radius", "farmDist", 5, 100)
 
-addSection("Movement")
-addToggle("Noclip","noclip")
-addToggle("Speed","speed")
-addSlider("Walkspeed","ws",16,200)
-addToggle("Fly","fly")
-addSlider("Fly Speed","flySpeed",10,200)
+local pgTp = addTab("TP", 40)
+addSection(pgTp, "Safe Teleport")
+addToggle(pgTp, "Teleport Nearest (Undetected)", "tpSafe")
 
--- MOBILE LOGO TOGGLE
+local pgMove = addTab("MOVE", 50)
+addSection(pgMove, "Speed & Jump")
+addToggle(pgMove, "Noclip", "noclip")
+addToggle(pgMove, "Speed Hack", "speed")
+addSlider(pgMove, "Walkspeed", "ws", 16, 200)
+addToggle(pgMove, "Fly", "fly")
+addSlider(pgMove, "Fly Speed", "flySpeed", 10, 200)
+
+for i,p in ipairs(pages) do p.Visible=(i==1) end
+tabs[1].TextColor3=COL.acc; tabs[1].BackgroundColor3=COL.bg
+
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
 if isMobile then
-    local mBtn = Instance.new("TextButton")
-    mBtn.Size = UDim2.new(0, 54, 0, 54)
-    mBtn.Position = UDim2.new(0, 20, 0, 100)
-    mBtn.BackgroundColor3 = COL.bg
-    mBtn.BorderSizePixel = 0
-    mBtn.Text = "GOT"
-    mBtn.TextColor3 = COL.txt
-    mBtn.Font = Enum.Font.GothamBlack
-    mBtn.TextSize = 14
-    mBtn.ZIndex = 100
-    mBtn.Parent = gui
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = COL.acc
-    stroke.Thickness = 2
-    stroke.Parent = mBtn
-    
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(1, 0)
-    c.Parent = mBtn
-
-    -- draggable logic for mobile
+    local mBtn = Instance.new("TextButton"); mBtn.Size = UDim2.new(0, 54, 0, 54); mBtn.Position = UDim2.new(0, 20, 0, 100); mBtn.BackgroundColor3 = COL.bg; mBtn.BorderSizePixel = 0; mBtn.Text = "GOT"; mBtn.TextColor3 = COL.txt; mBtn.Font = Enum.Font.GothamBlack; mBtn.TextSize = 14; mBtn.ZIndex = 100; mBtn.Parent = gui
+    local stroke = Instance.new("UIStroke"); stroke.Color = COL.acc; stroke.Thickness = 2; stroke.Parent = mBtn
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = mBtn
     local drag,ds,sp
-    mBtn.InputBegan:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.Touch then drag=true; ds=i.Position; sp=mBtn.Position end
-    end)
-    UIS.InputChanged:Connect(function(i)
-        if drag and i.UserInputType==Enum.UserInputType.Touch then
-            local d=i.Position-ds
-            mBtn.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
-        end
-    end)
-    UIS.InputEnded:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.Touch then drag=false end
-    end)
-
-    mBtn.MouseButton1Click:Connect(function()
-        main.Visible = not main.Visible
-        mBtn.Text = main.Visible and "X" or "GOT"
-    end)
+    mBtn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch then drag=true; ds=i.Position; sp=mBtn.Position end end)
+    UIS.InputChanged:Connect(function(i) if drag and i.UserInputType==Enum.UserInputType.Touch then local d=i.Position-ds; mBtn.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end end)
+    UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch then drag=false end end)
+    mBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible; mBtn.Text = main.Visible and "X" or "GOT" end)
     getgenv().mBtn = mBtn
 end
 
@@ -280,24 +180,13 @@ UIS.InputBegan:Connect(function(i,pr)
     end
 end)
 
--- DRAG PC WINDOW
 local drag,ds,sp
-head.InputBegan:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-        drag=true; ds=i.Position; sp=main.Position
-    end
-end)
-UIS.InputChanged:Connect(function(i)
-    if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
-        local d=i.Position-ds
-        main.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
-    end
-end)
-UIS.InputEnded:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
-end)
+head.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=true; ds=i.Position; sp=main.Position end end)
+UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-ds; main.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end)
 
--- ENGINE: SILENT AIM (Metatable Hook)
+-- ENGINE: SILENT AIM (No Auto-Lock)
+-- Nge-hook metatable. Pas lu nembak, kamera diem, tapi mouse.Hit ngarah ke target.
 if typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" and typeof(newcclosure)=="function" then
     local mouse=LP:GetMouse()
     local mt=getrawmetatable(game)
@@ -334,17 +223,20 @@ if typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" and t
     setreadonly(mt,true)
 end
 
--- ENGINE: FARM
+-- ENGINE: FARM (Split)
 task.spawn(function()
     while true do
-        if CFG.farm then
+        if CFG.farmMarsh or CFG.farmBox then
             pcall(function()
                 local hrp=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     for _,d in ipairs(WS:GetDescendants()) do
                         if d:IsA("ProximityPrompt") and d.Parent:IsA("BasePart") then
                             if (d.Parent.Position-hrp.Position).Magnitude<CFG.farmDist then
-                                if d.ActionText==CFG.farmPrompt or d.Parent.Name:find(CFG.farmTool,1,true) then
+                                local pName = d.Parent.Name:lower()
+                                local aText = d.ActionText:lower()
+                                if (CFG.farmMarsh and (pName:find("marsh") or aText:find("marsh") or pName:find("craft"))) 
+                                or (CFG.farmBox and (pName:find("box") or aText:find("box") or pName:find("crate") or pName:find("loot"))) then
                                     if fireproximityprompt then fireproximityprompt(d) end
                                 end
                             end
@@ -359,48 +251,135 @@ task.spawn(function()
     end
 end)
 
--- ENGINE: TELEPORT
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if CFG.tpNearest then
-            local nearest, nd = nil, math.huge
-            local my=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-            if my then
+-- ENGINE: SAFE TELEPORT (Tween)
+local tpConn = nil
+local function startSafeTP()
+    if tpConn then return end
+    tpConn = task.spawn(function()
+        while CFG.tpSafe do
+            task.wait(1)
+            local myChar = LP.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if myHrp then
+                local nearest, nd = nil, math.huge
                 for _,p in ipairs(P:GetPlayers()) do
                     if p~=LP then
                         local hrp=p.Character and p.Character:FindFirstChild("HumanoidRootPart")
                         if hrp then
-                            local d=(hrp.Position-my.Position).Magnitude
+                            local d=(hrp.Position-myHrp.Position).Magnitude
                             if d<nd then nd=d; nearest=hrp end
                         end
                     end
                 end
-                if nearest then
-                    my.CFrame = nearest.CFrame * CFrame.new(0,0,CFG.tpDist)
+                if nearest and nd > CFG.tpDist then
+                    -- Tween biar kaya jalan, bukan teleport instan
+                    local targetPos = nearest.CFrame * CFrame.new(0, 0, CFG.tpDist)
+                    local dist = (myHrp.Position - targetPos.Position).Magnitude
+                    local time = math.clamp(dist / 100, 0.5, 2) -- Makin jauh, makin lama
+                    local tween = TS:Create(myHrp, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = targetPos})
+                    tween:Play()
                 end
             end
         end
+    end)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if CFG.tpSafe and not tpConn then startSafeTP()
+        elseif not CFG.tpSafe and tpConn then tpConn = nil end
     end
 end)
 
--- ENGINE: NOCLIP / SPEED
+-- ENGINE: AUTO-FIRE & AUTO-FIX
+local autoFireConn = nil
+local function fixJam(tool)
+    if not tool then return end
+    if tool.Reload and typeof(tool.Reload) == "function" then pcall(function() tool:Reload() end) end
+    for _, v in pairs(tool:GetDescendants()) do
+        if v:IsA("BoolValue") and (v.Name:lower():find("jam") or v.Name:lower():find("overheat") or v.Name:lower():find("broken")) then v.Value = false end
+        if v:IsA("NumberValue") and v.Name:lower():find("heat") then v.Value = 0 end
+    end
+end
+
+local function startAutoFire()
+    if autoFireConn then return end
+    autoFireConn = RS.RenderStepped:Connect(function()
+        local char = LP.Character
+        if not char then return end
+        local tool = char:FindFirstChildWhichIsA("Tool")
+        if tool then
+            if CFG.autoFix then fixJam(tool) end
+            if CFG.autoFire then
+                pcall(function()
+                    VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                    VIM:SendMouseButtonEvent(0, 0,0, false, game, 0)
+                end)
+                if tool.Activate and typeof(tool.Activate) == "function" then pcall(function() tool:Activate() end) end
+            end
+        end
+        task.wait(0.1)
+    end)
+end
+
+local function stopAutoFire()
+    if autoFireConn then autoFireConn:Disconnect(); autoFireConn = nil end
+end
+
+local function setupToolEvents(char)
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") and (CFG.autoFire or CFG.autoFix) then startAutoFire() end
+    end)
+    char.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then stopAutoFire() end
+    end)
+    if char:FindFirstChildWhichIsA("Tool") and (CFG.autoFire or CFG.autoFix) then startAutoFire() end
+end
+
+if LP.Character then setupToolEvents(LP.Character) end
+LP.CharacterAdded:Connect(setupToolEvents)
+
+-- ENGINE: NOCLIP (Optimized)
+local noclipConn = nil
+local function updateNoclip()
+    if CFG.noclip then
+        if not noclipConn then
+            noclipConn = LP.CharacterAdded:Connect(function()
+                task.wait(0.1)
+                if CFG.noclip and LP.Character then
+                    for _, p in ipairs(LP.Character:GetDescendants()) do
+                        if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end
+                    end
+                end
+            end)
+        end
+        if LP.Character then
+            for _, p in ipairs(LP.Character:GetDescendants()) do
+                if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end
+            end
+        end
+    else
+        if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+        if LP.Character then
+            for _, p in ipairs(LP.Character:GetDescendants()) do
+                if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end
+            end
+        end
+    end
+end
+task.spawn(function() while true do updateNoclip(); task.wait(1) end end)
+
+-- ENGINE: SPEED
 RS.Stepped:Connect(function()
     local c=LP.Character
     if not c then return end
-    if CFG.noclip then
-        for _,p in ipairs(c:GetDescendants()) do
-            if p:IsA("BasePart") and p.CanCollide then p.CanCollide=false end
-        end
-    end
     local hum=c:FindFirstChildOfClass("Humanoid")
-    if hum then
-        if CFG.speed then hum.WalkSpeed=CFG.ws end
-    end
+    if hum and CFG.speed then hum.WalkSpeed=CFG.ws end
 end)
 
 -- ENGINE: FLY
-local flyBV, flyBG, flyConn
+local flyBV, flyConn
 task.spawn(function()
     local was=false
     while true do
@@ -408,9 +387,7 @@ task.spawn(function()
         if CFG.fly and not was then
             local hrp=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
-                flyBV=Instance.new("BodyVelocity")
-                flyBV.MaxForce=Vector3.new(1e5,1e5,1e5)
-                flyBV.Parent=hrp
+                flyBV=Instance.new("BodyVelocity"); flyBV.MaxForce=Vector3.new(1e5,1e5,1e5); flyBV.Parent=hrp
                 flyConn=RS.RenderStepped:Connect(function()
                     local h=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                     if not h or not flyBV then return end
@@ -423,11 +400,11 @@ task.spawn(function()
                 end)
             end
         elseif not CFG.fly and was then
-            if flyConn then flyConn:Disconnect() flyConn=nil end
-            if flyBV then flyBV:Destroy() flyBV=nil end
+            if flyConn then flyConn:Disconnect(); flyConn=nil end
+            if flyBV then flyBV:Destroy(); flyBV=nil end
         end
         was=CFG.fly
     end
 end)
 
-print("[GRAYS ON TOP] v3.0 Redline loaded.")
+print("[GRAYS ON TOP] v3.3 loaded.")
