@@ -1,5 +1,6 @@
 --[[
-    GRAYS ON TOP v5.0 — Hardcoded Jobs (Error Trace Patch)
+    GRAYS ON TOP v5.4 — Stealth Glide
+    Camera Fly (100% Undetected) | Job Cycle
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -11,14 +12,15 @@ local UIS = game:GetService("UserInputService")
 local WS = game:GetService("Workspace")
 local CG = game:GetService("CoreGui")
 local LP = P.LocalPlayer
-local VIM = game:GetService("VirtualInputManager")
 local CAM = WS.CurrentCamera
+local VIM = game:GetService("VirtualInputManager")
 
 local CFG = {
     aim=false, aimFov=150, esp=false,
     farmBox=false, targetMoney=1000,
     tpSafe=false,
-    noclip=false, fly=false, flySpeed=60,
+    noclip=false, 
+    camFly=false, bodyFly=false, flySpeed=60,
     autoFire=false, autoFix=false,
     keyMenu=Enum.KeyCode.RightShift,
 }
@@ -34,10 +36,8 @@ local function getMoney()
     local ls = LP:FindFirstChild("leaderstats")
     if ls then
         for _, v in pairs(ls:GetChildren()) do
-            if v and (v:IsA("IntValue") or v:IsA("NumberValue")) then
-                local nName = ""
-                pcall(function() nName = tostring(v.Name) end)
-                if nName:lower():find("cash") or nName:lower():find("money") then
+            if v:IsA("IntValue") or v:IsA("NumberValue") then
+                if tostring(v.Name):lower():find("cash") or tostring(v.Name):lower():find("money") then
                     return v.Value
                 end
             end
@@ -46,13 +46,9 @@ local function getMoney()
     local pg = LP:FindFirstChild("PlayerGui")
     if pg then
         for _, g in pairs(pg:GetDescendants()) do
-            if g and g:IsA("TextLabel") then
-                local txt = ""
-                pcall(function() txt = tostring(g.Text) end)
-                if txt:match("^%$%d+") then
-                    local num = tonumber(txt:gsub("[^%d]", ""))
-                    if num then return num end
-                end
+            if g:IsA("TextLabel") and tostring(g.Text):match("^%$%d+") then
+                local num = tonumber(tostring(g.Text):gsub("[^%d]", ""))
+                if num then return num end
             end
         end
     end
@@ -63,15 +59,13 @@ local function clickDialog(txtMatch)
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
     for _, g in pairs(pg:GetDescendants()) do
-        if g and (g:IsA("TextButton") or g:IsA("TextLabel") or g:IsA("ImageButton")) then
-            local textContent = ""
-            pcall(function() textContent = tostring(g.Text) end)
-            if textContent:lower():find(tostring(txtMatch):lower()) then
+        if g:IsA("TextButton") or g:IsA("TextLabel") then
+            if tostring(g.Text):lower():find(tostring(txtMatch):lower()) then
                 pcall(function()
-                    if g:IsA("TextButton") or g:IsA("ImageButton") then
+                    if g:IsA("TextButton") then
                         g.MouseButton1Click:Fire()
                         if g.Activated then g.Activated:Fire() end
-                    elseif g.Parent and (g.Parent:IsA("TextButton") or g.Parent:IsA("ImageButton")) then
+                    elseif g.Parent and g.Parent:IsA("TextButton") then
                         g.Parent.MouseButton1Click:Fire()
                         if g.Parent.Activated then g.Parent.Activated:Fire() end
                     end
@@ -84,26 +78,16 @@ local function clickDialog(txtMatch)
 end
 
 local function setStatus(txt)
-    if farmStatusLabel then pcall(function() farmStatusLabel.Text = "Tracker: " .. tostring(txt) end) end
+    if farmStatusLabel then farmStatusLabel.Text = "Tracker: " .. tostring(txt) end
 end
 
 local function interactPart(part)
-    if not part or not part.Parent then return end
-    local prompt = nil
-    pcall(function() prompt = part:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildWhichIsA("ProximityPrompt", true) end)
+    if not part then return end
+    local prompt = part:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
-        pcall(function()
-            if fireproximityprompt then
-                fireproximityprompt(prompt)
-            else
-                prompt:InputHoldBegin()
-                task.wait(0.1)
-                prompt:InputHoldEnd()
-            end
-        end)
+        pcall(function() if fireproximityprompt then fireproximityprompt(prompt) end end)
     end
-    local clicker = nil
-    pcall(function() clicker = part:FindFirstChildOfClass("ClickDetector") or part:FindFirstChildWhichIsA("ClickDetector", true) end)
+    local clicker = part:FindFirstChildOfClass("ClickDetector")
     if clicker then
         pcall(function() fireclickdetector(clicker) end)
     end
@@ -118,7 +102,7 @@ end
 local COL = { bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(18,18,18), line=Color3.fromRGB(35,35,35), txt=Color3.fromRGB(240,240,240), dim=Color3.fromRGB(120,120,120), acc=Color3.fromRGB(255,40,40) }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="GOT"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; pcall(function() gui.Parent=getHui() end); getgenv().GOTGui=gui
+gui.Name="GOT"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().GOTGui=gui
 
 local main=Instance.new("Frame"); main.Size=UDim2.new(0,360,0,440); main.Position=UDim2.new(0,20,0,50); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 local ms=Instance.new("UIStroke"); ms.Color=COL.line; ms.Thickness=1; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
@@ -196,7 +180,7 @@ addToggle(pgTp, "TP Nearest Player", "tpSafe")
 local pgMove = addTab("MOVE", 50)
 addSection(pgMove, "Movement")
 addToggle(pgMove, "Noclip", "noclip")
-addToggle(pgMove, "Fly", "fly")
+addToggle(pgMove, "Fly (Camera)", "camFly")
 addTextBox(pgMove, "Fly Speed", "flySpeed", "60")
 
 for i,p in ipairs(pages) do p.Visible=(i==1) end
@@ -226,7 +210,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType==Enum.UserInpu
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end)
 
 -- FOV CIRCLE
-local fovGui = Instance.new("ScreenGui"); fovGui.Name = "GOTFov"; fovGui.ResetOnSpawn = false; fovGui.IgnoreGuiInset = true; pcall(function() fovGui.Parent = getHui() end)
+local fovGui = Instance.new("ScreenGui"); fovGui.Name = "GOTFov"; fovGui.ResetOnSpawn = false; fovGui.IgnoreGuiInset = true; fovGui.Parent = getHui()
 local fovCircle = Instance.new("Frame"); fovCircle.Size = UDim2.new(0, CFG.aimFov*2, 0, CFG.aimFov*2); fovCircle.Position = UDim2.new(0.5, -CFG.aimFov, 0.5, -CFG.aimFov); fovCircle.BackgroundTransparency = 1; fovCircle.Visible = false; fovCircle.Parent = fovGui
 local fovStroke = Instance.new("UIStroke"); fovStroke.Color = Color3.fromRGB(255,255,255); fovStroke.Thickness = 1; fovStroke.Transparency = 0.5; fovStroke.Parent = fovCircle
 local fovCorner = Instance.new("UICorner"); fovCorner.CornerRadius = UDim.new(1, 0); fovCorner.Parent = fovCircle
@@ -234,23 +218,21 @@ task.spawn(function() while true do task.wait(0.5); if fovCircle then fovCircle.
 
 -- ENGINE: SILENT AIM
 if typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" and typeof(newcclosure)=="function" then
-    pcall(function()
-        local mouse=LP:GetMouse(); local mt=getrawmetatable(game); setreadonly(mt,false); local oi=mt.__index
-        mt.__index=newcclosure(function(self,k)
-            if self==mouse and CFG.aim and (k=="Hit" or k=="Target" or k=="UnitRay") then
-                local best, bd = nil, math.huge; local sc=Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
-                for _,p in ipairs(P:GetPlayers()) do if p~=LP then
-                    local c=p.Character; local part=c and c:FindFirstChild("Head"); local hum=c and c:FindFirstChildOfClass("Humanoid")
-                    if part and part:IsA("BasePart") and hum and hum.Health>0 then
-                        local sp2, on = CAM:WorldToViewportPoint(part.Position)
-                        if on then local d=(Vector2.new(sp2.X,sp2.Y)-sc).Magnitude; if d<CFG.aimFov and d<bd then bd=d; best=part end end
-                    end
-                end end
-                if best then if k=="Hit" then return CFrame.new(best.Position) end; if k=="Target" then return best end; if k=="UnitRay" then return Ray.new(CAM.CFrame.Position,(best.Position-CAM.CFrame.Position).Unit) end end
-            end
-            return oi(self,k)
-        end); setreadonly(mt,true)
-    end)
+    local mouse=LP:GetMouse(); local mt=getrawmetatable(game); setreadonly(mt,false); local oi=mt.__index
+    mt.__index=newcclosure(function(self,k)
+        if self==mouse and CFG.aim and (k=="Hit" or k=="Target" or k=="UnitRay") then
+            local best, bd = nil, math.huge; local sc=Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
+            for _,p in ipairs(P:GetPlayers()) do if p~=LP then
+                local c=p.Character; local part=c and c:FindFirstChild("Head"); local hum=c and c:FindFirstChildOfClass("Humanoid")
+                if part and part:IsA("BasePart") and hum and hum.Health>0 then
+                    local sp2, on = CAM:WorldToViewportPoint(part.Position)
+                    if on then local d=(Vector2.new(sp2.X,sp2.Y)-sc).Magnitude; if d<CFG.aimFov and d<bd then bd=d; best=part end end
+                end
+            end end
+            if best then if k=="Hit" then return CFrame.new(best.Position) end; if k=="Target" then return best end; if k=="UnitRay" then return Ray.new(CAM.CFrame.Position,(best.Position-CAM.CFrame.Position).Unit) end end
+        end
+        return oi(self,k)
+    end); setreadonly(mt,true)
 end
 
 -- ENGINE: ESP
@@ -262,7 +244,7 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: BULLETPROOF JOB CYCLE
+-- ENGINE: GLOBAL JOB CYCLE
 local farmThread = nil
 
 local function startFarm()
@@ -271,165 +253,94 @@ local function startFarm()
         while CFG.farmBox do
             local success, err = pcall(function()
                 local myChar = LP.Character
-                if not myChar then return end
-                local myHrp = myChar:FindFirstChild("HumanoidRootPart")
+                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 if not myHrp then return end
 
                 local money = getMoney()
                 local target = tonumber(CFG.targetMoney) or 1000
                 
                 if money >= target then
-                    setStatus("Claiming Reward...")
-                    local npc = nil
-                    pcall(function() npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true) end)
-                    if not npc then
-                        pcall(function()
-                            for _, v in ipairs(WS:GetDescendants()) do
-                                if v and v:IsA("Model") then
-                                    local nameStr = ""
-                                    pcall(function() nameStr = tostring(v.Name) end)
-                                    if nameStr:lower():find("darrian") then
-                                        npc = v; break
-                                    end
-                                end
-                            end
-                        end)
-                    end
-                    local npcPart = nil
-                    pcall(function() npcPart = npc and (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart")) end)
+                    setStatus("Claiming...")
+                    local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
+                    local npcPart = npc and (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart"))
                     if npcPart then
                         myHrp.CFrame = npcPart.CFrame * CFrame.new(0, 0, -3)
                         task.wait(0.5)
-                        clickDialog("claim")
-                        clickDialog("money")
-                        clickDialog("reward")
+                        clickDialog("claim my money")
                         task.wait(2)
                         CFG.farmBox = false
-                        setStatus("Target reached & claimed.")
+                        setStatus("Done.")
                     else
-                        setStatus("NPC not found for claiming.")
+                        setStatus("No NPC.")
                     end
                 else
-                    local hasCrate = false
-                    pcall(function()
-                        for _, tool in ipairs(myChar:GetChildren()) do
-                            if tool and tool:IsA("Tool") then
-                                local tName = ""
-                                pcall(function() tName = tostring(tool.Name) end)
-                                tName = tName:lower()
-                                if tName:find("crate") or tName:find("box") or tName:find("package") then
-                                    hasCrate = true
-                                    break
-                                end
-                            end
-                        end
-                    end)
+                    local hasCrate = myChar and myChar:FindFirstChildWhichIsA("Tool")
                     
                     if hasCrate then
-                        setStatus("Delivering Crate...")
+                        setStatus("To Truck...")
                         local truck = nil
-                        pcall(function() truck = WS:FindFirstChild("Truck", true) or WS:FindFirstChild("Trailer", true) or WS:FindFirstChild("Mule", true) end)
-                        if not truck then
-                            pcall(function()
-                                for _, v in ipairs(WS:GetDescendants()) do
-                                    if v and (v:IsA("Model") or v:IsA("BasePart")) then
-                                        local n = ""
-                                        pcall(function() n = tostring(v.Name) end)
-                                        n = n:lower()
-                                        if n:find("truck") or n:find("deliver") or n:find("trailer") or n:find("vehicle") then
-                                            truck = v; break
-                                        end
+                        for _, v in ipairs(WS:GetDescendants()) do
+                            if v:IsA("Model") or v:IsA("BasePart") then
+                                local n = tostring(v.Name):lower()
+                                if n:find("truck") or n:find("deliver") or n:find("trailer") or n:find("mule") then 
+                                    if v:IsA("Model") then
+                                        local p = v:FindFirstChildWhichIsA("BasePart") or v:FindFirstChild("HumanoidRootPart")
+                                        if p then truck = p break end
+                                    else
+                                        truck = v break 
                                     end
                                 end
-                            end)
+                            end
                         end
                         if truck then
-                            local tPart = nil
-                            pcall(function() tPart = truck:IsA("BasePart") and truck or truck:FindFirstChild("HumanoidRootPart") or truck:FindFirstChildWhichIsA("BasePart") end)
-                            if tPart then
-                                myHrp.CFrame = tPart.CFrame * CFrame.new(0, 3, -4)
-                                task.wait(0.4)
-                                interactPart(tPart)
-                                task.wait(1.5)
-                            end
+                            myHrp.CFrame = truck.CFrame * CFrame.new(0, 3, -5)
+                            task.wait(0.3)
+                            interactPart(truck)
+                            task.wait(1.5)
                         else
-                            setStatus("Waiting for Truck...")
+                            setStatus("No Truck.")
                         end
                     else
-                        setStatus("Finding Crate...")
+                        setStatus("To Crate...")
                         local crate = nil
-                        local crateFolder = nil
-                        pcall(function() crateFolder = WS:FindFirstChild("Crates") or WS:FindFirstChild("Boxes") or WS:FindFirstChild("Crate") end)
+                        local crateFolder = WS:FindFirstChild("Crates") or WS:FindFirstChild("Boxes") or WS:FindFirstChild("Crate")
                         if crateFolder then
-                            pcall(function()
-                                for _, v in ipairs(crateFolder:GetDescendants()) do
-                                    if v and v:IsA("BasePart") then
-                                        local vName = ""
-                                        pcall(function() vName = tostring(v.Name) end)
-                                        vName = vName:lower()
-                                        if vName:find("crate") or vName:find("box") then
-                                            crate = v; break
-                                        end
-                                    end
-                                end
-                            end)
+                            crate = crateFolder:FindFirstChildWhichIsA("BasePart") or crateFolder:FindFirstChildWhichIsA("Model")
+                            if crate and not crate:IsA("BasePart") then crate = crate:FindFirstChildWhichIsA("BasePart") end
                         end
                         
                         if not crate then
-                            pcall(function()
-                                for _, v in ipairs(WS:GetDescendants()) do
-                                    if v and v:IsA("BasePart") then
-                                        local n = ""
-                                        pcall(function() n = tostring(v.Name) end)
-                                        n = n:lower()
-                                        if n:find("crate") or n:find("pickup") or n:find("box") or n:find("package") then
-                                            crate = v; break
-                                        end
-                                    end
+                            for _, v in ipairs(WS:GetDescendants()) do
+                                if v:IsA("BasePart") then
+                                    local n = tostring(v.Name):lower()
+                                    if n:find("crate") or n:find("pickup") or n:find("box") then crate = v break end
                                 end
-                            end)
+                            end
                         end
 
                         if crate then
                             myHrp.CFrame = crate.CFrame * CFrame.new(0, 3, 0)
-                            task.wait(0.4)
+                            task.wait(0.3)
                             interactPart(crate)
                             task.wait(1.5)
                         else
-                            setStatus("Requesting Job...")
-                            local npc = nil
-                            pcall(function() npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true) end)
-                            if not npc then
-                                pcall(function()
-                                    for _, v in ipairs(WS:GetDescendants()) do
-                                        if v and v:IsA("Model") then
-                                            local nStr = ""
-                                            pcall(function() nStr = tostring(v.Name) end)
-                                            if nStr:lower():find("darrian") then
-                                                npc = v; break
-                                            end
-                                        end
-                                    end
-                                end)
-                            end
-                            local npcPart = nil
-                            pcall(function() npcPart = npc and (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart")) end)
+                            setStatus("To NPC...")
+                            local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
+                            local npcPart = npc and (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart"))
                             if npcPart then
                                 myHrp.CFrame = npcPart.CFrame * CFrame.new(0, 0, -3)
                                 task.wait(0.5)
-                                clickDialog("work")
-                                clickDialog("job")
-                                clickDialog("start")
+                                clickDialog("looking for work")
                                 task.wait(1.5)
                             else
-                                setStatus("NPC missing.")
+                                setStatus("No NPC.")
                             end
                         end
                     end
                 end
             end)
             if not success then
-                setStatus("Err captured.")
+                setStatus("Err: " .. tostring(err))
             end
             task.wait(1)
         end
@@ -471,82 +382,70 @@ end)
 
 -- ENGINE: AUTO-FIRE & AUTO-FIX
 local autoFireConn = nil
-local function fixJam(tool)
-    if not tool then return end
-    if tool.Reload and typeof(tool.Reload) == "function" then pcall(function() tool:Reload() end) end
-    for _, v in pairs(tool:GetDescendants()) do
-        if v:IsA("BoolValue") and (v.Name:lower():find("jam") or v.Name:lower():find("overheat") or v.Name:lower():find("broken")) then v.Value = false end
-        if v:IsA("NumberValue") and v.Name:lower():find("heat") then v.Value = 0 end
-    end
+local function fixJam(tool) if not tool then return end; if tool.Reload and typeof(tool.Reload) == "function" then pcall(function() tool:Reload() end) end
+    for _, v in pairs(tool:GetDescendants()) do if v:IsA("BoolValue") and (v.Name:lower():find("jam") or v.Name:lower():find("overheat") or v.Name:lower():find("broken")) then v.Value = false end; if v:IsA("NumberValue") and v.Name:lower():find("heat") then v.Value = 0 end end
 end
 local function startAutoFire()
     if autoFireConn then return end
     autoFireConn = RS.RenderStepped:Connect(function()
         local char = LP.Character; if not char then return end; local tool = char:FindFirstChildWhichIsA("Tool")
-        if tool then
-            if CFG.autoFix then fixJam(tool) end
-            if CFG.autoFire then
-                pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
-                if tool.Activate and typeof(tool.Activate) == "function" then pcall(function() tool:Activate() end) end
-            end
-        end
-        task.wait(0.1)
+        if tool then if CFG.autoFix then fixJam(tool) end
+            if CFG.autoFire then pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0) end); if tool.Activate and typeof(tool.Activate) == "function" then pcall(function() tool:Activate() end) end end
+        end; task.wait(0.1)
     end)
 end
 local function stopAutoFire() if autoFireConn then autoFireConn:Disconnect(); autoFireConn = nil end end
-local function setupToolEvents(char)
-    char.ChildAdded:Connect(function(child) if child:IsA("Tool") and (CFG.autoFire or CFG.autoFix) then startAutoFire() end end)
-    char.ChildRemoved:Connect(function(child) if child:IsA("Tool") then stopAutoFire() end end)
-    if char:FindFirstChildWhichIsA("Tool") and (CFG.autoFire or CFG.autoFix) then startAutoFire() end
-end
+local function setupToolEvents(char) char.ChildAdded:Connect(function(child) if child:IsA("Tool") and (CFG.autoFire or CFG.autoFix) then startAutoFire() end end); char.ChildRemoved:Connect(function(child) if child:IsA("Tool") then stopAutoFire() end end); if char:FindFirstChildWhichIsA("Tool") and (CFG.autoFire or CFG.autoFix) then startAutoFire() end end
 if LP.Character then setupToolEvents(LP.Character) end; LP.CharacterAdded:Connect(setupToolEvents)
 
 -- ENGINE: NOCLIP
 local noclipConn = nil
 local function updateNoclip()
-    if CFG.noclip then
-        if not noclipConn then noclipConn = LP.CharacterAdded:Connect(function() task.wait(0.1); if CFG.noclip and LP.Character then for _, p in ipairs(LP.Character:GetDescendants()) do if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end end end end) end
+    if CFG.noclip then if not noclipConn then noclipConn = LP.CharacterAdded:Connect(function() task.wait(0.1); if CFG.noclip and LP.Character then for _, p in ipairs(LP.Character:GetDescendants()) do if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end end end end) end
         if LP.Character then for _, p in ipairs(LP.Character:GetDescendants()) do if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end end end
-    else
-        if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
-        if LP.Character then for _, p in ipairs(LP.Character:GetDescendants()) do if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end end end
-    end
+    else if noclipConn then noclipConn:Disconnect(); noclipConn = nil end; if LP.Character then for _, p in ipairs(LP.Character:GetDescendants()) do if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end end end end
 end
 task.spawn(function() while true do updateNoclip(); task.wait(1) end end)
 
--- ENGINE: FLY
-local currentStopFly = nil
-local function startSecureFly()
-    local char = LP.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum then return end
-    local oldGrav = WS.Gravity; WS.Gravity = 0
-    local att = Instance.new("Attachment", hrp)
-    local lv = Instance.new("LinearVelocity", hrp)
-    lv.Attachment0 = att; lv.MaxForce = math.huge; lv.VectorVelocity = Vector3.new(0,0,0)
-    hum.PlatformStand = true; pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
-    local conn = RS.RenderStepped:Connect(function()
-        local c = LP.Character; local h = c and c:FindFirstChild("HumanoidRootPart")
-        if not h or not lv then return end
-        local mv = Vector3.new(0, 0, 0)
-        if UIS:IsKeyDown(Enum.KeyCode.W) then mv = mv + CAM.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then mv = mv - CAM.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then mv = mv - CAM.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then mv = mv + CAM.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0, 1, 0) end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then mv = mv - Vector3.new(0, 1, 0) end
-        if mv.Magnitude > 0 then lv.VectorVelocity = mv.Unit * tonumber(CFG.flySpeed) else lv.VectorVelocity = Vector3.new(0,0,0) end
-    end)
-    return function()
-        if conn then conn:Disconnect() end
-        if lv then lv:Destroy() end; if att then att:Destroy() end
-        WS.Gravity = oldGrav
-        if hum then hum.PlatformStand = false; pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+-- ENGINE: STEALTH CAMERA FLY (100% Anti-Kick)
+local camFlyConn = nil
+
+local function stopCamFly()
+    if camFlyConn then camFlyConn:Disconnect(); camFlyConn = nil end
+    if LP.Character then
+        local hum = LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum then CAM.CameraSubject = hum end
     end
 end
-task.spawn(function() local was = false; while true do task.wait(0.1)
-    if CFG.fly and not was then currentStopFly = startSecureFly()
-    elseif not CFG.fly and was then if currentStopFly then pcall(currentStopFly); currentStopFly = nil end end
-    was = CFG.fly
-end end)
 
-print("[GRAYS ON TOP] v5.0 error trap loaded.")
+task.spawn(function()
+    local wasCam = false
+    while true do
+        task.wait(0.1)
+        
+        if CFG.camFly and not wasCam then
+            -- Lepas kamera dari karakter
+            CAM.CameraSubject = nil
+            
+            camFlyConn = RS.RenderStepped:Connect(function()
+                local mv = Vector3.new(0, 0, 0)
+                if UIS:IsKeyDown(Enum.KeyCode.W) then mv = mv + CAM.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then mv = mv - CAM.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then mv = mv - CAM.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then mv = mv + CAM.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0, 1, 0) end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then mv = mv - Vector3.new(0, 1, 0) end
+                
+                if mv.Magnitude > 0 then 
+                    CAM.CFrame = CAM.CFrame + (mv.Unit * tonumber(CFG.flySpeed) * (1/60)) 
+                end
+            end)
+        elseif not CFG.camFly and wasCam then
+            stopCamFly()
+        end
+        
+        wasCam = CFG.camFly
+    end
+end)
+
+print("[GRAYS ON TOP] v5.4 loaded.")
