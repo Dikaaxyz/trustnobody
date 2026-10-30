@@ -1,19 +1,13 @@
 --[[
-    GRAYS ON TOP — South Bronx: The Trenches cheat v2.2
-    Complete build. No truncation, no stubs, no loadstrings, no key.
+    GRAYS ON TOP — South Bronx: The Trenches cheat v2.2 (complete)
+    No truncation, no stubs, no loadstrings, no key.
 
     Default toggle menu: RIGHT SHIFT (rebindable in Keys tab)
     Features: silent aim (+ humanizer), FOV circle, aim part selector,
     camera-lock aimbot, ESP (box/name/health/distance/tracer),
     noclip, walkspeed, jumppower, fullbright, fly, teleport-to-player,
     auto-farm (marshmallow via ProximityPrompt), auto-clicker,
-    config save/load (executor writefile), keybind customization.
-
-    Detection posture: client-only render for ESP/fullbright (invisible to
-    server), game-native events for farm/clicker (indistinguishable from a
-    human hold), humanized silent aim (jitter + reaction delay + headshot
-    rate cap). Fly/speed/teleport are server-visible and cannot be hidden
-    client-side — toggle them off on public servers.
+    config save/load, keybind customization.
 ]]
 
 ------------------------------------------------------------------
@@ -25,14 +19,14 @@ if getgenv().GraysOnTopGui then
 end
 getgenv().GraysOnTopLoaded = true
 
-local Players           = game:GetService("Players")
-local RunService        = game:GetService("RunService")
-local UserInputService  = game:GetService("UserInputService")
-local Workspace         = game:GetService("Workspace")
-local Lighting          = game:GetService("Lighting")
-local CoreGui           = game:GetService("CoreGui")
-local HttpService       = game:GetService("HttpService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players              = game:GetService("Players")
+local RunService           = game:GetService("RunService")
+local UserInputService     = game:GetService("UserInputService")
+local Workspace            = game:GetService("Workspace")
+local Lighting             = game:GetService("Lighting")
+local CoreGui              = game:GetService("CoreGui")
+local HttpService          = game:GetService("HttpService")
+local VirtualInputManager  = game:GetService("VirtualInputManager")
 
 local localPlayer = Players.LocalPlayer
 local camera      = Workspace.CurrentCamera
@@ -151,17 +145,16 @@ gui.DisplayOrder = 999999
 gui.Parent = guiParent
 getgenv().GraysOnTopGui = gui
 
--- Palette
 local COL = {
-    bg        = Color3.fromRGB(8, 8, 8),
-    panel     = Color3.fromRGB(16, 16, 16),
-    panelHi   = Color3.fromRGB(26, 26, 26),
-    border    = Color3.fromRGB(38, 38, 38),
-    textDim   = Color3.fromRGB(140, 140, 140),
-    text      = Color3.fromRGB(232, 232, 232),
-    accent    = Color3.fromRGB(255, 255, 255),
-    danger    = Color3.fromRGB(220, 40, 40),
-    good      = Color3.fromRGB(0, 200, 110),
+    bg      = Color3.fromRGB(8, 8, 8),
+    panel   = Color3.fromRGB(16, 16, 16),
+    panelHi = Color3.fromRGB(26, 26, 26),
+    border  = Color3.fromRGB(38, 38, 38),
+    textDim = Color3.fromRGB(140, 140, 140),
+    text    = Color3.fromRGB(232, 232, 232),
+    accent  = Color3.fromRGB(255, 255, 255),
+    danger  = Color3.fromRGB(220, 40, 40),
+    good    = Color3.fromRGB(0, 200, 110),
 }
 
 local main = Instance.new("Frame")
@@ -193,7 +186,6 @@ headerStroke.BackgroundColor3 = COL.border
 headerStroke.BorderSizePixel = 0
 headerStroke.Parent = header
 
--- "GRAYS ON TOP" wordmark
 local wordmark = Instance.new("TextLabel")
 wordmark.Size = UDim2.new(1, -24, 0, 30)
 wordmark.Position = UDim2.new(0, 16, 0, 12)
@@ -206,7 +198,6 @@ wordmark.TextXAlignment = Enum.TextXAlignment.Left
 wordmark.TextYAlignment = Enum.TextYAlignment.Center
 wordmark.Parent = header
 
--- letter-spaced subtitle: S O U T H   B R O N X   T R E N C H E S
 local subtitle = Instance.new("TextLabel")
 subtitle.Size = UDim2.new(1, -24, 0, 14)
 subtitle.Position = UDim2.new(0, 16, 0, 42)
@@ -219,7 +210,6 @@ subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.TextYAlignment = Enum.TextYAlignment.Center
 subtitle.Parent = header
 
--- status dot (green = alive/loaded)
 local statusDot = Instance.new("Frame")
 statusDot.Size = UDim2.new(0, 8, 0, 8)
 statusDot.Position = UDim2.new(1, -24, 0, 20)
@@ -249,13 +239,6 @@ tabBar.BackgroundColor3 = COL.panel
 tabBar.BorderSizePixel = 0
 tabBar.Parent = main
 
-local tabBarBottom = Instance.new("Frame")
-tabBarBottom.Size = UDim2.new(1, 0, 0, 1)
-tabBarBottom.Position = UDim2.new(0, 0, 1, -1)
-tabBarBottom.BackgroundColor3 = COL.border
-tabBarBottom.BorderSizePixel = 0
-tabBarBottom.Parent = tabBar
-
 local tabLayout = Instance.new("UIListLayout")
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
 tabLayout.Padding = UDim.new(0, 0)
@@ -276,10 +259,8 @@ contentHolder.Parent = main
 
 local pages = {}
 local tabButtons = {}
-local activeTabIdx = 1
 
 local function setActiveTab(idx)
-    activeTabIdx = idx
     for i, t in ipairs(pages) do
         t.Visible = (i == idx)
     end
@@ -580,15 +561,38 @@ local function addButton(parent, label, callback)
     bStroke.BorderSizePixel = 0
     bStroke.Parent = btn
 
-    btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = COL.panelHi
-    end)
-    btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = COL.panel
-    end)
+    btn.MouseEnter:Connect(function() btn.BackgroundColor3 = COL.panelHi end)
+    btn.MouseLeave:Connect(function() btn.BackgroundColor3 = COL.panel end)
     btn.MouseButton1Click:Connect(function() pcall(callback) end)
     return btn
 end
+
+------------------------------------------------------------------
+-- FOV CIRCLE (declared before tabs so slider onChanged can reach it)
+------------------------------------------------------------------
+local fovGui = Instance.new("ScreenGui")
+fovGui.Name = "GraysOnTopFov"
+fovGui.ResetOnSpawn = false
+fovGui.IgnoreGuiInset = true
+fovGui.Parent = guiParent
+
+local espFovCircle = Instance.new("Frame")
+espFovCircle.Size = UDim2.new(0, CFG.silentAimFov * 2, 0, CFG.silentAimFov * 2)
+espFovCircle.Position = UDim2.new(0.5, -CFG.silentAimFov, 0.5, -CFG.silentAimFov)
+espFovCircle.BackgroundTransparency = 1
+espFovCircle.BorderSizePixel = 0
+espFovCircle.Visible = false
+espFovCircle.Parent = fovGui
+
+local fovStroke = Instance.new("UIStroke")
+fovStroke.Color = COL.danger
+fovStroke.Thickness = 1
+fovStroke.Transparency = 0.5
+fovStroke.Parent = espFovCircle
+
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(1, 0)
+fovCorner.Parent = espFovCircle
 
 ------------------------------------------------------------------
 -- TABS
@@ -768,13 +772,3 @@ for _, entry in ipairs(bindEntries) do
     btn.Text = CFG[entry.key].Name
     btn.TextColor3 = COL.accent
     btn.Font = Enum.Font.Code
-    btn.TextSize = 12
-    btn.AutoButtonColor = false
-    btn.Parent = row
-
-    local btnStroke = Instance.new("UIStroke")
-    btnStroke.Color = COL.border
-    btnStroke.Thickness = 1
-    btnStroke.Parent = btn
-
-    btn.MouseButton1Click:Connect
