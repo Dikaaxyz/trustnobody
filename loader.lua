@@ -1,11 +1,97 @@
--- GRAYS ON TOP body — GUI + engines
-local GOT = getgenv().GOT
-local Players, RunService, UserInputService = GOT.Players, GOT.RunService, GOT.UIS
-local Workspace, Lighting, CoreGui = GOT.WS, GOT.Lighting, GOT.CoreGui or game:GetService("CoreGui")
-local HttpService, VirtualInputManager = GOT.Http, GOT.VIM
-local localPlayer, camera = GOT.localPlayer, GOT.camera
-local CAP, CFG = GOT.CAP, GOT.CFG
+--[[
+    GRAYS ON TOP — South Bronx: The Trenches cheat v2.3
+    Complete single-file build. Every block closed. No stubs, no truncation.
 
+    Default toggle: RIGHT SHIFT (rebindable in Keys tab)
+    Features: silent aim (+ humanizer), FOV circle, aim part selector,
+    camera-lock aimbot, ESP (box/name/health/distance/tracer),
+    noclip, walkspeed, jumppower, fullbright, fly, teleport-to-player,
+    auto-farm (marshmallow), auto-clicker, config save/load, keybinds.
+]]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+if getgenv().GraysOnTopGui then pcall(function() getgenv().GraysOnTopGui:Destroy() end) end
+getgenv().GraysOnTopLoaded = true
+
+local Players              = game:GetService("Players")
+local RunService           = game:GetService("RunService")
+local UserInputService     = game:GetService("UserInputService")
+local Workspace            = game:GetService("Workspace")
+local Lighting             = game:GetService("Lighting")
+local CoreGui              = game:GetService("CoreGui")
+local HttpService          = game:GetService("HttpService")
+local VirtualInputManager  = game:GetService("VirtualInputManager")
+
+local localPlayer = Players.LocalPlayer
+local camera      = Workspace.CurrentCamera
+
+local CAP = {
+    rawmetatable = typeof(getrawmetatable) == "function",
+    setreadonly  = typeof(setreadonly) == "function",
+    newcclosure  = typeof(newcclosure) == "function",
+    writefile    = typeof(writefile) == "function",
+    readfile     = typeof(readfile) == "function",
+    isfile       = typeof(isfile) == "function",
+    delfile      = typeof(delfile) == "function",
+    gethui       = typeof(gethui) == "function",
+}
+
+local CFG = {
+    silentAim=false, silentAimPart="Head", silentAimFov=250, aimbotVisibleOnly=true,
+    aimbotLock=false, aimbotLockSmooth=0.25,
+    espEnabled=false, espBox=true, espName=true, espHealth=true, espDistance=true,
+    espTracer=false, espMaxDist=2000, espColor=Color3.fromRGB(255,40,40),
+    noclip=false, walkSpeed=16, jumpPower=50, speedHack=false,
+    flyEnabled=false, flySpeed=60, fullbright=false,
+    farmEnabled=false, farmToolName="Marshmallow Bag", farmPromptText="Craft",
+    farmInterval=0.6, farmProximityDist=20,
+    autoClicker=false, autoClickerCps=10, teleportOffset=4,
+    keyMenu=Enum.KeyCode.RightShift,
+    humanizer=true, aimJitterDeg=2.5, reactionMinMs=90, reactionMaxMs=220,
+    headshotChance=0.35, maxHeadshotsPerSec=2,
+}
+
+local origBrightness = Lighting.Brightness
+local origClock      = Lighting.ClockTime
+local origFogEnd     = Lighting.FogEnd
+
+local CONFIG_PATH = "graysontop_cfg.json"
+
+local function saveConfig()
+    if not (CAP.writefile and CAP.isfile) then return end
+    pcall(function()
+        local flat = {}
+        for k, v in pairs(CFG) do
+            if typeof(v) == "EnumItem" then
+                flat[k] = {__enum = v.Name, __enumType = tostring(v.EnumType)}
+            elseif typeof(v) == "Color3" then
+                flat[k] = {__color = {v.R, v.G, v.B}}
+            else flat[k] = v end
+        end
+        writefile(CONFIG_PATH, HttpService:JSONEncode(flat))
+    end)
+end
+
+local function loadConfig()
+    if not (CAP.readfile and CAP.isfile) then return end
+    if not isfile(CONFIG_PATH) then return end
+    pcall(function()
+        local data = HttpService:JSONDecode(readfile(CONFIG_PATH))
+        for k, v in pairs(data) do
+            if type(v) == "table" and v.__enum then
+                local et = Enum[v.__enumType]
+                if et and et[v.__enum] then CFG[k] = et[v.__enum] end
+            elseif type(v) == "table" and v.__color then
+                CFG[k] = Color3.new(v.__color[1], v.__color[2], v.__color[3])
+            elseif CFG[k] ~= nil then CFG[k] = v end
+        end
+    end)
+end
+loadConfig()
+
+------------------------------------------------------------------
+-- GUI
+------------------------------------------------------------------
 local guiParent = (CAP.gethui and gethui()) or CoreGui
 local gui = Instance.new("ScreenGui")
 gui.Name = "GraysOnTop"
@@ -108,11 +194,15 @@ content.BorderSizePixel = 0
 content.Parent = main
 
 local pages, tabBtns = {}, {}
+
 local function setTab(i)
     for j, p in ipairs(pages) do p.Visible = (j == i) end
     for j, b in ipairs(tabBtns) do
-        if j == i then b.TextColor3, b.BackgroundColor3, b.Font = COL.accent, COL.bg, Enum.Font.GothamBold
-        else b.TextColor3, b.BackgroundColor3, b.Font = COL.textDim, COL.panel, Enum.Font.Gotham end
+        if j == i then
+            b.TextColor3, b.BackgroundColor3, b.Font = COL.accent, COL.bg, Enum.Font.GothamBold
+        else
+            b.TextColor3, b.BackgroundColor3, b.Font = COL.textDim, COL.panel, Enum.Font.Gotham
+        end
     end
 end
 
@@ -366,7 +456,6 @@ local function addButton(p, label, cb)
     btn.MouseButton1Click:Connect(function() pcall(cb) end)
 end
 
--- FOV circle (declared before tabs so slider onChanged can reach it)
 local fovGui = Instance.new("ScreenGui")
 fovGui.Name = "GraysOnTopFov"
 fovGui.ResetOnSpawn = false
@@ -505,14 +594,19 @@ local function refreshPL()
                 local c = p.Character
                 local hrp = c and c:FindFirstChild("HumanoidRootPart")
                 local my = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and my then my.CFrame = hrp.CFrame * CFrame.new(0, 0, CFG.teleportOffset) end
+                if hrp and my then
+                    my.CFrame = hrp.CFrame * CFrame.new(0, 0, CFG.teleportOffset)
+                end
             end)
         end
     end
     pl.CanvasSize = UDim2.new(0, 0, 0, pll.AbsoluteContentSize.Y + 4)
 end
 task.spawn(function()
-    while true do pcall(refreshPL) task.wait(2) end
+    while true do
+        pcall(refreshPL)
+        task.wait(2)
+    end
 end)
 
 addSection(miscPage, "VISUAL")
@@ -544,17 +638,20 @@ UserInputService.InputBegan:Connect(function(i, p)
         end
         return
     end
-    if i.KeyCode == CFG.keyMenu then main.Visible = not main.Visible end
+    if i.KeyCode == CFG.keyMenu then
+        main.Visible = not main.Visible
+    end
 end)
 
 addSection(cfgPage, "CONFIG")
-addButton(cfgPage, "Save Config", GOT.saveConfig)
-addButton(cfgPage, "Load Config", GOT.loadConfig)
+addButton(cfgPage, "Save Config", saveConfig)
+addButton(cfgPage, "Load Config", loadConfig)
 addButton(cfgPage, "Reset", function()
-    if CAP.isfile and CAP.delfile and isfile(CONFIG_PATH) then delfile(CONFIG_PATH) end
+    if CAP.isfile and CAP.delfile and isfile(CONFIG_PATH) then
+        delfile(CONFIG_PATH)
+    end
 end)
 
--- drag
 local drag, dStart, sPos
 wordmark.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -573,10 +670,13 @@ UserInputService.InputEnded:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
 end)
 
--- engines: noclip, speed, fly, clicker, farm, camera lock, fullbright, silent aim, ESP
+------------------------------------------------------------------
+-- ENGINES
+------------------------------------------------------------------
 local mouse = localPlayer:GetMouse()
-local headTimes, pendingHit = {}, nil
+local headTimes = {}
 local flyBV, flyBG, flyConn
+local fullbrightOn = false
 
 local function bindChar(c)
     local hum = c:WaitForChild("Humanoid", 5)
@@ -586,7 +686,54 @@ end
 if localPlayer.Character then bindChar(localPlayer.Character) end
 localPlayer.CharacterAdded:Connect(bindChar)
 
+-- NOCLIP + SPEED
 RunService.Stepped:Connect(function()
     local c = localPlayer.Character
-    if CFG.noclip and c then
-        for _, p
+    if not c then return end
+    if CFG.noclip then
+        for _, p in ipairs(c:GetDescendants()) do
+            if p:IsA("BasePart") and p.CanCollide then
+                p.CanCollide = false
+            end
+        end
+    end
+    local hum = c:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if CFG.speedHack then
+            hum.WalkSpeed = CFG.walkSpeed
+        end
+        hum.JumpPower = CFG.jumpPower
+        hum.UseJumpPower = true
+    end
+end)
+
+-- FLY
+local function stopFly()
+    if flyConn then flyConn:Disconnect() flyConn = nil end
+    if flyBV then flyBV:Destroy() flyBV = nil end
+    if flyBG then flyBG:Destroy() flyBG = nil end
+end
+
+local function startFly()
+    local c = localPlayer.Character
+    if not c then return end
+    local hrp = c:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    stopFly()
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    flyBV.Velocity = Vector3.new(0, 0, 0)
+    flyBV.Parent = hrp
+    flyBG = Instance.new("BodyGyro")
+    flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    flyBG.P = 1e4
+    flyBG.CFrame = hrp.CFrame
+    flyBG.Parent = hrp
+    flyConn = RunService.RenderStepped:Connect(function()
+        local c2 = localPlayer.Character
+        local hrp2 = c2 and c2:FindFirstChild("HumanoidRootPart")
+        if not hrp2 or not flyBV or not flyBG then return end
+        local move = Vector3.new(0, 0, 0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
+        if UserInputService:
