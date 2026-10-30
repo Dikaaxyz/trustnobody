@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v4.4
-    Auto-Track Next Move Job | Dynamic Prompt Scanner | Target Money
+    GRAYS ON TOP v4.5
+    Xeno-Safe Farm (VIM Key Press) | Auto Track Next Move | Target Money
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -54,8 +54,34 @@ local function getMoney()
     return 0
 end
 
+local function clickDialog(txtMatch)
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    for _, g in pairs(pg:GetDescendants()) do
+        if g:IsA("TextButton") then
+            if g.Text:lower():find(txtMatch:lower()) then
+                pcall(function() g.MouseButton1Click:Fire() end)
+                return true
+            end
+        elseif g:IsA("TextLabel") and g.Parent and g.Parent:IsA("TextButton") then
+            if g.Text:lower():find(txtMatch:lower()) then
+                pcall(function() g.Parent.MouseButton1Click:Fire() end)
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function setStatus(txt)
     if farmStatusLabel then farmStatusLabel.Text = "Tracker: " .. txt end
+end
+
+-- SIMULASI TOMBOL E BUAT INTERACT (XENO SAFE)
+local function pressE()
+    VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait(0.1)
+    VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
 local COL = { bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(18,18,18), line=Color3.fromRGB(35,35,35), txt=Color3.fromRGB(240,240,240), dim=Color3.fromRGB(120,120,120), acc=Color3.fromRGB(255,40,40) }
@@ -203,97 +229,81 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: AUTO-TRACK NEXT MOVE JOB
+-- ENGINE: AUTO-TRACK NEXT MOVE JOB (VIM E-KEY SIMULATION)
 task.spawn(function()
-    local lastActionTime = 0
+    local lastAction = 0
+    local hasCrate = false
     
     while true do
-        task.wait(0.3)
+        task.wait(0.5)
         if CFG.farmBox then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             local money = getMoney()
             
-            if myHrp and (os.clock() - lastActionTime > 1.5) then
-                -- PRIORITAS 1: Target Money tercapai -> Claim
+            -- Cek kalau kita udah megang crate (Tool)
+            if myChar then
+                hasCrate = myChar:FindFirstChildWhichIsA("Tool") ~= nil
+            end
+
+            if myHrp and (os.clock() - lastAction > 1.5) then
+                
+                -- PRIORITAS 1: Target Money
                 if money >= tonumber(CFG.targetMoney) then
-                    setStatus("Tracking: Claim Money")
-                    local claimTarget = nil
+                    setStatus("Target Reached! Claiming...")
+                    local npc = nil
                     for _, v in ipairs(WS:GetDescendants()) do
-                        if v:IsA("ProximityPrompt") and (v.ActionText:lower():find("claim") or v.ObjectText:lower():find("claim") or v.Parent.Name:lower():find("npc")) then
-                            if v.Parent:IsA("BasePart") then claimTarget = v break end
+                        if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
+                            local h = v:FindFirstChild("HumanoidRootPart")
+                            if h then npc = h break end
                         end
                     end
-                    if claimTarget then
-                        myHrp.CFrame = claimTarget.Parent.CFrame * CFrame.new(0, 3, 0)
-                        task.wait(0.2)
-                        pcall(function() fireproximityprompt(claimTarget) end)
-                        lastActionTime = os.clock()
+                    if npc then
+                        myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
+                        task.wait(0.5)
+                        clickDialog("claim my money")
+                        lastAction = os.clock()
                         task.wait(2)
-                        CFG.farmBox = false
+                        CFG.farmBox = false 
                         setStatus("Done & Claimed")
                     else
-                        -- Kalau nggak nemu prompt claim, cari NPC Darrian
-                        for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
-                                local h = v:FindFirstChild("HumanoidRootPart")
-                                if h then
-                                    myHrp.CFrame = h.CFrame * CFrame.new(0, 0, -3)
-                                    task.wait(0.5)
-                                    clickDialog("claim my money")
-                                    lastActionTime = os.clock()
-                                    task.wait(2)
-                                    CFG.farmBox = false
-                                    setStatus("Done & Claimed")
-                                    break
-                                end
-                            end
-                        end
+                        lastAction = os.clock()
                     end
-                    
-                -- PRIORITAS 2: Auto Track (Crate / Truck / Job)
                 else
-                    local bestPrompt = nil
-                    local bestDist = math.huge
+                    -- PRIORITAS 2: Tracking
+                    local targetPrompt = nil
+                    local targetDist = math.huge
                     
-                    -- Scan semua prompt buat cari yang relevan
                     for _, v in ipairs(WS:GetDescendants()) do
                         if v:IsA("ProximityPrompt") and v.Parent:IsA("BasePart") then
-                            local txt = (v.ActionText .. " " .. v.ObjectText .. " " .. v.Parent.Name):lower()
-                            local isRelevant = false
+                            local n = v.Parent.Name:lower()
+                            local txt = (v.ActionText .. " " .. v.ObjectText .. " " .. n):lower()
                             
-                            if txt:find("crate") or txt:find("pickup") or txt:find("work") or txt:find("job") or txt:find("truck") or txt:find("deliver") or txt:find("trailer") or txt:find("interact") then
-                                isRelevant = true
-                            end
-                            
-                            if isRelevant then
-                                local dist = (v.Parent.Position - myHrp.Position).Magnitude
-                                if dist < bestDist then
-                                    bestDist = dist
-                                    bestPrompt = v
+                            if hasCrate then
+                                if txt:find("truck") or txt:find("deliver") or txt:find("trailer") or txt:find("drop") then
+                                    local d = (v.Parent.Position - myHrp.Position).Magnitude
+                                    if d < targetDist then targetDist = d; targetPrompt = v end
+                                end
+                            else
+                                if txt:find("crate") or txt:find("pickup") or txt:find("box") then
+                                    local d = (v.Parent.Position - myHrp.Position).Magnitude
+                                    if d < targetDist then targetDist = d; targetPrompt = v end
                                 end
                             end
                         end
                     end
-                    
-                    if bestPrompt then
-                        local txt = bestPrompt.Parent.Name:lower()
-                        if txt:find("truck") or txt:find("deliver") or txt:find("trailer") then
-                            setStatus("Tracking: Truck")
-                        elseif txt:find("crate") or txt:find("pickup") then
-                            setStatus("Tracking: Crate")
-                        else
-                            setStatus("Tracking: " .. bestPrompt.Parent.Name)
-                        end
-                        
-                        myHrp.CFrame = bestPrompt.Parent.CFrame * CFrame.new(0, 3, 0)
+
+                    if targetPrompt then
+                        local tName = targetPrompt.Parent.Name
+                        setStatus((hasCrate and "Delivering to " or "Grabbing ") .. tName)
+                        myHrp.CFrame = targetPrompt.Parent.CFrame * CFrame.new(0, 3, 0)
                         task.wait(0.2)
-                        pcall(function() fireproximityprompt(bestPrompt) end)
-                        lastActionTime = os.clock()
+                        pressE() -- Pencet E virtual
+                        lastAction = os.clock()
                         task.wait(1)
                     else
-                        -- Kalau nggak ada prompt crate/truck, cari NPC buat ambil job
-                        setStatus("Tracking: NPC (Get Job)")
+                        -- Nggak nemu prompt crate/truck, balik ke NPC
+                        setStatus("Finding NPC (Job)")
                         local npc = nil
                         for _, v in ipairs(WS:GetDescendants()) do
                             if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
@@ -305,8 +315,10 @@ task.spawn(function()
                             myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
                             task.wait(0.5)
                             clickDialog("looking for work")
-                            lastActionTime = os.clock()
+                            lastAction = os.clock()
                             task.wait(1.5)
+                        else
+                            lastAction = os.clock()
                         end
                     end
                 end
@@ -407,4 +419,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v4.4 loaded.")
+print("[GRAYS ON TOP] v4.5 loaded.")
