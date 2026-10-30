@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v4.1
-    Box Job Cycle (NPC -> Crate -> Truck) | Auto-Claim | Target Money
+    GRAYS ON TOP v4.2
+    Fixed FARM UI | Target Money TextBox | Box Job Cycle
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -11,7 +11,6 @@ local RS = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local WS = game:GetService("Workspace")
 local CG = game:GetService("CoreGui")
-local TS = game:GetService("TweenService")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
@@ -31,8 +30,6 @@ local function getHui()
 end
 
 local function getMoney()
-    local val = 0
-    -- 1. Check leaderstats
     local ls = LP:FindFirstChild("leaderstats")
     if ls then
         for _, v in pairs(ls:GetChildren()) do
@@ -43,7 +40,6 @@ local function getMoney()
             end
         end
     end
-    -- 2. Check PlayerGui for "$XXX" text
     local pg = LP:FindFirstChild("PlayerGui")
     if pg then
         for _, g in pairs(pg:GetDescendants()) do
@@ -53,7 +49,7 @@ local function getMoney()
             end
         end
     end
-    return val
+    return 0
 end
 
 local function clickDialog(txtMatch)
@@ -64,9 +60,8 @@ local function clickDialog(txtMatch)
             if g.Text:lower():find(txtMatch:lower()) then
                 if g:IsA("TextButton") then
                     g.MouseButton1Click:Fire()
-                else
-                    -- If it's a TextLabel, try to click its parent or fire clicks
-                    if g.Parent and g.Parent:IsA("TextButton") then g.Parent.MouseButton1Click:Fire() end
+                elseif g.Parent and g.Parent:IsA("TextButton") then
+                    g.Parent.MouseButton1Click:Fire()
                 end
                 return true
             end
@@ -98,15 +93,14 @@ local tabs, pages = {}, {}
 
 local function addTab(name, width)
     local btn=Instance.new("TextButton"); btn.Size=UDim2.new(0,width,1,0); btn.BackgroundColor3=COL.panel; btn.BorderSizePixel=0; btn.Text=name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=tabBar; table.insert(tabs,btn)
-    local pg=Instance.new("ScrollingFrame"); pg.Size=UDim2.new(1,0,1,-70); pg.Position=UDim2.new(0,0,0,70); pg.BackgroundTransparency=1; pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.line; pg.CanvasSize=UDim2.new(0,0,0,0); pg.Visible=false; pg.Parent=main
+    local pg=Instance.new("ScrollingFrame"); pg.Size=UDim2.new(1,0,1,-70); pg.Position=UDim2.new(0,0,0,70); pg.BackgroundTransparency=1; pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.line; pg.CanvasSize=UDim2.new(0,0,0,0); pg.AutomaticCanvasSize = Enum.AutomaticSize.Y; pg.Visible=false; pg.Parent=main
     local l=Instance.new("UIListLayout"); l.Padding=UDim.new(0,8); l.Parent=pg
-    local pd=Instance.new("UIPadding"); pd.PaddingLeft=UDim.new(0,12); pd.PaddingRight=UDim.new(0,12); pd.PaddingTop=UDim.new(0,12); pd.Parent=pg
+    local pd=Instance.new("UIPadding"); pd.PaddingLeft=UDim.new(0,12); pd.PaddingRight=UDim.new(0,12); pd.PaddingTop=UDim.new(0,12); pd.PaddingBottom=UDim.new(0,12); pd.Parent=pg
     local idx=#pages+1; table.insert(pages,pg)
     btn.MouseButton1Click:Connect(function()
         for i,p in ipairs(pages) do p.Visible=(i==idx) end
         for i,b in ipairs(tabs) do if i==idx then b.TextColor3=COL.acc; b.BackgroundColor3=COL.bg; b.Font=Enum.Font.GothamBold else b.TextColor3=COL.dim; b.BackgroundColor3=COL.panel; b.Font=Enum.Font.GothamBold end end
     end)
-    l:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() pg.CanvasSize=UDim2.new(0,0,0,l.AbsoluteContentSize.Y+24) end)
     return pg
 end
 
@@ -123,29 +117,18 @@ local function addToggle(p,label,key)
     row.MouseButton1Click:Connect(function() CFG[key]=not CFG[key]; fill.Visible=CFG[key] end)
 end
 
-local function addSlider(p,label,key,mn,mx)
-    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,36); h.BackgroundColor3=COL.panel; h.Parent=p
-    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,16); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label..": "..tostring(CFG[key]); lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=11; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
-    local bar=Instance.new("Frame"); bar.Size=UDim2.new(1,-20,0,4); bar.Position=UDim2.new(0,10,1,-10); bar.BackgroundColor3=COL.bg; bar.Parent=h
-    local f=Instance.new("Frame"); f.Size=UDim2.new((CFG[key]-mn)/(mx-mn),0,1,0); f.BackgroundColor3=COL.acc; f.Parent=bar
-    local drag=false
-    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,0,1,0); btn.BackgroundTransparency=1; btn.Text=""; btn.Parent=bar
-    btn.MouseButton1Down:Connect(function() drag=true end)
-    UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end)
-    RS.RenderStepped:Connect(function()
-        if not drag then return end
-        local mxPos=UIS:GetMouseLocation().X
-        local fw=math.clamp((mxPos-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,0,1)
-        CFG[key]=math.floor(mn+fw*(mx-mn))
-        f.Size=UDim2.new(fw,0,1,0); lbl.Text=label..": "..tostring(CFG[key])
-    end)
+local function addTextBox(p,label,key,ph)
+    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,50); h.BackgroundColor3=COL.panel; h.Parent=p
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,16); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=11; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
+    local box=Instance.new("TextBox"); box.Size=UDim2.new(1,-20,0,24); box.Position=UDim2.new(0,10,0,22); box.BackgroundColor3=COL.bg; box.BorderSizePixel=0; box.Text=tostring(CFG[key]); box.PlaceholderText=ph or ""; box.TextColor3=COL.acc; box.Font=Enum.Font.Code; box.TextSize=12; box.TextXAlignment=Enum.TextXAlignment.Left; box.Parent=h
+    box.FocusLost:Connect(function() local num = tonumber(box.Text); if num then CFG[key] = num end; box.Text = tostring(CFG[key]) end)
 end
 
 -- BUILD TABS
 local pgAim = addTab("AIM", 50)
 addSection(pgAim, "True Silent Aim")
 addToggle(pgAim, "Silent Aim", "aim")
-addSlider(pgAim, "FOV Radius", "aimFov", 50, 400)
+addTextBox(pgAim, "FOV Radius", "aimFov", "150")
 
 local pgEsp = addTab("ESP", 50)
 addSection(pgEsp, "Player ESP")
@@ -159,7 +142,7 @@ addToggle(pgCombat, "Auto Fix Jam", "autoFix")
 local pgFarm = addTab("FARM", 50)
 addSection(pgFarm, "Box Job Cycle")
 addToggle(pgFarm, "Enable Auto Job", "farmBox")
-addSlider(pgFarm, "Target Money", "targetMoney", 500, 50000)
+addTextBox(pgFarm, "Target Money ($)", "targetMoney", "1000")
 
 local pgTp = addTab("TP", 40)
 addSection(pgTp, "Teleport")
@@ -169,7 +152,7 @@ local pgMove = addTab("MOVE", 50)
 addSection(pgMove, "Movement")
 addToggle(pgMove, "Noclip", "noclip")
 addToggle(pgMove, "Fly", "fly")
-addSlider(pgMove, "Fly Speed", "flySpeed", 10, 200)
+addTextBox(pgMove, "Fly Speed", "flySpeed", "60")
 
 for i,p in ipairs(pages) do p.Visible=(i==1) end
 tabs[1].TextColor3=COL.acc; tabs[1].BackgroundColor3=COL.bg
@@ -232,9 +215,9 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: BOX JOB CYCLE (Target Money)
+-- ENGINE: BOX JOB CYCLE
 task.spawn(function()
-    local state = "START" -- START, GOT_JOB, GOT_CRATE, DROPPED
+    local state = "START"
     while true do
         task.wait(0.5)
         if CFG.farmBox then
@@ -243,10 +226,8 @@ task.spawn(function()
             local money = getMoney()
             
             if myHrp then
-                if money >= CFG.targetMoney then
-                    -- Target reached: Claim money
+                if money >= tonumber(CFG.targetMoney) then
                     state = "CLAIM"
-                    -- Find NPC
                     local npc = nil
                     for _, v in ipairs(WS:GetDescendants()) do
                         if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
@@ -259,12 +240,11 @@ task.spawn(function()
                         task.wait(0.5)
                         clickDialog("claim my money")
                         task.wait(2)
-                        CFG.farmBox = false -- Turn off
+                        CFG.farmBox = false
                     end
                     state = "START"
                 else
                     if state == "START" then
-                        -- Find NPC
                         local npc = nil
                         for _, v in ipairs(WS:GetDescendants()) do
                             if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
@@ -280,7 +260,6 @@ task.spawn(function()
                             state = "GOT_JOB"
                         end
                     elseif state == "GOT_JOB" then
-                        -- Find Crate
                         local crate = nil
                         for _, v in ipairs(WS:GetDescendants()) do
                             if v:IsA("BasePart") and (v.Name:lower():find("crate") or v.Name:lower():find("pickup")) then
@@ -290,7 +269,6 @@ task.spawn(function()
                         if crate then
                             myHrp.CFrame = crate.CFrame * CFrame.new(0, 3, 0)
                             task.wait(0.3)
-                            -- Fire prompt
                             for _, p in ipairs(crate:GetDescendants()) do
                                 if p:IsA("ProximityPrompt") then fireproximityprompt(p) end
                             end
@@ -300,7 +278,6 @@ task.spawn(function()
                             end
                         end
                     elseif state == "GOT_CRATE" then
-                        -- Find Truck
                         local truck = nil
                         for _, v in ipairs(WS:GetDescendants()) do
                             if v:IsA("BasePart") and (v.Name:lower():find("truck") or v.Name:lower():find("deliver") or v.Name:lower():find("trailer")) then
@@ -310,14 +287,12 @@ task.spawn(function()
                         if truck then
                             myHrp.CFrame = truck.CFrame * CFrame.new(0, 3, -5)
                             task.wait(0.3)
-                            -- Fire prompt
                             for _, p in ipairs(truck:GetDescendants()) do
                                 if p:IsA("ProximityPrompt") then fireproximityprompt(p) end
                             end
                             task.wait(0.5)
-                            -- Check if still holding tool
                             if not myChar:FindFirstChildWhichIsA("Tool") then
-                                state = "GOT_JOB" -- Cycle back to pick up next crate
+                                state = "GOT_JOB"
                             end
                         end
                     end
@@ -402,7 +377,7 @@ local function startSecureFly()
         if UIS:IsKeyDown(Enum.KeyCode.D) then mv = mv + CAM.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0, 1, 0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then mv = mv - Vector3.new(0, 1, 0) end
-        if mv.Magnitude > 0 then lv.VectorVelocity = mv.Unit * CFG.flySpeed else lv.VectorVelocity = Vector3.new(0,0,0) end
+        if mv.Magnitude > 0 then lv.VectorVelocity = mv.Unit * tonumber(CFG.flySpeed) else lv.VectorVelocity = Vector3.new(0,0,0) end
     end)
     return function()
         if conn then conn:Disconnect() end
@@ -417,4 +392,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v4.1 loaded.")
+print("[GRAYS ON TOP] v4.2 loaded.")
