@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v4.2
-    Fixed FARM UI | Target Money TextBox | Box Job Cycle
+    GRAYS ON TOP v4.4
+    Auto-Track Next Move Job | Dynamic Prompt Scanner | Target Money
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -23,6 +23,8 @@ local CFG = {
     autoFire=false, autoFix=false,
     keyMenu=Enum.KeyCode.RightShift,
 }
+
+local farmStatusLabel = nil
 
 local function getHui()
     if typeof(gethui)=="function" then local ok,h=pcall(gethui); if ok and h then return h end end
@@ -52,22 +54,8 @@ local function getMoney()
     return 0
 end
 
-local function clickDialog(txtMatch)
-    local pg = LP:FindFirstChild("PlayerGui")
-    if not pg then return false end
-    for _, g in pairs(pg:GetDescendants()) do
-        if g:IsA("TextButton") or g:IsA("TextLabel") then
-            if g.Text:lower():find(txtMatch:lower()) then
-                if g:IsA("TextButton") then
-                    g.MouseButton1Click:Fire()
-                elseif g.Parent and g.Parent:IsA("TextButton") then
-                    g.Parent.MouseButton1Click:Fire()
-                end
-                return true
-            end
-        end
-    end
-    return false
+local function setStatus(txt)
+    if farmStatusLabel then farmStatusLabel.Text = "Tracker: " .. txt end
 end
 
 local COL = { bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(18,18,18), line=Color3.fromRGB(35,35,35), txt=Color3.fromRGB(240,240,240), dim=Color3.fromRGB(120,120,120), acc=Color3.fromRGB(255,40,40) }
@@ -124,7 +112,6 @@ local function addTextBox(p,label,key,ph)
     box.FocusLost:Connect(function() local num = tonumber(box.Text); if num then CFG[key] = num end; box.Text = tostring(CFG[key]) end)
 end
 
--- BUILD TABS
 local pgAim = addTab("AIM", 50)
 addSection(pgAim, "True Silent Aim")
 addToggle(pgAim, "Silent Aim", "aim")
@@ -140,9 +127,10 @@ addToggle(pgCombat, "Auto Fire (Equip)", "autoFire")
 addToggle(pgCombat, "Auto Fix Jam", "autoFix")
 
 local pgFarm = addTab("FARM", 50)
-addSection(pgFarm, "Box Job Cycle")
-addToggle(pgFarm, "Enable Auto Job", "farmBox")
+addSection(pgFarm, "Dynamic Tracker")
+addToggle(pgFarm, "Auto Track Job", "farmBox")
 addTextBox(pgFarm, "Target Money ($)", "targetMoney", "1000")
+farmStatusLabel = Instance.new("TextLabel"); farmStatusLabel.Size=UDim2.new(1,0,0,20); farmStatusLabel.BackgroundTransparency=1; farmStatusLabel.Text="Tracker: Idle"; farmStatusLabel.TextColor3=Color3.fromRGB(0,200,100); farmStatusLabel.Font=Enum.Font.GothamBold; farmStatusLabel.TextSize=11; farmStatusLabel.TextXAlignment=Enum.TextXAlignment.Left; farmStatusLabel.Parent=pgFarm
 
 local pgTp = addTab("TP", 40)
 addSection(pgTp, "Teleport")
@@ -215,36 +203,97 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: BOX JOB CYCLE
+-- ENGINE: AUTO-TRACK NEXT MOVE JOB
 task.spawn(function()
-    local state = "START"
+    local lastActionTime = 0
+    
     while true do
-        task.wait(0.5)
+        task.wait(0.3)
         if CFG.farmBox then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             local money = getMoney()
             
-            if myHrp then
+            if myHrp and (os.clock() - lastActionTime > 1.5) then
+                -- PRIORITAS 1: Target Money tercapai -> Claim
                 if money >= tonumber(CFG.targetMoney) then
-                    state = "CLAIM"
-                    local npc = nil
+                    setStatus("Tracking: Claim Money")
+                    local claimTarget = nil
                     for _, v in ipairs(WS:GetDescendants()) do
-                        if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
-                            local h = v:FindFirstChild("HumanoidRootPart")
-                            if h then npc = h break end
+                        if v:IsA("ProximityPrompt") and (v.ActionText:lower():find("claim") or v.ObjectText:lower():find("claim") or v.Parent.Name:lower():find("npc")) then
+                            if v.Parent:IsA("BasePart") then claimTarget = v break end
                         end
                     end
-                    if npc then
-                        myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
-                        task.wait(0.5)
-                        clickDialog("claim my money")
+                    if claimTarget then
+                        myHrp.CFrame = claimTarget.Parent.CFrame * CFrame.new(0, 3, 0)
+                        task.wait(0.2)
+                        pcall(function() fireproximityprompt(claimTarget) end)
+                        lastActionTime = os.clock()
                         task.wait(2)
                         CFG.farmBox = false
+                        setStatus("Done & Claimed")
+                    else
+                        -- Kalau nggak nemu prompt claim, cari NPC Darrian
+                        for _, v in ipairs(WS:GetDescendants()) do
+                            if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
+                                local h = v:FindFirstChild("HumanoidRootPart")
+                                if h then
+                                    myHrp.CFrame = h.CFrame * CFrame.new(0, 0, -3)
+                                    task.wait(0.5)
+                                    clickDialog("claim my money")
+                                    lastActionTime = os.clock()
+                                    task.wait(2)
+                                    CFG.farmBox = false
+                                    setStatus("Done & Claimed")
+                                    break
+                                end
+                            end
+                        end
                     end
-                    state = "START"
+                    
+                -- PRIORITAS 2: Auto Track (Crate / Truck / Job)
                 else
-                    if state == "START" then
+                    local bestPrompt = nil
+                    local bestDist = math.huge
+                    
+                    -- Scan semua prompt buat cari yang relevan
+                    for _, v in ipairs(WS:GetDescendants()) do
+                        if v:IsA("ProximityPrompt") and v.Parent:IsA("BasePart") then
+                            local txt = (v.ActionText .. " " .. v.ObjectText .. " " .. v.Parent.Name):lower()
+                            local isRelevant = false
+                            
+                            if txt:find("crate") or txt:find("pickup") or txt:find("work") or txt:find("job") or txt:find("truck") or txt:find("deliver") or txt:find("trailer") or txt:find("interact") then
+                                isRelevant = true
+                            end
+                            
+                            if isRelevant then
+                                local dist = (v.Parent.Position - myHrp.Position).Magnitude
+                                if dist < bestDist then
+                                    bestDist = dist
+                                    bestPrompt = v
+                                end
+                            end
+                        end
+                    end
+                    
+                    if bestPrompt then
+                        local txt = bestPrompt.Parent.Name:lower()
+                        if txt:find("truck") or txt:find("deliver") or txt:find("trailer") then
+                            setStatus("Tracking: Truck")
+                        elseif txt:find("crate") or txt:find("pickup") then
+                            setStatus("Tracking: Crate")
+                        else
+                            setStatus("Tracking: " .. bestPrompt.Parent.Name)
+                        end
+                        
+                        myHrp.CFrame = bestPrompt.Parent.CFrame * CFrame.new(0, 3, 0)
+                        task.wait(0.2)
+                        pcall(function() fireproximityprompt(bestPrompt) end)
+                        lastActionTime = os.clock()
+                        task.wait(1)
+                    else
+                        -- Kalau nggak ada prompt crate/truck, cari NPC buat ambil job
+                        setStatus("Tracking: NPC (Get Job)")
                         local npc = nil
                         for _, v in ipairs(WS:GetDescendants()) do
                             if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
@@ -256,50 +305,16 @@ task.spawn(function()
                             myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
                             task.wait(0.5)
                             clickDialog("looking for work")
-                            task.wait(1)
-                            state = "GOT_JOB"
-                        end
-                    elseif state == "GOT_JOB" then
-                        local crate = nil
-                        for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("BasePart") and (v.Name:lower():find("crate") or v.Name:lower():find("pickup")) then
-                                crate = v break
-                            end
-                        end
-                        if crate then
-                            myHrp.CFrame = crate.CFrame * CFrame.new(0, 3, 0)
-                            task.wait(0.3)
-                            for _, p in ipairs(crate:GetDescendants()) do
-                                if p:IsA("ProximityPrompt") then fireproximityprompt(p) end
-                            end
-                            task.wait(0.5)
-                            if myChar:FindFirstChildWhichIsA("Tool") then
-                                state = "GOT_CRATE"
-                            end
-                        end
-                    elseif state == "GOT_CRATE" then
-                        local truck = nil
-                        for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("BasePart") and (v.Name:lower():find("truck") or v.Name:lower():find("deliver") or v.Name:lower():find("trailer")) then
-                                truck = v break
-                            end
-                        end
-                        if truck then
-                            myHrp.CFrame = truck.CFrame * CFrame.new(0, 3, -5)
-                            task.wait(0.3)
-                            for _, p in ipairs(truck:GetDescendants()) do
-                                if p:IsA("ProximityPrompt") then fireproximityprompt(p) end
-                            end
-                            task.wait(0.5)
-                            if not myChar:FindFirstChildWhichIsA("Tool") then
-                                state = "GOT_JOB"
-                            end
+                            lastActionTime = os.clock()
+                            task.wait(1.5)
                         end
                     end
                 end
             end
         else
-            state = "START"
+            if farmStatusLabel and farmStatusLabel.Text ~= "Tracker: Idle" then
+                setStatus("Idle")
+            end
             task.wait(1)
         end
     end
@@ -392,4 +407,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v4.2 loaded.")
+print("[GRAYS ON TOP] v4.4 loaded.")
