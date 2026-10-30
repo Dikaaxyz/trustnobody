@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v4.0
-    Box Job Auto-Farm (State Machine) | Safe Object TP | Anti-Detect Fly
+    GRAYS ON TOP v4.1
+    Box Job Cycle (NPC -> Crate -> Truck) | Auto-Claim | Target Money
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -18,7 +18,7 @@ local VIM = game:GetService("VirtualInputManager")
 
 local CFG = {
     aim=false, aimFov=150, esp=false,
-    farmBox=false, farmMarsh=false,
+    farmBox=false, targetMoney=1000,
     tpSafe=false,
     noclip=false, fly=false, flySpeed=60,
     autoFire=false, autoFix=false,
@@ -28,6 +28,51 @@ local CFG = {
 local function getHui()
     if typeof(gethui)=="function" then local ok,h=pcall(gethui); if ok and h then return h end end
     return CG
+end
+
+local function getMoney()
+    local val = 0
+    -- 1. Check leaderstats
+    local ls = LP:FindFirstChild("leaderstats")
+    if ls then
+        for _, v in pairs(ls:GetChildren()) do
+            if v:IsA("IntValue") or v:IsA("NumberValue") then
+                if v.Name:lower():find("cash") or v.Name:lower():find("money") then
+                    return v.Value
+                end
+            end
+        end
+    end
+    -- 2. Check PlayerGui for "$XXX" text
+    local pg = LP:FindFirstChild("PlayerGui")
+    if pg then
+        for _, g in pairs(pg:GetDescendants()) do
+            if g:IsA("TextLabel") and g.Text:match("^%$%d+") then
+                local num = tonumber(g.Text:gsub("[^%d]", ""))
+                if num then return num end
+            end
+        end
+    end
+    return val
+end
+
+local function clickDialog(txtMatch)
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    for _, g in pairs(pg:GetDescendants()) do
+        if g:IsA("TextButton") or g:IsA("TextLabel") then
+            if g.Text:lower():find(txtMatch:lower()) then
+                if g:IsA("TextButton") then
+                    g.MouseButton1Click:Fire()
+                else
+                    -- If it's a TextLabel, try to click its parent or fire clicks
+                    if g.Parent and g.Parent:IsA("TextButton") then g.Parent.MouseButton1Click:Fire() end
+                end
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local COL = { bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(18,18,18), line=Color3.fromRGB(35,35,35), txt=Color3.fromRGB(240,240,240), dim=Color3.fromRGB(120,120,120), acc=Color3.fromRGB(255,40,40) }
@@ -112,8 +157,9 @@ addToggle(pgCombat, "Auto Fire (Equip)", "autoFire")
 addToggle(pgCombat, "Auto Fix Jam", "autoFix")
 
 local pgFarm = addTab("FARM", 50)
-addSection(pgFarm, "Jobs")
-addToggle(pgFarm, "Auto Farm Crate Job", "farmBox")
+addSection(pgFarm, "Box Job Cycle")
+addToggle(pgFarm, "Enable Auto Job", "farmBox")
+addSlider(pgFarm, "Target Money", "targetMoney", 500, 50000)
 
 local pgTp = addTab("TP", 40)
 addSection(pgTp, "Teleport")
@@ -186,68 +232,99 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: BOX JOB FARM (State Machine)
+-- ENGINE: BOX JOB CYCLE (Target Money)
 task.spawn(function()
+    local state = "START" -- START, GOT_JOB, GOT_CRATE, DROPPED
     while true do
+        task.wait(0.5)
         if CFG.farmBox then
-            pcall(function()
-                local myChar = LP.Character
-                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                if not myHrp then return end
-                
-                local holdingTool = myChar:FindFirstChildWhichIsA("Tool")
-                local targetPart = nil
-                local bestDist = math.huge
-                
-                -- Loop through workspace to find targets
-                for _, obj in ipairs(WS:GetDescendants()) do
-                    if obj:IsA("BasePart") then
-                        local n = obj.Name:lower()
-                        local dist = (obj.Position - myHrp.Position).Magnitude
-                        
-                        if holdingTool then
-                            -- Look for truck/delivery point
-                            if (n:find("truck") or n:find("deliver") or n:find("drop") or n:find("trailer")) and dist < bestDist then
-                                targetPart = obj
-                                bestDist = dist
-                            end
-                        else
-                            -- Look for crate/box pickup
-                            if (n:find("crate") or n:find("box") or n:find("pickup")) and dist < bestDist then
-                                targetPart = obj
-                                bestDist = dist
-                            end
+            local myChar = LP.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            local money = getMoney()
+            
+            if myHrp then
+                if money >= CFG.targetMoney then
+                    -- Target reached: Claim money
+                    state = "CLAIM"
+                    -- Find NPC
+                    local npc = nil
+                    for _, v in ipairs(WS:GetDescendants()) do
+                        if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
+                            local h = v:FindFirstChild("HumanoidRootPart")
+                            if h then npc = h break end
                         end
                     end
-                end
-
-                if targetPart then
-                    -- Teleport ke objek
-                    myHrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
-                    task.wait(0.2)
-                    
-                    -- Cari ProximityPrompt di objek tersebut atau sekitarnya
-                    for _, p in ipairs(targetPart:GetDescendants()) do
-                        if p:IsA("ProximityPrompt") then
-                            pcall(function() fireproximityprompt(p) end)
-                        end
+                    if npc then
+                        myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
+                        task.wait(0.5)
+                        clickDialog("claim my money")
+                        task.wait(2)
+                        CFG.farmBox = false -- Turn off
                     end
-                    
-                    -- Fire prompt terdekat di sekitar
-                    for _, p in ipairs(WS:GetDescendants()) do
-                        if p:IsA("ProximityPrompt") and p.Parent:IsA("BasePart") then
-                            if (p.Parent.Position - myHrp.Position).Magnitude < 15 then
-                                pcall(function() fireproximityprompt(p) end)
-                            end
-                        end
-                    end
-                    
-                    task.wait(1) -- Jeda antar interact
+                    state = "START"
                 else
-                    task.wait(1)
+                    if state == "START" then
+                        -- Find NPC
+                        local npc = nil
+                        for _, v in ipairs(WS:GetDescendants()) do
+                            if v:IsA("Model") and (v.Name:lower():find("darrian") or v.Name:lower():find("npc")) then
+                                local h = v:FindFirstChild("HumanoidRootPart")
+                                if h then npc = h break end
+                            end
+                        end
+                        if npc then
+                            myHrp.CFrame = npc.CFrame * CFrame.new(0, 0, -3)
+                            task.wait(0.5)
+                            clickDialog("looking for work")
+                            task.wait(1)
+                            state = "GOT_JOB"
+                        end
+                    elseif state == "GOT_JOB" then
+                        -- Find Crate
+                        local crate = nil
+                        for _, v in ipairs(WS:GetDescendants()) do
+                            if v:IsA("BasePart") and (v.Name:lower():find("crate") or v.Name:lower():find("pickup")) then
+                                crate = v break
+                            end
+                        end
+                        if crate then
+                            myHrp.CFrame = crate.CFrame * CFrame.new(0, 3, 0)
+                            task.wait(0.3)
+                            -- Fire prompt
+                            for _, p in ipairs(crate:GetDescendants()) do
+                                if p:IsA("ProximityPrompt") then fireproximityprompt(p) end
+                            end
+                            task.wait(0.5)
+                            if myChar:FindFirstChildWhichIsA("Tool") then
+                                state = "GOT_CRATE"
+                            end
+                        end
+                    elseif state == "GOT_CRATE" then
+                        -- Find Truck
+                        local truck = nil
+                        for _, v in ipairs(WS:GetDescendants()) do
+                            if v:IsA("BasePart") and (v.Name:lower():find("truck") or v.Name:lower():find("deliver") or v.Name:lower():find("trailer")) then
+                                truck = v break
+                            end
+                        end
+                        if truck then
+                            myHrp.CFrame = truck.CFrame * CFrame.new(0, 3, -5)
+                            task.wait(0.3)
+                            -- Fire prompt
+                            for _, p in ipairs(truck:GetDescendants()) do
+                                if p:IsA("ProximityPrompt") then fireproximityprompt(p) end
+                            end
+                            task.wait(0.5)
+                            -- Check if still holding tool
+                            if not myChar:FindFirstChildWhichIsA("Tool") then
+                                state = "GOT_JOB" -- Cycle back to pick up next crate
+                            end
+                        end
+                    end
                 end
-            end)
+            end
         else
+            state = "START"
             task.wait(1)
         end
     end
@@ -271,7 +348,6 @@ task.spawn(function()
                     end
                 end
                 if nearest and nd > 5 then
-                    -- Teleport instan, server ngira lu lag
                     myHrp.CFrame = nearest.CFrame * CFrame.new(0, 0, -5)
                 end
             end
@@ -306,7 +382,7 @@ local function updateNoclip()
 end
 task.spawn(function() while true do updateNoclip(); task.wait(1) end end)
 
--- ENGINE: FLY (Anti-Detect)
+-- ENGINE: FLY
 local currentStopFly = nil
 local function startSecureFly()
     local char = LP.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -341,4 +417,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v4.0 loaded.")
+print("[GRAYS ON TOP] v4.1 loaded.")
