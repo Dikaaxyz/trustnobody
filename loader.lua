@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v3.9
-    Auto-Walk Farm (TP to Box) | CFrame Snap TP (Anti-Detect)
+    GRAYS ON TOP v4.0
+    Box Job Auto-Farm (State Machine) | Safe Object TP | Anti-Detect Fly
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -11,14 +11,14 @@ local RS = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local WS = game:GetService("Workspace")
 local CG = game:GetService("CoreGui")
-local RSvc = game:GetService("ReplicatedStorage")
+local TS = game:GetService("TweenService")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
 
 local CFG = {
     aim=false, aimFov=150, esp=false,
-    farmMarsh=false, farmBox=false,
+    farmBox=false, farmMarsh=false,
     tpSafe=false,
     noclip=false, fly=false, flySpeed=60,
     autoFire=false, autoFix=false,
@@ -112,13 +112,12 @@ addToggle(pgCombat, "Auto Fire (Equip)", "autoFire")
 addToggle(pgCombat, "Auto Fix Jam", "autoFix")
 
 local pgFarm = addTab("FARM", 50)
-addSection(pgFarm, "Auto-Walk Farm")
-addToggle(pgFarm, "Farm Marshmallow", "farmMarsh")
-addToggle(pgFarm, "Farm Box", "farmBox")
+addSection(pgFarm, "Jobs")
+addToggle(pgFarm, "Auto Farm Crate Job", "farmBox")
 
 local pgTp = addTab("TP", 40)
 addSection(pgTp, "Teleport")
-addToggle(pgTp, "Teleport Nearest (Snap)", "tpSafe")
+addToggle(pgTp, "TP Nearest Player", "tpSafe")
 
 local pgMove = addTab("MOVE", 50)
 addSection(pgMove, "Movement")
@@ -187,57 +186,77 @@ task.spawn(function() while true do task.wait(1)
 end end)
 P.PlayerRemoving:Connect(function(p) if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end end)
 
--- ENGINE: AUTO-WALK FARM (TP to Box/Marsh)
+-- ENGINE: BOX JOB FARM (State Machine)
 task.spawn(function()
     while true do
-        if CFG.farmMarsh or CFG.farmBox then
+        if CFG.farmBox then
             pcall(function()
-                local myChar = LP.Character; local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                local myChar = LP.Character
+                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 if not myHrp then return end
                 
-                -- Cari ProximityPrompt terdekat yang cocok
-                local bestPrompt, bd = nil, math.huge
-                for _, d in ipairs(WS:GetDescendants()) do
-                    if d:IsA("ProximityPrompt") and d.Parent:IsA("BasePart") then
-                        local pName = d.Parent.Name:lower(); local aText = d.ActionText:lower()
-                        if (CFG.farmMarsh and (pName:find("marsh") or aText:find("marsh") or pName:find("craft"))) 
-                        or (CFG.farmBox and (pName:find("box") or aText:find("box") or pName:find("crate") or pName:find("loot"))) then
-                            local dist = (d.Parent.Position - myHrp.Position).Magnitude
-                            if dist < bd then bd = dist; bestPrompt = d end
+                local holdingTool = myChar:FindFirstChildWhichIsA("Tool")
+                local targetPart = nil
+                local bestDist = math.huge
+                
+                -- Loop through workspace to find targets
+                for _, obj in ipairs(WS:GetDescendants()) do
+                    if obj:IsA("BasePart") then
+                        local n = obj.Name:lower()
+                        local dist = (obj.Position - myHrp.Position).Magnitude
+                        
+                        if holdingTool then
+                            -- Look for truck/delivery point
+                            if (n:find("truck") or n:find("deliver") or n:find("drop") or n:find("trailer")) and dist < bestDist then
+                                targetPart = obj
+                                bestDist = dist
+                            end
+                        else
+                            -- Look for crate/box pickup
+                            if (n:find("crate") or n:find("box") or n:find("pickup")) and dist < bestDist then
+                                targetPart = obj
+                                bestDist = dist
+                            end
                         end
                     end
                 end
 
-                if bestPrompt and bestPrompt.Parent then
-                    -- Teleport ke prompt
-                    myHrp.CFrame = bestPrompt.Parent.CFrame * CFrame.new(0, 3, 0)
+                if targetPart then
+                    -- Teleport ke objek
+                    myHrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
                     task.wait(0.2)
-                    -- Fire prompt
-                    if fireproximityprompt then fireproximityprompt(bestPrompt) end
-                    -- Nembak RemoteEvent kalau ada
-                    for _, v in ipairs(RSvc:GetDescendants()) do
-                        if v:IsA("RemoteEvent") then
-                            local n = v.Name:lower()
-                            if (CFG.farmMarsh and (n:find("farm") or n:find("marsh") or n:find("collect") or n:find("craft"))) or
-                               (CFG.farmBox and (n:find("box") or n:find("crate") or n:find("loot"))) then
-                                pcall(function() v:FireServer() end)
+                    
+                    -- Cari ProximityPrompt di objek tersebut atau sekitarnya
+                    for _, p in ipairs(targetPart:GetDescendants()) do
+                        if p:IsA("ProximityPrompt") then
+                            pcall(function() fireproximityprompt(p) end)
+                        end
+                    end
+                    
+                    -- Fire prompt terdekat di sekitar
+                    for _, p in ipairs(WS:GetDescendants()) do
+                        if p:IsA("ProximityPrompt") and p.Parent:IsA("BasePart") then
+                            if (p.Parent.Position - myHrp.Position).Magnitude < 15 then
+                                pcall(function() fireproximityprompt(p) end)
                             end
                         end
                     end
-                    task.wait(0.3)
+                    
+                    task.wait(1) -- Jeda antar interact
+                else
+                    task.wait(1)
                 end
             end)
-            task.wait(0.5)
         else
             task.wait(1)
         end
     end
 end)
 
--- ENGINE: SAFE TELEPORT (CFrame Snap)
+-- ENGINE: SAFE TELEPORT (Player)
 task.spawn(function()
     while true do
-        task.wait(1) -- Jeda 1 detik biar server nggak nge-flag
+        task.wait(1)
         if CFG.tpSafe then
             local myChar = LP.Character; local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if myHrp then
@@ -252,7 +271,7 @@ task.spawn(function()
                     end
                 end
                 if nearest and nd > 5 then
-                    -- CFrame Snap Instan (kaya lag spike, bukan jalan)
+                    -- Teleport instan, server ngira lu lag
                     myHrp.CFrame = nearest.CFrame * CFrame.new(0, 0, -5)
                 end
             end
@@ -287,7 +306,7 @@ local function updateNoclip()
 end
 task.spawn(function() while true do updateNoclip(); task.wait(1) end end)
 
--- ENGINE: FLY (LinearVelocity)
+-- ENGINE: FLY (Anti-Detect)
 local currentStopFly = nil
 local function startSecureFly()
     local char = LP.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart"); local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -322,4 +341,4 @@ task.spawn(function() local was = false; while true do task.wait(0.1)
     was = CFG.fly
 end end)
 
-print("[GRAYS ON TOP] v3.9 loaded.")
+print("[GRAYS ON TOP] v4.0 loaded.")
