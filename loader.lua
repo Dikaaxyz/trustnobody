@@ -772,3 +772,4 @@ for _, entry in ipairs(bindEntries) do
     btn.Text = CFG[entry.key].Name
     btn.TextColor3 = COL.accent
     btn.Font = Enum.Font.Code
+print("[GRAYS ON TOP] loaded — RShift to toggle menu.")
