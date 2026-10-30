@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v3.4 — Full Combat Build
-    Restored ESP | Restored FOV | Anti-Kick Fly | True Silent Aim | Split Farm
+    GRAYS ON TOP v3.5 — Xeno Stable
+    ESP via Highlight (No Lag) | CFrame Fly (No Rubberband) | Silent Aim | Split Farm
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -17,8 +17,8 @@ local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
 
 local CFG = {
-    aim=false, aimFov=150, esp=false, espBox=true, espName=true,
-    farmMarsh=false, farmBox=false, farmInt=0.5, farmDist=25,
+    aim=false, aimFov=150, esp=false,
+    farmMarsh=false, farmBox=false, farmInt=0.6, farmDist=30,
     tpSafe=false, tpDist=5,
     noclip=false, speed=false, ws=16, fly=false, flySpeed=60,
     autoFire=false, autoFix=false,
@@ -131,14 +131,12 @@ end
 -- BUILD TABS
 local pgAim = addTab("AIM", 50)
 addSection(pgAim, "True Silent Aim")
-addToggle(pgAim, "Enable Silent Aim", "aim")
+addToggle(pgAim, "Silent Aim", "aim")
 addSlider(pgAim, "FOV Radius", "aimFov", 50, 400)
 
 local pgEsp = addTab("ESP", 50)
 addSection(pgEsp, "Player ESP")
 addToggle(pgEsp, "ESP Master", "esp")
-addToggle(pgEsp, "Box", "espBox")
-addToggle(pgEsp, "Name", "espName")
 
 local pgCombat = addTab("COMBAT", 60)
 addSection(pgCombat, "Weapon")
@@ -197,24 +195,23 @@ UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseB
 
 -- FOV CIRCLE UI
 local fovGui = Instance.new("ScreenGui")
-fovGui.Name = "GOTFov"
-fovGui.ResetOnSpawn = false
-fovGui.IgnoreGuiInset = true
-fovGui.Parent = getHui()
+fovGui.Name = "GOTFov"; fovGui.ResetOnSpawn = false; fovGui.IgnoreGuiInset = true; fovGui.Parent = getHui()
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, CFG.aimFov*2, 0, CFG.aimFov*2)
 fovCircle.Position = UDim2.new(0.5, -CFG.aimFov, 0.5, -CFG.aimFov)
-fovCircle.BackgroundTransparency = 1
-fovCircle.Visible = false
-fovCircle.Parent = fovGui
-local fovStroke = Instance.new("UIStroke")
-fovStroke.Color = Color3.fromRGB(255,255,255)
-fovStroke.Thickness = 1
-fovStroke.Transparency = 0.5
-fovStroke.Parent = fovCircle
-local fovCorner = Instance.new("UICorner")
-fovCorner.CornerRadius = UDim.new(1, 0)
-fovCorner.Parent = fovCircle
+fovCircle.BackgroundTransparency = 1; fovCircle.Visible = false; fovCircle.Parent = fovGui
+local fovStroke = Instance.new("UIStroke"); fovStroke.Color = Color3.fromRGB(255,255,255); fovStroke.Thickness = 1; fovStroke.Transparency = 0.5; fovStroke.Parent = fovCircle
+local fovCorner = Instance.new("UICorner"); fovCorner.CornerRadius = UDim.new(1, 0); fovCorner.Parent = fovCircle
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if fovCircle then
+            fovCircle.Visible = CFG.aim
+            fovCircle.Size = UDim2.new(0, CFG.aimFov*2, 0, CFG.aimFov*2)
+            fovCircle.Position = UDim2.new(0.5, -CFG.aimFov, 0.5, -CFG.aimFov)
+        end
+    end
+end)
 
 -- ENGINE: SILENT AIM
 if typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" and typeof(newcclosure)=="function" then
@@ -253,60 +250,40 @@ if typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" and t
     setreadonly(mt,true)
 end
 
--- ENGINE: ESP
-local espFolder=Instance.new("Folder"); espFolder.Name="GOTESP"; espFolder.Parent=gui
-local espData={}
-local function makeESP(p)
-    if p==LP or espData[p] then return end
-    local e={}
-    local box=Instance.new("Frame"); box.BackgroundTransparency=1; box.BorderSizePixel=2; box.BorderColor3=Color3.fromRGB(255,40,40); box.Visible=false; box.Parent=espFolder; e.box=box
-    local nm=Instance.new("TextLabel"); nm.Size=UDim2.new(1,0,0,14); nm.Position=UDim2.new(0,0,0,-16); nm.BackgroundTransparency=1; nm.TextColor3=Color3.fromRGB(255,255,255); nm.TextStrokeTransparency=0; nm.TextStrokeColor3=Color3.fromRGB(0,0,0); nm.Font=Enum.Font.GothamBold; nm.TextSize=12; nm.Text=p.Name; nm.Visible=false; nm.Parent=box; e.name=nm
-    espData[p]=e
-end
-local function removeESP(p)
-    local e=espData[p]
-    if e then if e.box then e.box:Destroy() end; espData[p]=nil end
-end
-for _,p in ipairs(P:GetPlayers()) do makeESP(p) end
-P.PlayerAdded:Connect(makeESP)
-P.PlayerRemoving:Connect(removeESP)
-
-RS.RenderStepped:Connect(function()
-    -- FOV Circle update
-    if fovCircle then
-        fovCircle.Visible = CFG.aim
-        fovCircle.Size = UDim2.new(0, CFG.aimFov*2, 0, CFG.aimFov*2)
-        fovCircle.Position = UDim2.new(0.5, -CFG.aimFov, 0.5, -CFG.aimFov)
-    end
-
-    -- ESP Loop
-    for p,e in pairs(espData) do
-        local c=p.Character; local hum=c and c:FindFirstChildOfClass("Humanoid"); local hrp=c and c:FindFirstChild("HumanoidRootPart")
-        if not CFG.esp or not c or not hum or not hrp or hum.Health<=0 then
-            e.box.Visible=false
-        else
-            local head=c:FindFirstChild("Head")
-            if head then
-                local top=head.Position+Vector3.new(0,0.5,0); local bot=hrp.Position-Vector3.new(0,3,0)
-                local p1,on1=CAM:WorldToViewportPoint(top); local p2,on2=CAM:WorldToViewportPoint(bot)
-                if on1 or on2 then
-                    local h=math.abs(p2.Y-p1.Y); local w=h*0.55
-                    local x=p1.X-w/2; local y=p1.Y
-                    if CFG.espBox then
-                        e.box.Visible=true; e.box.Size=UDim2.new(0,w,0,h); e.box.Position=UDim2.new(0,x,0,y)
-                    else
-                        e.box.Visible=false
-                    end
-                    e.name.Visible=CFG.espName
-                    e.name.Position=UDim2.new(0,0,0,-16)
-                else
-                    e.box.Visible=false
+-- ENGINE: ESP (Highlight Method - No Lag)
+local espHighlights = {}
+local function updateESP()
+    if CFG.esp then
+        for _, p in ipairs(P:GetPlayers()) do
+            if p ~= LP and p.Character then
+                if not espHighlights[p] then
+                    local h = Instance.new("Highlight")
+                    h.FillColor = Color3.fromRGB(255, 0, 0)
+                    h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    h.FillTransparency = 0.5
+                    h.OutlineTransparency = 0
+                    h.Parent = p.Character
+                    espHighlights[p] = h
                 end
-            else
-                e.box.Visible=false
             end
         end
+    else
+        for p, h in pairs(espHighlights) do
+            if h then h:Destroy() end
+            espHighlights[p] = nil
+        end
     end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        pcall(updateESP)
+    end
+end)
+
+P.PlayerRemoving:Connect(function(p)
+    if espHighlights[p] then espHighlights[p]:Destroy(); espHighlights[p] = nil end
 end)
 
 -- ENGINE: FARM
@@ -433,7 +410,6 @@ end)
 
 -- ENGINE: FLY (Anti-Rubberband CFrame Method)
 local flyConn
-local flyBV, flyBG -- Dihapus, ganti pake CFrame loop
 task.spawn(function()
     local was=false
     while true do
@@ -470,4 +446,4 @@ task.spawn(function()
     end
 end)
 
-print("[GRAYS ON TOP] v3.4 loaded.")
+print("[GRAYS ON TOP] v3.5 loaded.")
