@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v51.0 — No-Stutter Skillcheck
+    v55.0 — Ultimate Evasion
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,6 +15,7 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
@@ -23,7 +24,7 @@ local CFG = {
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
     crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
-    auto_gen=false, auto_parry=false, auto_skillcheck=false,
+    auto_parry=false, auto_skillcheck=false,
     look_lock=false, ws_enabled=false, ws_speed=16,
     keyMenu=Enum.KeyCode.RightShift
 }
@@ -34,10 +35,41 @@ local VD_ITEMS = {
     "WaxBound Candle", "Holy Water", "Riot Shield"
 }
 
+-- ==========================================
+-- [BYPASS] ULTIMATE EVASION
+-- ==========================================
 pcall(function()
+    -- 1. Anti-Metatable Signature
+    local mt = getrawmetatable(game)
+    local registry = debug.getregistry()
+    for i = 1, 100 do
+        if registry[i] == mt then table.remove(registry, i) break end
+    end
+
+    -- 2. Handshake Obfuscation (Spoof Android)
+    local NetworkClient = game:GetService("NetworkClient")
+    local oldInvoke = NetworkClient.Invoke
+    NetworkClient.Invoke = function(self, req, ...)
+        if req == "Handshake" then return "Roblox/Android/2.599" end
+        return oldInvoke(self, req, ...)
+    end
+
+    -- 3. IP Masking
+    local oldGet = HttpService.GetAsync
+    HttpService.GetAsync = function(self, url, ...)
+        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US","city":"Los Angeles"}' end
+        return oldGet(self, url, ...)
+    end
+
+    -- 4. HWID Spoof & Cookie Wipe
     getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
-    if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
+    if writefile and isfile and delfile then 
+        pcall(function() 
+            if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end 
+            if isfile("rbx_cookie") then delfile("rbx_cookie") end
+        end) 
+    end
 end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
@@ -117,8 +149,8 @@ addSwitch(boxWorld, "Generator ESP", "gen_esp", 30); addSwitch(boxWorld, "Killer
 local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
 addSwitch(boxEnv, "TRUE Fullbright", "bright", 30); addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
-local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 160)
-addSwitch(boxSafe, "Auto Generator (Hold LMB)", "auto_gen", 30); addSwitch(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 60); addSwitch(boxSafe, "Auto Skillcheck (LMB)", "auto_skillcheck", 90)
+local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 120)
+addSwitch(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 30); addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
 
 local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
@@ -173,8 +205,9 @@ local function getSurvivorItem(p)
     if not char then return nil end
     local tool = char:FindFirstChildWhichIsA("Tool")
     if tool then
+        local toolName = tool.Name:lower()
         for _, itemName in ipairs(VD_ITEMS) do
-            if tool.Name:lower():find(itemName:lower()) then return itemName end
+            if toolName:find(itemName:lower()) then return itemName end
         end
     end
     return nil
@@ -286,8 +319,12 @@ task.spawn(function()
                         data.name.TextColor3 = color
                         data.name.Visible = CFG.esp_name
                         
-                        data.item.Text = itemName and ("[" .. itemName .. "]") or ""
-                        data.item.Visible = CFG.esp_item and (itemName ~= nil)
+                        if itemName then
+                            data.item.Text = "[" .. itemName .. "]"
+                            data.item.Visible = CFG.esp_item
+                        else
+                            data.item.Visible = false
+                        end
                         
                         data.dist.Text = "[" .. dist .. "m]"
                         data.dist.Visible = CFG.esp_dist
@@ -309,76 +346,52 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
--- ENGINE: SMART SKILLCHECK (No Stutter)
+-- ENGINE: PURE AUTO SKILLCHECK (With Random Delay)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.1) do -- Turunin rate jadi 10x/detik biar ga berat
+    while task.wait(0.1) do 
         if not MasterEnabled then continue end
-        if CFG.auto_gen or CFG.auto_skillcheck then
-            local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
+        if CFG.auto_skillcheck then
+            local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
             if isHoldingMouse then
-                if CFG.auto_gen then pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) end) end
-                
-                if CFG.auto_skillcheck then
-                    local pg = LP:FindFirstChild("PlayerGui")
-                    if pg then
-                        -- Cek ImageLabel (jarum) aja, jangan ke semuanya
-                        for _, g in ipairs(pg:GetChildren()) do
-                            if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow")) then
-                                local posX = g.Position.X.Scale
-                                if posX > 0.4 and posX < 0.6 then
-                                    pcall(function() 
-                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                        task.wait(0.01)
-                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                    end)
-                                end
+                local pg = LP:FindFirstChild("PlayerGui")
+                if pg then
+                    for _, g in ipairs(pg:GetDescendants()) do
+                        if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow") or g.Name:lower():find("needle")) then
+                            local posX = g.Position.X.Scale
+                            if posX > 0.4 and posX < 0.6 then
+                                -- Jeda random 10-30ms biar ga kecap robot
+                                task.wait(math.random(10, 30) / 1000)
+                                pcall(function() 
+                                    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                    task.wait(0.01)
+                                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                end)
                             end
                         end
                     end
                 end
-            else
-                pcall(function() VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
             end
         end
     end
 end)
 
--- ==========================================
--- ENGINE: TRUE AUTO GENERATOR & SKILLCHECK
--- ==========================================
-local lastGen = nil
+-- AUTO PARRY (With Random Delay)
 task.spawn(function()
-    while task.wait(0.5) do -- 2x sedetik biar ga berat
+    while task.wait(0.1) do
         if not MasterEnabled then continue end
-        if CFG.auto_gen then
-            local myChar = LP.Character
-            local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if CFG.auto_parry and LP.Character then
+            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
-                local gen = nil
-                local minDist = 25
-                
-                for _, v in ipairs(WS:GetChildren()) do
-                    if v:IsA("Model") or v:IsA("BasePart") then
-                        local n = v.Name:lower()
-                        if n:find("generator") or n:find("gen") or n:find("fuse") then
-                            local targetPos = v:IsA("BasePart") and v.Position or (v:FindFirstChildWhichIsA("BasePart") and v.PrimaryPart and v.PrimaryPart.Position)
-                            if targetPos then
-                                local dist = (targetPos - hrp.Position).Magnitude
-                                if dist < minDist then
-                                    minDist = dist
-                                    gen = targetPos
-                                end
-                            end
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP and p.Character and isKiller(p) then
+                        local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
+                            task.wait(math.random(20, 50) / 1000)
+                            pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
                         end
                     end
-                end
-
-                if gen then
-                    CAM.CFrame = CFrame.lookAt(CAM.CFrame.Position, gen)
-                    pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0) end)
-                else
-                    pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
                 end
             end
         end
@@ -440,31 +453,10 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- AUTO PARRY
-task.spawn(function()
-    while task.wait(0.1) do
-        if not MasterEnabled then continue end
-        if CFG.auto_parry and LP.Character then
-            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                for _, p in ipairs(P:GetPlayers()) do
-                    if p ~= LP and p.Character and isKiller(p) then
-                        local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
-                            pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
 RS.Stepped:Connect(function()
     if not MasterEnabled then return end
     local c = LP.Character
-    if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
+    if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = math.min(CFG.ws_speed, 28) else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v51.0 No-Stutter")
+print("[SpookingD] Script Loaded — v55.0 Ultimate Evasion")
