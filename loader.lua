@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v62.3 — Full UI Restored + Precision Engines
+    v62.4 — Fixed Sidebar Layout (All 5 Tabs Visible)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -47,7 +47,7 @@ local function getHiddenFolder()
 end
 
 -- ==========================================
--- GUI (ALL TABS RESTORED)
+-- GUI (Fixed Layout - All Tabs)
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -64,7 +64,7 @@ gui.Parent = LP:WaitForChild("PlayerGui")
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(0,600,0,420); main.Position=UDim2.new(0.5,-300,0.5,-210)
+main.Size=UDim2.new(0,600,0,440); main.Position=UDim2.new(0.5,-300,0.5,-220)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 
 local ms = Instance.new("UIStroke")
@@ -80,7 +80,7 @@ logo.Text="SpookingD"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=22; logo.Parent=sidebar
 
 local masterBtn = Instance.new("TextButton")
-masterBtn.Size=UDim2.new(1,-20,0,30); masterBtn.Position=UDim2.new(0,10,0,55)
+masterBtn.Size=UDim2.new(1,-20,0,30); masterBtn.Position=UDim2.new(0,10,0,50)
 masterBtn.BackgroundColor3=COL.panel; masterBtn.BorderSizePixel=0
 masterBtn.Text="ENABLE SCRIPT"; masterBtn.TextColor3=COL.dim
 masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=10; masterBtn.Parent=sidebar
@@ -119,16 +119,19 @@ end)
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
     local btn = Instance.new("TextButton")
-    btn.Size=UDim2.new(1,-20,0,30); btn.Position=UDim2.new(0,10,0,90+(#sideTabs*32))
+    -- Ukuran dan jarak tab dirapihin biar 5 tab muat di 440px
+    btn.Size=UDim2.new(1,-20,0,26); btn.Position=UDim2.new(0,10,0,90+(#sideTabs*28))
     btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0
     btn.Text="  "..name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold
     btn.TextSize=11; btn.TextXAlignment=Enum.TextXAlignment.Left
     btn.AutoButtonColor=false; btn.Parent=sidebar
     table.insert(sideTabs, btn)
+    
     local pg=Instance.new("Frame")
     pg.Size=UDim2.new(1,-130,1,0); pg.Position=UDim2.new(0,130,0,0)
     pg.BackgroundTransparency=1; pg.Visible=false; pg.Parent=main
     table.insert(sidePages, pg)
+    
     local idx=#sideTabs
     btn.MouseButton1Click:Connect(function()
         for i,t in ipairs(sideTabs) do
@@ -218,6 +221,7 @@ local pgSurvivor = addSideTab("Survivor")
 local pgKiller   = addSideTab("Killer")
 local pgMisc     = addSideTab("Misc")
 
+-- Visuals
 local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 220)
 addSwitch(boxESP, "Enable ESP", "esp", 30)
 addSwitch(boxESP, "Show Name", "esp_name", 60)
@@ -230,22 +234,26 @@ local boxVisual = createBox(pgVisual, "Screen", 10, 240, 440, 100)
 addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30)
 addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60)
 
+-- World
 local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 160)
 addSwitch(boxWorld, "Generator ESP", "gen_esp", 30)
 addSwitch(boxWorld, "Killer Skill ESP", "killer_esp", 60)
 addSwitch(boxWorld, "Item ESP", "item_esp", 90)
 addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
 
-local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
-addSwitch(boxEnv, "TRUE Fullbright", "bright", 30)
-addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
-
+-- Survivor
 local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 120)
 addSwitch(boxSafe, "Auto Parry (Prediction)", "auto_parry", 30)
 addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
 
+-- Killer
 local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
+
+-- Misc
+local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
+addSwitch(boxEnv, "TRUE Fullbright", "bright", 30)
+addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
 local boxFOV = createBox(pgMisc, "Camera FOV", 10, 120, 440, 100)
 addSwitch(boxFOV, "Enable Custom FOV", "fov_enabled", 30)
@@ -315,7 +323,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP ENGINE (Highlight + Health Bar)
+-- ESP ENGINE
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -694,7 +702,6 @@ task.spawn(function()
                     end
                 end
             elseif tick() - lastUiCheck > 1.5 then
-                -- Fallback spam ONLY if UI is broken/missing
                 local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
                 pcall(function()
                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -805,4 +812,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v62.3 loaded — All Tabs + Precision Active")
+print("[SpookingD] v62.4 loaded — All Tabs Fixed")
