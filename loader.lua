@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v62.4 — Fixed Sidebar Layout (All 5 Tabs Visible)
+    v62.5 — Fixed Sidebar & Scrolling Layout
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -47,7 +47,7 @@ local function getHiddenFolder()
 end
 
 -- ==========================================
--- GUI (Fixed Layout - All Tabs)
+-- GUI (SCROLLING ENABLED, ALL TABS)
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -73,6 +73,16 @@ ms.Color=COL.acc; ms.Thickness=1; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
 local sidebar = Instance.new("Frame")
 sidebar.Size=UDim2.new(0,130,1,0); sidebar.BackgroundColor3=COL.sidebar
 sidebar.BorderSizePixel=0; sidebar.Parent=main
+
+-- Make sidebar scrollable
+local sideScroll = Instance.new("ScrollingFrame")
+sideScroll.Size=UDim2.new(1, 0, 1, -90)
+sideScroll.Position=UDim2.new(0, 0, 0, 90)
+sideScroll.BackgroundTransparency=1
+sideScroll.BorderSizePixel=0
+sideScroll.ScrollBarThickness=2
+sideScroll.CanvasSize=UDim2.new(0, 0, 0, 200)
+sideScroll.Parent=sidebar
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(1,0,0,50); logo.BackgroundTransparency=1
@@ -119,12 +129,12 @@ end)
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
     local btn = Instance.new("TextButton")
-    -- Ukuran dan jarak tab dirapihin biar 5 tab muat di 440px
-    btn.Size=UDim2.new(1,-20,0,26); btn.Position=UDim2.new(0,10,0,90+(#sideTabs*28))
+    -- Pos Y dikurangi karena dimasukin ke ScrollingFrame
+    btn.Size=UDim2.new(1,-20,0,30); btn.Position=UDim2.new(0,10,0,(#sideTabs*35))
     btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0
     btn.Text="  "..name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold
     btn.TextSize=11; btn.TextXAlignment=Enum.TextXAlignment.Left
-    btn.AutoButtonColor=false; btn.Parent=sidebar
+    btn.AutoButtonColor=false; btn.Parent=sideScroll
     table.insert(sideTabs, btn)
     
     local pg=Instance.new("Frame")
@@ -143,9 +153,22 @@ local function addSideTab(name)
     return pg
 end
 
-local function createBox(parent,title,x,y,w,h)
+-- Utility for ScrollingFrame inside pages
+local function createScrollablePage(parent)
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size=UDim2.new(1,-10,1,-10)
+    scroll.Position=UDim2.new(0,5,0,5)
+    scroll.BackgroundTransparency=1
+    scroll.BorderSizePixel=0
+    scroll.ScrollBarThickness=2
+    scroll.CanvasSize=UDim2.new(0,0,0,500)
+    scroll.Parent=parent
+    return scroll
+end
+
+local function createBox(parent,title,y,w,h)
     local box=Instance.new("Frame")
-    box.Size=UDim2.new(0,w,0,h); box.Position=UDim2.new(0,x,0,y)
+    box.Size=UDim2.new(0,w,0,h); box.Position=UDim2.new(0,5,0,y)
     box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Parent=parent
     local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=box
     local header=Instance.new("Frame")
@@ -215,14 +238,22 @@ local function addButton(parent,label,cb,yOffset)
     btn.MouseButton1Click:Connect(function() if MasterEnabled then pcall(cb) end end)
 end
 
+-- Create Tabs
 local pgVisual   = addSideTab("Visuals")
 local pgWorld    = addSideTab("World")
 local pgSurvivor = addSideTab("Survivor")
 local pgKiller   = addSideTab("Killer")
 local pgMisc     = addSideTab("Misc")
 
+-- Add Scrolls to pages
+local scrollVisual   = createScrollablePage(pgVisual)
+local scrollWorld    = createScrollablePage(pgWorld)
+local scrollSurvivor = createScrollablePage(pgSurvivor)
+local scrollKiller   = createScrollablePage(pgKiller)
+local scrollMisc     = createScrollablePage(pgMisc)
+
 -- Visuals
-local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 220)
+local boxESP = createBox(scrollVisual, "Player ESP", 10, 440, 230)
 addSwitch(boxESP, "Enable ESP", "esp", 30)
 addSwitch(boxESP, "Show Name", "esp_name", 60)
 addSwitch(boxESP, "Show Health", "esp_health", 90)
@@ -230,40 +261,40 @@ addSwitch(boxESP, "Show Distance", "esp_dist", 120)
 addSwitch(boxESP, "Show Item", "esp_item", 150)
 addSwitch(boxESP, "Zombie ESP (SCP)", "zombie_esp", 180)
 
-local boxVisual = createBox(pgVisual, "Screen", 10, 240, 440, 100)
+local boxVisual = createBox(scrollVisual, "Screen", 250, 440, 100)
 addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30)
 addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60)
 
 -- World
-local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 160)
+local boxWorld = createBox(scrollWorld, "World ESP", 10, 440, 160)
 addSwitch(boxWorld, "Generator ESP", "gen_esp", 30)
 addSwitch(boxWorld, "Killer Skill ESP", "killer_esp", 60)
 addSwitch(boxWorld, "Item ESP", "item_esp", 90)
 addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
 
 -- Survivor
-local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 120)
+local boxSafe = createBox(scrollSurvivor, "Survivor Utility", 10, 440, 120)
 addSwitch(boxSafe, "Auto Parry (Prediction)", "auto_parry", 30)
 addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
 
 -- Killer
-local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
+local boxKiller = createBox(scrollKiller, "Killer Utility", 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
 
 -- Misc
-local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
+local boxEnv = createBox(scrollMisc, "Environment", 10, 440, 100)
 addSwitch(boxEnv, "TRUE Fullbright", "bright", 30)
 addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
-local boxFOV = createBox(pgMisc, "Camera FOV", 10, 120, 440, 100)
+local boxFOV = createBox(scrollMisc, "Camera FOV", 120, 440, 100)
 addSwitch(boxFOV, "Enable Custom FOV", "fov_enabled", 30)
 addSlider(boxFOV, "FOV Value", "fov_val", 50, 120, 60)
 
-local boxMisc = createBox(pgMisc, "Movement", 10, 230, 440, 100)
+local boxMisc = createBox(scrollMisc, "Movement", 230, 440, 100)
 addSwitch(boxMisc, "Enable WalkSpeed", "ws_enabled", 30)
 addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
 
-local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 340, 440, 150)
+local boxBypass = createBox(scrollMisc, "SpookingD Bypass", 340, 440, 150)
 addButton(boxBypass, "Re-Apply HWID Bypass", function()
     pcall(function()
         game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return "SPOOK_991" end
@@ -812,4 +843,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v62.4 loaded — All Tabs Fixed")
+print("[SpookingD] v62.5 loaded — Layout fixed")
