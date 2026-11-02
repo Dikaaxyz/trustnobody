@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v48.0 — Crash-Proof & Lightweight
+    v49.0 — FOV Lock & 60s Auto-Refresh
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -34,9 +34,6 @@ local VD_ITEMS = {
     "WaxBound Candle", "Holy Water", "Riot Shield"
 }
 
--- ==========================================
--- [1] LIGHT BYPASS (No Metatable)
--- ==========================================
 pcall(function()
     getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
@@ -45,9 +42,6 @@ end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
 
--- ==========================================
--- [2] UI BUILD (Cepat & Ringan)
--- ==========================================
 local COL = { bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(25, 25, 25), sidebar=Color3.fromRGB(10, 10, 10), line=Color3.fromRGB(50, 50, 50), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(130, 130, 130), acc=Color3.fromRGB(255, 0, 60), off=Color3.fromRGB(60, 60, 60) }
 
 local gui = Instance.new("ScreenGui"); gui.Name="SpookingD"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
@@ -162,7 +156,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: ESP (Lightweight & Lazy Load)
+-- ENGINE: ESP (Auto-Refresh 60 Detik)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local espData = {}
@@ -186,9 +180,29 @@ local function getSurvivorItem(p)
     return nil
 end
 
+-- Fungsi buat ngehapus semua ESP (buat refresh)
+local function clearAllESP()
+    for p, data in pairs(espData) do
+        if data.hl then data.hl:Destroy() end
+        if data.bg then data.bg:Destroy() end
+        espData[p] = nil
+    end
+end
+
+-- Timer buat auto refresh 60 detik
 task.spawn(function()
     while true do
-        task.wait(1) -- Jeda 1 detik biar ringan
+        task.wait(60)
+        if MasterEnabled and CFG.esp then
+            clearAllESP()
+            print("[SpookingD] ESP Refreshed (60s cycle)")
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
         if MasterEnabled and CFG.esp then
             pcall(function()
                 for _, p in ipairs(P:GetPlayers()) do
@@ -292,16 +306,20 @@ task.spawn(function()
                     end
                 end
             end)
-        else
-            for p, data in pairs(espData) do
-                if data.hl then data.hl:Destroy() end
-                if data.bg then data.bg:Destroy() end
-                espData[p] = nil
-            end
         end
     end
 end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
+
+-- ==========================================
+-- ENGINE: FOV LOCK (Jalan tiap frame)
+-- ==========================================
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
+    if CAM and CFG.fov_enabled then
+        CAM.FieldOfView = CFG.fov_val
+    end
+end)
 
 -- ==========================================
 -- ENGINE: SOFT LIGHTING & FPS
@@ -310,23 +328,26 @@ local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTim
 local origQuality = settings().Rendering.QualityLevel
 
 for _, v in pairs(L:GetChildren()) do
-    if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") then v:Destroy() end
+    if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then v:Destroy() end
 end
 
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     
     if CFG.bright then 
-        L.Brightness = 3
-        L.ClockTime = 14
-        L.Ambient = Color3.fromRGB(150, 150, 150)
+        L.Brightness = 1.5
+        L.ClockTime = 14.5
+        L.Ambient = Color3.fromRGB(130, 130, 130)
         L.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-        L.ExposureCompensation = 0.5
+        L.ExposureCompensation = 0.1
         L.FogEnd = 5000
         L.GlobalShadows = false
+        L.ShadowSoftness = 0.5
         
         for _, v in pairs(L:GetChildren()) do
-            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") then v:Destroy() end
+            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then 
+                v:Destroy() 
+            end
         end
     else 
         L.Brightness = origBrightness
@@ -346,7 +367,7 @@ RS.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- ENGINE: PERFECT SKILLCHECK (Timing)
+-- ENGINE: PERFECT SKILLCHECK
 -- ==========================================
 task.spawn(function()
     while task.wait(0.02) do
@@ -407,4 +428,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v48.0 Crash Proof")
+print("[SpookingD] Script Loaded — v49.0 FOV Lock & Auto-Refresh")
