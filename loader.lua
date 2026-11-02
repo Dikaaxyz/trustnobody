@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v15.0 — FINAL OBFUSCATION (Max Stealth)
+    v16.0 — ULTIMATE STEALTH BYPASS
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -17,7 +17,8 @@ local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
 local TS = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
+
+local MasterEnabled = false
 
 local CFG = {
     -- Visuals
@@ -36,10 +37,10 @@ local CFG = {
 }
 
 -- ==========================================
--- [1] ULTIMATE BYPASS (Anti-Detect & Anti-Ban)
+-- [ULTIMATE STEALTH BYPASS]
 -- ==========================================
 pcall(function()
-    -- 1. Hapus Jejak Metatable
+    -- 1. Anti-Metatable Signature
     local mt = getrawmetatable(game)
     local registry = debug.getregistry()
     for i = 1, 100 do
@@ -49,30 +50,41 @@ pcall(function()
         end
     end
 
-    -- 2. Handshake Spoofer (Android)
+    -- 2. Handshake Spoofer (Fake Android)
     local NetworkClient = game:GetService("NetworkClient")
     local oldInvoke = NetworkClient.Invoke
     NetworkClient.Invoke = function(self, req, ...)
-        if req == "Handshake" then return "Roblox/Android/1.0" end
+        if req == "Handshake" then return "Roblox/WinInet/10.0" end
         return oldInvoke(self, req, ...)
     end
 
-    -- 3. HWID & IP Proxy
-    getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
-    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
-    
+    -- 3. Network Masking (Fake IP)
     local oldGet = HttpService.GetAsync
     HttpService.GetAsync = function(self, url, ...)
-        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
+        if url:find("ip") or url:find("geo") or url:find("location") then 
+            return '{"ip":"104.28.210.1","country":"US","city":"Los Angeles"}' 
+        end
         return oldGet(self, url, ...)
     end
 
-    -- 4. Cache Wipe
-    if writefile and isfile and delfile then
-        pcall(function()
-            if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end
-            if isfile("rbx_cookie") then delfile("rbx_cookie") end
-        end)
+    -- 4. Physics Clamp (Anti Speed-Flag)
+    local oldIndex = getrawmetatable(game).__index
+    getrawmetatable(game).__index = newcclosure(function(self, k)
+        if self == LP and k == "WalkSpeed" then
+            if CFG.ws_speed > 28 then return 28 end
+        end
+        return oldIndex(self, k)
+    end)
+    
+    -- 5. HWID Spoof
+    getgenv().SpoofedHWID = tostring(math.random(100000,999999))
+    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
+    
+    -- 6. Cookie Wipe
+    if writefile and isfile and delfile then 
+        pcall(function() 
+            if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end 
+        end) 
     end
 end)
 
@@ -85,19 +97,38 @@ local function getHui()
 end
 
 -- === TUMBLR GIRLS UI ===
-local COL = { bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(20, 20, 20), sidebar=Color3.fromRGB(12, 12, 12), line=Color3.fromRGB(40, 40, 40), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(120, 120, 120), acc=Color3.fromRGB(255, 0, 50) }
+local COL = { 
+    bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(20, 20, 20), sidebar=Color3.fromRGB(12, 12, 12), 
+    line=Color3.fromRGB(40, 40, 40), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(120, 120, 120), 
+    acc=Color3.fromRGB(255, 0, 50), off=Color3.fromRGB(60, 60, 60) 
+}
 
 local gui = Instance.new("ScreenGui"); gui.Name="TumblrGirls"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
 local main = Instance.new("Frame"); main.Size=UDim2.new(0, 650, 0, 450); main.Position=UDim2.new(0.5, -325, 0.5, -225); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
 
 local sidebar = Instance.new("Frame"); sidebar.Size=UDim2.new(0, 150, 1, 0); sidebar.BackgroundColor3=COL.sidebar; sidebar.BorderSizePixel=0; sidebar.Parent=main
-local logo = Instance.new("TextLabel"); logo.Size=UDim2.new(1, 0, 0, 60); logo.BackgroundTransparency=1; logo.Text="TUMBLR"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack; logo.TextSize=24; logo.Parent=sidebar
-local subLogo = Instance.new("TextLabel"); subLogo.Size=UDim2.new(1, 0, 0, 15); subLogo.Position=UDim2.new(0,0,0,45); subLogo.BackgroundTransparency=1; subLogo.Text="GIRLS"; subLogo.TextColor3=COL.txt; subLogo.Font=Enum.Font.GothamBold; subLogo.TextSize=12; subLogo.Parent=sidebar
+local logo = Instance.new("TextLabel"); logo.Size=UDim2.new(1, 0, 0, 50); logo.BackgroundTransparency=1; logo.Text="TUMBLR"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack; logo.TextSize=24; logo.Parent=sidebar
+local subLogo = Instance.new("TextLabel"); subLogo.Size=UDim2.new(1, 0, 0, 10); subLogo.Position=UDim2.new(0,0,0,40); subLogo.BackgroundTransparency=1; subLogo.Text="GIRLS"; subLogo.TextColor3=COL.txt; subLogo.Font=Enum.Font.GothamBold; subLogo.TextSize=10; subLogo.Parent=sidebar
+
+local masterBtn = Instance.new("TextButton")
+masterBtn.Size = UDim2.new(1, -20, 0, 30); masterBtn.Position = UDim2.new(0, 10, 0, 55)
+masterBtn.BackgroundColor3 = COL.panel; masterBtn.BorderSizePixel = 0
+masterBtn.Text = "ENABLE SCRIPT"; masterBtn.TextColor3 = COL.dim; masterBtn.Font = Enum.Font.GothamBold; masterBtn.TextSize = 11; masterBtn.Parent = sidebar
+local masterStroke = Instance.new("UIStroke"); masterStroke.Color = COL.line; masterStroke.Thickness = 1; masterStroke.Parent = masterBtn
+
+masterBtn.MouseButton1Click:Connect(function()
+    MasterEnabled = not MasterEnabled
+    if MasterEnabled then
+        masterBtn.Text = "SCRIPT: ON"; masterBtn.TextColor3 = COL.acc; masterStroke.Color = COL.acc
+    else
+        masterBtn.Text = "ENABLE SCRIPT"; masterBtn.TextColor3 = COL.dim; masterStroke.Color = COL.line
+    end
+end)
 
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
-    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, -20, 0, 35); btn.Position=UDim2.new(0, 10, 0, 70 + (#sideTabs * 35)); btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0; btn.Text="  " .. name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=12; btn.TextXAlignment=Enum.TextXAlignment.Left; btn.AutoButtonColor=false; btn.Parent=sidebar; table.insert(sideTabs, btn)
+    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, -20, 0, 30); btn.Position=UDim2.new(0, 10, 0, 90 + (#sideTabs * 32)); btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0; btn.Text="  " .. name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=12; btn.TextXAlignment=Enum.TextXAlignment.Left; btn.AutoButtonColor=false; btn.Parent=sidebar; table.insert(sideTabs, btn)
     local pg = Instance.new("Frame"); pg.Size=UDim2.new(1, -150, 1, 0); pg.Position=UDim2.new(0, 150, 0, 0); pg.BackgroundTransparency=1; pg.Visible=false; pg.Parent=main; table.insert(sidePages, pg)
     local idx = #sideTabs
     btn.MouseButton1Click:Connect(function()
@@ -118,56 +149,60 @@ local function createBox(parent, title, x, y, w, h)
     return box, list
 end
 
-local function addCheckbox(parent, label, key)
-    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 24); btn.BackgroundTransparency=1; btn.Text=""; btn.AutoButtonColor=false; btn.Parent=parent
-    local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -30, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=btn
-    local check = Instance.new("Frame"); check.Size=UDim2.new(0, 14, 0, 14); check.Position=UDim2.new(1, -16, 0.5, -7); check.BackgroundColor3=CFG[key] and COL.acc or COL.bg; check.BorderSizePixel=1; check.BorderColor3=COL.line; check.Parent=btn
-    btn.MouseButton1Click:Connect(function() CFG[key] = not CFG[key]; check.BackgroundColor3 = CFG[key] and COL.acc or COL.bg end)
+local function addToggle(parent, label, key)
+    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 26); btn.BackgroundTransparency=1; btn.Text=""; btn.AutoButtonColor=false; btn.Parent=parent
+    local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -60, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=btn
+    local stateBtn = Instance.new("TextButton"); stateBtn.Size=UDim2.new(0, 40, 0, 18); stateBtn.Position=UDim2.new(1, -40, 0.5, -9); stateBtn.BackgroundColor3=CFG[key] and COL.acc or COL.off; stateBtn.BorderSizePixel=0; stateBtn.Text=CFG[key] and "ON" or "OFF"; stateBtn.TextColor3=COL.txt; stateBtn.Font=Enum.Font.GothamBold; stateBtn.TextSize=10; stateBtn.Parent=btn
+    btn.MouseButton1Click:Connect(function() 
+        if not MasterEnabled then return end
+        CFG[key] = not CFG[key]
+        stateBtn.BackgroundColor3 = CFG[key] and COL.acc or COL.off
+        stateBtn.Text = CFG[key] and "ON" or "OFF"
+    end)
 end
 
 local function addSlider(parent, label, key, min, max)
     local frame = Instance.new("Frame"); frame.Size=UDim2.new(1, 0, 0, 24); frame.BackgroundTransparency=1; frame.Parent=parent
     local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -60, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=frame
     local input = Instance.new("TextBox"); input.Size=UDim2.new(0, 50, 0, 18); input.Position=UDim2.new(1, -50, 0.5, -9); input.BackgroundColor3=COL.bg; input.BorderSizePixel=0; input.Text=tostring(CFG[key]); input.TextColor3=COL.acc; input.Font=Enum.Font.GothamBold; input.TextSize=11; input.Parent=frame
-    input.FocusLost:Connect(function() local val = tonumber(input.Text); if val then CFG[key] = math.clamp(val, min, max) end; input.Text = tostring(CFG[key]) end)
+    input.FocusLost:Connect(function() 
+        if not MasterEnabled then return end
+        local val = tonumber(input.Text); if val then CFG[key] = math.clamp(val, min, max) end; input.Text = tostring(CFG[key]) 
+    end)
 end
 
 local function addButton(parent, label, cb)
     local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 26); btn.BackgroundColor3=COL.bg; btn.BorderSizePixel=0; btn.Text=label; btn.TextColor3=COL.txt; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=parent
     local bs = Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=btn
-    btn.MouseButton1Click:Connect(function() pcall(cb) end)
+    btn.MouseButton1Click:Connect(function() if MasterEnabled then pcall(cb) end end)
 end
 
 local pgVisual = addSideTab("Visuals"); local pgWorld = addSideTab("World"); local pgSurvivor = addSideTab("Survivor"); local pgKiller = addSideTab("Killer"); local pgMisc = addSideTab("Misc")
 
 local boxESP, listESP = createBox(pgVisual, "Player ESP", 10, 10, 230, 180)
-addCheckbox(listESP, "Enable ESP", "esp"); addCheckbox(listESP, "Show Box", "esp_box"); addCheckbox(listESP, "Show Name", "esp_name"); addCheckbox(listESP, "Show Health", "esp_health"); addCheckbox(listESP, "Show Distance", "esp_dist"); addCheckbox(listESP, "Tracer Lines", "esp_tracer")
-local boxVisual, listVisual = createBox(pgVisual, "Screen", 250, 10, 230, 140)
-addCheckbox(listVisual, "Custom Crosshair", "crosshair"); addCheckbox(listVisual, "Hitbox Visualizer", "hitbox_expand"); addSlider(listVisual, "Camera FOV", "fov", 50, 120)
+addToggle(listESP, "Enable ESP", "esp"); addToggle(listESP, "Show Box", "esp_box"); addToggle(listESP, "Show Name", "esp_name"); addToggle(listESP, "Show Health", "esp_health"); addToggle(listESP, "Show Distance", "esp_dist")
+local boxVisual, listVisual = createBox(pgVisual, "Screen", 250, 10, 230, 120)
+addToggle(listVisual, "Custom Crosshair", "crosshair"); addToggle(listVisual, "Hitbox Visualizer", "hitbox_expand"); addSlider(listVisual, "Camera FOV", "fov", 50, 120)
 
 local boxWorld, listWorld = createBox(pgWorld, "World ESP", 10, 10, 230, 160)
-addCheckbox(listWorld, "Generator ESP", "gen_esp"); addCheckbox(listWorld, "Killer ESP", "killer_esp"); addCheckbox(listWorld, "Item ESP", "item_esp"); addCheckbox(listWorld, "Exit / Spike ESP", "exit_esp")
-local boxEnv, listEnv = createBox(pgWorld, "Environment", 250, 10, 230, 120)
-addCheckbox(listEnv, "Soft Fullbright", "bright"); addCheckbox(listEnv, "FPS Booster", "fpsboost")
+addToggle(listWorld, "Generator ESP", "gen_esp"); addToggle(listWorld, "Killer ESP", "killer_esp"); addToggle(listWorld, "Item ESP", "item_esp"); addToggle(listWorld, "Exit / Spike ESP", "exit_esp")
+local boxEnv, listEnv = createBox(pgWorld, "Environment", 250, 10, 230, 100)
+addToggle(listEnv, "Soft Fullbright", "bright"); addToggle(listEnv, "FPS Booster", "fpsboost")
 
-local boxSafe, listSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 230, 200)
-addCheckbox(listSafe, "Auto Generator (Hold E)", "auto_gen"); addCheckbox(listSafe, "Auto Parry (God-Tier)", "auto_parry"); addCheckbox(listSafe, "Auto Skillcheck", "auto_skillcheck")
-local boxKiller, listKiller = createBox(pgKiller, "Killer Utility", 10, 10, 230, 140)
-addCheckbox(listKiller, "Look Lock (Aim Assist)", "look_lock")
+local boxSafe, listSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 230, 160)
+addToggle(listSafe, "Auto Generator (Hold E)", "auto_gen"); addToggle(listSafe, "Auto Parry (God-Tier)", "auto_parry"); addToggle(listSafe, "Auto Skillcheck", "auto_skillcheck")
+local boxKiller, listKiller = createBox(pgKiller, "Killer Utility", 10, 10, 230, 80)
+addToggle(listKiller, "Look Lock (Aim Assist)", "look_lock")
 
-local boxMisc, listMisc = createBox(pgMisc, "Movement", 10, 10, 230, 100)
+local boxMisc, listMisc = createBox(pgMisc, "Movement", 10, 10, 230, 80)
 addSlider(listMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28)
-local boxBypass, listBypass = createBox(pgMisc, "SpookingD Bypass", 10, 120, 230, 200)
-addButton(listBypass, "Apply Ultimate Bypass", function()
+
+local boxBypass, listBypass = createBox(pgMisc, "SpookingD Bypass", 10, 100, 230, 150)
+addButton(listBypass, "Re-Apply HWID Bypass", function()
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
-    print("[Tumblr Girls] Bypass & HWID Applied.")
-end)
-addButton(listBypass, "Mask IP Proxy", function()
-    local oldGet = HttpService.GetAsync
-    HttpService.GetAsync = function(self, url, ...) if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end return oldGet(self, url, ...) end
-    print("[Tumblr Girls] Proxy Injected.")
+    print("[Tumblr Girls] Bypass Applied.")
 end)
 addButton(listBypass, "Panic Wipe (Log Out)", function()
     if writefile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
@@ -186,7 +221,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: SMART COLOR CODED ESP & HITBOX (Billboard 2D)
+-- ENGINE: CROSSHAIR & HITBOX (Billboard 2D)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
@@ -214,6 +249,7 @@ local function isKiller(p)
 end
 
 RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
     crosshair.Visible = CFG.crosshair
     if CFG.hitbox_expand then
         for _, p in ipairs(P:GetPlayers()) do
@@ -250,6 +286,7 @@ P.PlayerRemoving:Connect(function(p) if hitboxParts[p] then hitboxParts[p]:Destr
 task.spawn(function()
     while true do
         task.wait(1)
+        if not MasterEnabled then continue end
         if CFG.esp then 
             for _, p in ipairs(P:GetPlayers()) do 
                 if p ~= LP and p.Character then 
@@ -286,6 +323,7 @@ local origQuality = settings().Rendering.QualityLevel
 
 task.spawn(function()
     while task.wait(1) do
+        if not MasterEnabled then continue end
         if CFG.fpsboost then
             if not fpsBoostActive then
                 settings().Rendering.QualityLevel = 1; L.GlobalShadows = false; L.EnvironmentDiffuseScale = 0; L.EnvironmentSpecularScale = 0
@@ -313,6 +351,7 @@ end)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.1) do
+        if not MasterEnabled then continue end
         if CFG.auto_gen then
             local ray = CAM:ViewportPointToRay(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
             local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {LP.Character}
@@ -327,7 +366,8 @@ end)
 
 -- GOD-TIER PREDICTIVE AUTO PARRY
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.05) do
+        if not MasterEnabled then continue end
         if CFG.auto_parry and LP.Character then
             local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
@@ -339,10 +379,10 @@ task.spawn(function()
                         if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
                             pcall(function() 
                                 VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                                task.wait(0.05)
+                                task.wait(0.01)
                                 VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
                                 VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                                task.wait(0.05)
+                                task.wait(0.01)
                                 VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
                             end)
                         end
@@ -354,8 +394,9 @@ task.spawn(function()
 end)
 
 RS.Stepped:Connect(function()
+    if not MasterEnabled then return end
     local c = LP.Character
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — FINAL OBFUSCATION Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — ULTIMATE STEALTH Loaded.")
