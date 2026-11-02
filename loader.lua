@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v58.0 — Pixel Color Skillcheck
+    v59.0 — Sniper Parry & True Skillcheck
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -118,7 +118,7 @@ local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
 addSwitch(boxEnv, "TRUE Fullbright", "bright", 30); addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
 local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 120)
-addSwitch(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 30); addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
+addSwitch(boxSafe, "Auto Parry (Prediction)", "auto_parry", 30); addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
 
 local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
@@ -314,10 +314,45 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
--- ENGINE: PIXEL SCAN SKILLCHECK
+-- ENGINE: PARRY RANGE INDICATOR (Bunderan)
+-- ==========================================
+local PARRY_RADIUS = 18
+local parryIndicator = nil
+
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
+    
+    if CFG.auto_parry and LP.Character then
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and not parryIndicator then
+            local sphere = Instance.new("Part")
+            sphere.Name = "ParryRange"
+            sphere.Shape = Enum.PartType.Ball
+            sphere.Size = Vector3.new(PARRY_RADIUS * 2, PARRY_RADIUS * 2, PARRY_RADIUS * 2)
+            sphere.Anchored = true
+            sphere.CanCollide = false
+            sphere.Material = Enum.Material.ForceField
+            sphere.Color = Color3.fromRGB(255, 255, 255)
+            sphere.Transparency = 0.8
+            sphere.Parent = WS
+            parryIndicator = sphere
+        end
+        if parryIndicator and hrp then
+            parryIndicator.Position = hrp.Position
+        end
+    else
+        if parryIndicator then
+            parryIndicator:Destroy()
+            parryIndicator = nil
+        end
+    end
+end)
+
+-- ==========================================
+-- ENGINE: SNIPER SKILLCHECK (True Timing)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.1) do 
+    while task.wait(0.02) do 
         if not MasterEnabled then continue end
         if CFG.auto_skillcheck then
             local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
@@ -325,15 +360,11 @@ task.spawn(function()
                 local pg = LP:FindFirstChild("PlayerGui")
                 if pg then
                     for _, g in ipairs(pg:GetDescendants()) do
-                        if g:IsA("ImageLabel") then
-                            -- Cek apakah posisinya di tengah layar (zona putih)
+                        if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("needle") or g.Name:lower():find("bar")) then
                             local posX = g.Position.X.Scale
                             local posY = g.Position.Y.Scale
-                            
-                            -- Jarum yang muter pasti ada di X 0.3 sampe 0.7 dan Y 0.3 sampe 0.7
-                            if posX > 0.3 and posX < 0.7 and posY > 0.3 and posY < 0.7 then
-                                -- Tambah delay acak 10-30ms biar pas bener di tengah
-                                task.wait(math.random(10, 30) / 1000)
+                            -- Jarum ada di tengah (Zona Putih)
+                            if posX > 0.48 and posX < 0.52 and posY > 0.48 and posY < 0.52 then
                                 pcall(function() 
                                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                                     task.wait(0.01)
@@ -348,19 +379,34 @@ task.spawn(function()
     end
 end)
 
--- AUTO PARRY
+-- ==========================================
+-- ENGINE: PREDICTIVE PARRY (Kanan)
+-- ==========================================
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.05) do
         if not MasterEnabled then continue end
         if CFG.auto_parry and LP.Character then
-            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
+            local myHrp = LP.Character:FindFirstChild("HumanoidRootPart")
+            if myHrp then
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP and p.Character and isKiller(p) then
                         local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
                         local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
-                            pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
+                        -- Deteksi kalau Killer lagi deket & ngadep ke kita
+                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - myHrp.Position).Magnitude < PARRY_RADIUS then
+                            local dir = (myHrp.Position - targetHrp.Position).Unit
+                            local dot = targetHrp.CFrame.LookVector:Dot(dir)
+                            
+                            -- Kalo killer ngadep ke arah kita (dot > 0.7) = Dia mau nyerang
+                            if dot > 0.7 then
+                                pcall(function() 
+                                    -- Klik kanan buat parry (jangan spam, jeda 0.5s)
+                                    VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                                    task.wait(0.01)
+                                    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                                end)
+                                task.wait(0.5)
+                            end
                         end
                     end
                 end
@@ -430,4 +476,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v58.0 Pixel Scan")
+print("[SpookingD] Script Loaded — v59.0 Sniper Parry")
