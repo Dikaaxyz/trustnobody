@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v37.0 — Fixed Env, FPS & FOV Switch
+    v40.0 — Final Stealth & Full Map Scanner
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,8 +15,10 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
+local PARRY_RADIUS = 18
 
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true,
@@ -28,10 +30,29 @@ local CFG = {
     keyMenu=Enum.KeyCode.RightShift
 }
 
+-- ==========================================
+-- [1] 99% BYPASS (Network & Identity)
+-- ==========================================
 pcall(function()
-    getgenv().SpoofedHWID = tostring(math.random(100000,999999))
+    -- HWID Spoof & Cookie Wipe
+    getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "GHOST"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
+    
+    -- IP Masking
+    local oldGet = HttpService.GetAsync
+    HttpService.GetAsync = function(self, url, ...)
+        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
+        return oldGet(self, url, ...)
+    end
+
+    -- Handshake Spoof (Android)
+    local NetworkClient = game:GetService("NetworkClient")
+    local oldInvoke = NetworkClient.Invoke
+    NetworkClient.Invoke = function(self, req, ...)
+        if req == "Handshake" then return "Roblox/Android/1.0" end
+        return oldInvoke(self, req, ...)
+    end
 end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
@@ -109,15 +130,14 @@ addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30); addSwitch(boxVisual, 
 local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 160)
 addSwitch(boxWorld, "Generator ESP", "gen_esp", 30); addSwitch(boxWorld, "Killer Skill ESP", "killer_esp", 60); addSwitch(boxWorld, "Item ESP", "item_esp", 90); addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
 
+local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
+addSwitch(boxEnv, "TRUE Fullbright", "bright", 30); addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
+
 local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 160)
 addSwitch(boxSafe, "Auto Generator (Hold LMB)", "auto_gen", 30); addSwitch(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 60); addSwitch(boxSafe, "Auto Skillcheck (LMB)", "auto_skillcheck", 90)
 
 local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
-
--- Pindahin FOV & Env ke MISC
-local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
-addSwitch(boxEnv, "TRUE Fullbright", "bright", 30); addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
 local boxFOV = createBox(pgMisc, "Camera FOV", 10, 120, 440, 100)
 addSwitch(boxFOV, "Enable Custom FOV", "fov_enabled", 30)
@@ -142,25 +162,12 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: CUSTOM CAMERA FOV (DENGAN SWITCH)
--- ==========================================
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    if CAM then
-        if CFG.fov_enabled then
-            CAM.FieldOfView = CFG.fov_val
-        else
-            CAM.FieldOfView = 70 -- Balik ke default kalo switch OFF
-        end
-    end
-end)
-
--- ==========================================
--- ENGINE: BULLETPROOF ESP
+-- ENGINE: FULL MAP SCANNER
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
 local espData = {}
+local worldESP = {}
 
 local function isKiller(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -169,10 +176,7 @@ local function isKiller(p)
     local char = p.Character
     if char then
         local tool = char:FindFirstChildWhichIsA("Tool")
-        if tool then
-            local name = tool.Name:lower()
-            if name:find("veil") or name:find("spear") or name:find("butcher") or name:find("chain") or name:find("mask") or name:find("claw") then return true end
-        end
+        if tool then return true end
     end
     return false
 end
@@ -243,6 +247,8 @@ RS.RenderStepped:Connect(function()
             local hPercent = hum.Health / hum.MaxHealth
 
             data.hl.Enabled = CFG.esp
+            data.hl.FillColor = color
+            data.hl.OutlineColor = color
             data.bg.Enabled = CFG.esp
             data.name.Text = p.Name
             data.name.TextColor3 = color
@@ -263,43 +269,55 @@ RS.RenderStepped:Connect(function()
 end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
--- ==========================================
--- ENGINE: PARRY RANGE INDICATOR
--- ==========================================
-local PARRY_RADIUS = 18
-local parryIndicator = nil
+task.spawn(function()
+    while task.wait(1) do
+        for obj, h in pairs(worldESP) do if h then h:Destroy() end; worldESP[obj] = nil end
+        if MasterEnabled and (CFG.gen_esp or CFG.item_esp or CFG.exit_esp) then
+            for _, v in ipairs(WS:GetDescendants()) do
+                if v:IsA("BasePart") and not v:IsDescendantOf(LP.Character) then
+                    local n = v.Name:lower()
+                    local doESP = false
+                    local color = Color3.fromRGB(255, 255, 0)
 
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    
-    if CFG.auto_parry and LP.Character then
-        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-        if hrp and not parryIndicator then
-            local sphere = Instance.new("Part")
-            sphere.Name = "ParryRange"
-            sphere.Shape = Enum.PartType.Ball
-            sphere.Size = Vector3.new(PARRY_RADIUS * 2, PARRY_RADIUS * 2, PARRY_RADIUS * 2)
-            sphere.Anchored = true
-            sphere.CanCollide = false
-            sphere.Material = Enum.Material.ForceField
-            sphere.Color = Color3.fromRGB(255, 255, 255)
-            sphere.Transparency = 0.8
-            sphere.Parent = WS
-            parryIndicator = sphere
+                    if CFG.gen_esp and (n:find("gen") or n:find("fuse") or n:find("generator")) then doESP = true; color = Color3.fromRGB(255, 255, 0) end
+                    if CFG.item_esp and (n:find("dagger") or n:find("flash") or n:find("bandage") or n:find("medkit") or n:find("pistol")) then doESP = true; color = Color3.fromRGB(0, 255, 0) end
+                    if CFG.exit_esp and (n:find("exit") or n:find("spike") or n:find("hook") or n:find("gate")) then doESP = true; color = Color3.fromRGB(0, 150, 255) end
+
+                    if doESP then
+                        local h = Instance.new("Highlight")
+                        h.FillColor = color
+                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        h.FillTransparency = 0.5
+                        h.Parent = v
+                        worldESP[v] = h
+                    end
+                end
+            end
         end
-        if parryIndicator and hrp then
-            parryIndicator.Position = hrp.Position
-        end
-    else
-        if parryIndicator then
-            parryIndicator:Destroy()
-            parryIndicator = nil
+    end
+end)
+
+task.spawn(function()
+    while task.wait(2) do
+        if MasterEnabled and CFG.killer_esp then
+            for _, v in ipairs(WS:GetDescendants()) do
+                if v:IsA("BasePart") and not v:IsDescendantOf(LP.Character) then
+                    local n = v.Name:lower()
+                    if n:find("spear") or n:find("chain") or n:find("projectile") or n:find("hitbox") or n:find("slash") then
+                        local h = Instance.new("Highlight")
+                        h.FillColor = Color3.fromRGB(255, 0, 0)
+                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        h.FillTransparency = 0.5
+                        h.Parent = v
+                    end
+                end
+            end
         end
     end
 end)
 
 -- ==========================================
--- ENGINE: GOD MODE LIGHTING & FPS
+-- ENGINE: FULL OVERRIDE LIGHTING
 -- ==========================================
 local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTime
 local origQuality = settings().Rendering.QualityLevel
@@ -310,16 +328,16 @@ for _, v in pairs(L:GetChildren()) do
     end
 end
 
-RS.Heartbeat:Connect(function()
+RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     
     if CFG.bright then 
-        L.Brightness = 5
+        L.Brightness = 10
         L.ClockTime = 12
         L.Ambient = Color3.fromRGB(255, 255, 255)
         L.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        L.ExposureCompensation = 1
-        L.FogEnd = 100000
+        L.ExposureCompensation = 2
+        L.FogEnd = 1000000
         L.GlobalShadows = false
         L.ShadowSoftness = 0
         
@@ -342,6 +360,9 @@ RS.Heartbeat:Connect(function()
         settings().Rendering.QualityLevel = 1
         L.EnvironmentDiffuseScale = 0
         L.EnvironmentSpecularScale = 0
+        for _, v in ipairs(WS:GetDescendants()) do 
+            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") then v.Enabled = false end 
+        end
     end
 end)
 
@@ -355,7 +376,6 @@ task.spawn(function()
             local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
             if isHoldingMouse then
                 if CFG.auto_gen then pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) end) end
-                
                 if CFG.auto_skillcheck then
                     local pg = LP:FindFirstChild("PlayerGui")
                     if pg then
@@ -363,11 +383,7 @@ task.spawn(function()
                             if (g:IsA("ImageLabel") or g:IsA("Frame")) and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow")) then
                                 local pos = math.abs(g.Position.X.Scale - 0.5)
                                 if pos < 0.15 then
-                                    pcall(function() 
-                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                        task.wait(0.01)
-                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                    end)
+                                    pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
                                 end
                             end
                         end
@@ -391,7 +407,7 @@ task.spawn(function()
                     if p ~= LP and p.Character and isKiller(p) then
                         local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
                         local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < PARRY_RADIUS then
+                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
                             pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
                         end
                     end
@@ -407,4 +423,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v37.0 Custom FOV Switch Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v40.0 Stealth Loaded.")
