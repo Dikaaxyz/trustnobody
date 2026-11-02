@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v61.4 — Pure Avatar Outline ESP (No Boxes, No Drawing)
+    v61.7 — Avatar Highlight ESP + Health Bar + Aggressive Parry
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -38,7 +38,7 @@ local VD_ITEM_LOOKUP = {}
 for _, n in ipairs(VD_ITEMS) do VD_ITEM_LOOKUP[n:lower()] = n end
 
 -- ==========================================
--- MAX BYPASS
+-- BYPASS
 -- ==========================================
 local BYPASS = {}
 BYPASS.HWID_FILE = "spook_hwid.dat"
@@ -365,7 +365,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- PURE HIGHLIGHT ESP (No Boxes)
+-- HIGHLIGHT AVATAR ESP + HEALTH BAR
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -398,6 +398,7 @@ end
 local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local carrier = getHiddenFolder()
     
+    -- 1. Highlight Avatar (Silhouette)
     local hl = Instance.new("Highlight")
     hl.FillColor = color
     hl.OutlineColor = color
@@ -407,11 +408,12 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     hl.Adornee = adorneeObj
     hl.Parent = carrier
 
+    -- 2. Billboard GUI (Name, Health Bar, Distance)
     local bg = Instance.new("BillboardGui")
     bg.Name = "Spook_ESP"
     bg.Adornee = hrp
-    bg.Size = UDim2.new(0, 150, 0, 30)
-    bg.StudsOffset = Vector3.new(0, 3, 0)
+    bg.Size = UDim2.new(0, 150, 0, 45) -- Taller to fit health bar
+    bg.StudsOffset = Vector3.new(0, 3.2, 0)
     bg.AlwaysOnTop = true
     bg.Parent = carrier
 
@@ -431,15 +433,30 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local nameLbl = label(0, 14, color, Enum.Font.GothamBold)
     nameLbl.Text = nameStr
 
-    local itemLbl = label(14, 12, Color3.fromRGB(0, 255, 255), Enum.Font.GothamBold)
-    local distLbl = label(26, 12, Color3.fromRGB(200, 200, 200), Enum.Font.Gotham)
+    -- Health Bar Background
+    local hpBg = Instance.new("Frame")
+    hpBg.Size = UDim2.new(0.6, 0, 0, 4)
+    hpBg.Position = UDim2.new(0.2, 0, 0, 16)
+    hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    hpBg.BorderSizePixel = 0
+    hpBg.Parent = bg
 
-    espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl }
+    -- Health Bar Fill
+    local hpFill = Instance.new("Frame")
+    hpFill.Size = UDim2.new(1, 0, 1, 0)
+    hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    hpFill.BorderSizePixel = 0
+    hpFill.Parent = hpBg
+
+    local itemLbl = label(22, 12, Color3.fromRGB(0, 255, 255), Enum.Font.GothamBold)
+    local distLbl = label(34, 12, Color3.fromRGB(200, 200, 200), Enum.Font.Gotham)
+
+    espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg }
 end
 
 task.spawn(function()
     while true do
-        task.wait(1) -- Refresh every 1 second
+        task.wait(1)
         if MasterEnabled and CFG.esp then
             pcall(function()
                 local myChar = LP.Character
@@ -473,6 +490,15 @@ task.spawn(function()
                             d.name.Text = p.Name
                             d.name.TextColor3 = color
                             d.name.Visible = CFG.esp_name
+                            
+                            if CFG.esp_health then
+                                local hPct = hum.Health / hum.MaxHealth
+                                d.hpBg.Visible = true
+                                d.hp.Size = UDim2.new(hPct, 0, 1, 0)
+                                d.hp.BackgroundColor3 = hPct > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                            else
+                                d.hpBg.Visible = false
+                            end
                             
                             if itemName then
                                 d.item.Text = "[" .. itemName .. "]"
@@ -515,12 +541,21 @@ task.spawn(function()
                                     
                                     d.hl.Enabled = true
                                     d.hl.Adornee = obj
-                                    d.hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green
+                                    d.hl.FillColor = Color3.fromRGB(0, 255, 0)
                                     d.hl.OutlineColor = Color3.fromRGB(0, 255, 0)
                                     
                                     d.name.Text = "ZOMBIE"
                                     d.name.TextColor3 = Color3.fromRGB(0, 255, 0)
                                     d.name.Visible = true
+                                    
+                                    if CFG.esp_health then
+                                        local hPct = hum.Health / hum.MaxHealth
+                                        d.hpBg.Visible = true
+                                        d.hp.Size = UDim2.new(hPct, 0, 1, 0)
+                                        d.hp.BackgroundColor3 = hPct > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                                    else
+                                        d.hpBg.Visible = false
+                                    end
                                     
                                     d.item.Visible = false
                                     
@@ -546,9 +581,10 @@ end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
 -- ==========================================
--- PARRY & SKILLCHECK (TETAP SAMA)
+-- PARRY (Aggressive Velocity + Animation)
 -- ==========================================
-local PARRY_RADIUS=18
+local PARRY_RADIUS=22
+local parryIndicator = nil
 local function ensureParrySphere()
     if parryIndicator and parryIndicator.Parent then return parryIndicator end
     local carrier=getHiddenFolder()
@@ -574,6 +610,88 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
+local PARRY_MOUSE_BUTTON=2
+local parryBusy=false
+local lastSwingTime={}
+
+local function isKillerAttacking(char, hrp, myHrp)
+    local dist = (hrp.Position - myHrp.Position).Magnitude
+    if dist > PARRY_RADIUS then return false end
+    
+    local dir = (myHrp.Position - hrp.Position).Unit
+    local facing = hrp.CFrame.LookVector:Dot(dir) > 0.5
+    
+    local velocity = hrp.AssemblyLinearVelocity.Magnitude
+    local movingTowards = false
+    if velocity > 8 then
+        local velDir = hrp.AssemblyLinearVelocity.Unit
+        movingTowards = velDir:Dot(dir) > 0.4
+    end
+    
+    local animating = false
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if animator then
+            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                local name = track.Name:lower()
+                if track.WeightCurrent > 0.1 and not (name:find("idle") or name:find("walk") or name:find("run") or name:find("fall")) then
+                    animating = true
+                    break
+                end
+            end
+        end
+    end
+    
+    if facing or movingTowards or animating then
+        return true
+    end
+    return false
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.02)
+        if MasterEnabled and CFG.auto_parry and not parryBusy and canSendInput() then
+            local myChar = LP.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if myHrp then
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP then
+                        local char = p.Character
+                        if char and isKillerSafe(p) then
+                            local tHrp = char:FindFirstChild("HumanoidRootPart")
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if tHrp and hum and hum.Health > 0 then
+                                local currentTime = tick()
+                                local lastTime = lastSwingTime[p] or 0
+                                if currentTime - lastTime > 1.5 then
+                                    if isKillerAttacking(char, tHrp, myHrp) then
+                                        parryBusy = true
+                                        lastSwingTime[p] = currentTime
+                                        local w = jittered(0.005, 0.015)
+                                        pcall(function()
+                                            VIM:SendMouseButtonEvent(0, 0, PARRY_MOUSE_BUTTON, true, game, 1)
+                                            task.wait(w)
+                                            VIM:SendMouseButtonEvent(0, 0, PARRY_MOUSE_BUTTON, false, game, 1)
+                                        end)
+                                        task.wait(CFG.parry_cooldown + jittered(0, 0.1))
+                                        parryBusy = false
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- SKILLCHECK & ENVIRONMENT
+-- ==========================================
 local SKILL = { scanInterval=0.015, zoneTolerance=4.5, pressWidthLo=0.008, pressWidthHi=0.024, cooldown=0.12 }
 local firedThisCheck = {}
 local lastFireAt = 0
@@ -643,59 +761,6 @@ task.spawn(function()
             end
         else
             firedThisCheck = {}
-        end
-    end
-end)
-
-local PARRY_MOUSE_BUTTON=2
-local parryBusy=false
-
-local function killerIsAttacking(char,hrp,myHrp)
-    local dir=myHrp.Position-hrp.Position
-    if dir.Magnitude<0.1 then return false end
-    if hrp.CFrame.LookVector:Dot(dir.Unit)<0.7 then return false end
-    local hum=char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        local animator=hum:FindFirstChildOfClass("Animator")
-        if animator then
-            for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
-                local n=(track.Name or ""):lower()
-                if n:find("attack") or n:find("slash") or n:find("swing") or n:find("hit") then return true end
-            end
-        end
-    end
-    return true
-end
-
-task.spawn(function()
-    while true do
-        task.wait(0.05)
-        if MasterEnabled and CFG.auto_parry and not parryBusy and canSendInput() then
-            local myChar=LP.Character
-            local myHrp=myChar and myChar:FindFirstChild("HumanoidRootPart")
-            if myHrp then
-                for _,p in ipairs(P:GetPlayers()) do
-                    if p ~= LP then
-                        local char=p.Character
-                        if char and isKillerSafe(p) then
-                            local tHrp=char:FindFirstChild("HumanoidRootPart")
-                            local hum=char:FindFirstChildOfClass("Humanoid")
-                            if tHrp and hum and hum.Health > 0 and (tHrp.Position-myHrp.Position).Magnitude < PARRY_RADIUS and killerIsAttacking(char,tHrp,myHrp) then
-                                parryBusy=true
-                                local w=jittered(0.008,0.020)
-                                pcall(function()
-                                    VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,true,game,1)
-                                    task.wait(w)
-                                    VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,false,game,1)
-                                end)
-                                task.wait(CFG.parry_cooldown+jittered(0,0.06))
-                                parryBusy=false
-                                break
-                            end
-                        end
-                    end
-                end
-            end
         end
     end
 end)
@@ -793,4 +858,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v61.4 loaded — Pure Avatar Outline")
+print("[SpookingD] v61.7 loaded — Avatar Highlight + Health Bar + Aggressive Parry")
