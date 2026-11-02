@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v31.0 — Bulletproof ESP & Smart Skillcheck
+    v32.0 — Aggressive Light & FPS Overdrive
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -162,7 +162,6 @@ RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     crosshair.Visible = CFG.crosshair
 
-    -- 1. Loop Player
     for _, p in ipairs(P:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
             local hrp = p.Character.HumanoidRootPart
@@ -171,14 +170,12 @@ RS.RenderStepped:Connect(function()
             local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
 
             if not espData[p] then
-                -- Bikin Kotak (Highlight)
                 local hl = Instance.new("Highlight")
                 hl.FillColor = color
                 hl.OutlineColor = color
                 hl.FillTransparency = 0.7
                 hl.Parent = p.Character
 
-                -- Bikin Teks (Billboard di RootPart)
                 local bg = Instance.new("BillboardGui")
                 bg.Name = "TG_ESP"
                 bg.Adornee = hrp
@@ -248,6 +245,47 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
+-- ENGINE: AGGRESSIVE LIGHT & FPS (Heartbeat + Remove FX)
+-- ==========================================
+local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTime
+local origQuality = settings().Rendering.QualityLevel
+
+RS.Heartbeat:Connect(function()
+    if not MasterEnabled then return end
+    
+    if CFG.bright then 
+        L.Brightness = 3
+        L.ClockTime = 12
+        L.Ambient = Color3.fromRGB(255, 255, 255)
+        L.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+        L.ExposureCompensation = 1
+        L.FogEnd = 100000
+        L.GlobalShadows = false
+        
+        -- Hapus efek atmosfer/gelap
+        for _, v in pairs(L:GetChildren()) do
+            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
+                v:Destroy()
+            end
+        end
+    else 
+        L.Brightness = origBrightness
+        L.ClockTime = origClock
+        L.Ambient = Color3.fromRGB(0, 0, 0)
+        L.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+        L.ExposureCompensation = 0
+        L.FogEnd = origFogEnd
+        L.GlobalShadows = true
+    end
+    
+    if CFG.fpsboost then 
+        settings().Rendering.QualityLevel = 1
+        L.EnvironmentDiffuseScale = 0
+        L.EnvironmentSpecularScale = 0
+    end
+end)
+
+-- ==========================================
 -- ENGINE: SMART SKILLCHECK (Position Reading)
 -- ==========================================
 task.spawn(function()
@@ -309,4 +347,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v31.0 Bulletproof Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v32.0 Aggressive Light Loaded.")
