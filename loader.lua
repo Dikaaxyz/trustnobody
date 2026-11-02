@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v64.0 — ScriptBlox Logic (Brute Force) + Premium UI
+    v65.0 — Ultimate Build (ScriptBlox Logic + 99% Bypass)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -18,6 +18,57 @@ local CAM  = WS.CurrentCamera
 local MasterEnabled = false
 local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
+
+-- ==========================================
+-- 99% BYPASS SYSTEM (Trace Eraser + Input Jitter)
+-- ==========================================
+local BYPASS = {}
+BYPASS.HWID_FILE = "spook_hwid.dat"
+
+function BYPASS.loadHwid()
+    if readfile and isfile and writefile then
+        pcall(function()
+            if isfile(BYPASS.HWID_FILE) then
+                local v = readfile(BYPASS.HWID_FILE)
+                if v and #v >= 6 then getgenv().SpoofedHWID = v; return end
+            end
+            local v = tostring(math.random(100000,999999)) .. "SPOOK"
+            writefile(BYPASS.HWID_FILE, v)
+            getgenv().SpoofedHWID = v
+        end)
+    else
+        getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
+    end
+end
+BYPASS.loadHwid()
+
+pcall(function()
+    local svc = game:GetService("RbxAnalyticsService")
+    svc.GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
+end)
+
+local SCRUB_FILES = { "RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt" }
+function BYPASS.scrub()
+    if not (writefile and isfile and delfile) then return end
+    pcall(function()
+        for _, f in ipairs(SCRUB_FILES) do
+            if isfile(f) then delfile(f) end
+        end
+    end)
+end
+BYPASS.scrub()
+
+local inputBudget = { windowStart = tick(), count = 0, cap = 5, window = 1.0 }
+local function canSendInput()
+    local now = tick()
+    if now - inputBudget.windowStart >= inputBudget.window then
+        inputBudget.windowStart = now; inputBudget.count = 0
+    end
+    if inputBudget.count >= inputBudget.cap then return false end
+    inputBudget.count = inputBudget.count + 1
+    return true
+end
+local function jittered(lo, hi) return lo + math.random() * (hi - lo) end
 
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
@@ -307,6 +358,27 @@ local boxMisc = createBox(scrollMisc, "Movement", 230, 440, 100)
 addSwitch(boxMisc, "Enable WalkSpeed", "ws_enabled", 30)
 addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
 
+local boxBypass = createBox(scrollMisc, "SpookingD Bypass", 340, 440, 150)
+addButton(boxBypass, "Re-Apply HWID Bypass", function()
+    BYPASS.loadHwid()
+    pcall(function()
+        game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
+    end)
+    BYPASS.scrub()
+end, 30)
+addButton(boxBypass, "FLUSH LOGS & CACHE", function()
+    BYPASS.scrub(); print("[SpookingD] Logs & Cache Flushed.")
+end, 60)
+addButton(boxBypass, "Panic Wipe (Log Out)", function()
+    BYPASS.scrub()
+    if writefile and isfile and delfile then
+        pcall(function() if isfile(BYPASS.HWID_FILE) then delfile(BYPASS.HWID_FILE) end end)
+    end
+    fullTeardown()
+    task.wait(0.05)
+    game:Shutdown()
+end, 90)
+
 sideTabs[1].TextColor3=COL.acc; sideTabs[1].BackgroundTransparency=0.8; sideTabs[1].BackgroundColor3=COL.acc; sidePages[1].Visible=true
 
 local closeBtn=Instance.new("TextButton")
@@ -558,7 +630,7 @@ end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
 -- ==========================================
--- SCRIPTBLOX METHOD: PARRY & SKILLCHECK
+-- PARRY ZONE CIRCLE (VISUAL)
 -- ==========================================
 local PARRY_RADIUS=22
 RS.RenderStepped:Connect(function()
@@ -604,7 +676,7 @@ RS.RenderStepped:Connect(function()
                     sphere.Anchored=true; sphere.CanCollide=false
                     sphere.CanQuery=false; sphere.CanTouch=false
                     sphere.Massless=true; sphere.Transparency=0.8
-                    sphere.Color = Color3.fromRGB(0, 255, 255)
+                    sphere.Color = Color3.fromRGB(0,255,255)
                     sphere.Material = Enum.Material.ForceField
                     sphere.Parent=carrier
                     parryIndicator=sphere
@@ -618,68 +690,107 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- AUTO PARRY (Spam Klik Kanan kalau ada player deket)
+-- ==========================================
+-- SCRIPTBLOX METHOD: PARRY & SKILLCHECK
+-- ==========================================
+local parryBusy = false
+local lastSwingTime = {}
+
 task.spawn(function()
     while true do
-        task.wait(0.1)
-        if MasterEnabled and CFG.auto_parry then
+        task.wait(0.05)
+        if MasterEnabled and CFG.auto_parry and not parryBusy and canSendInput() then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if myHrp then
-                local shouldParry = false
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP then
                         local char = p.Character
                         if char then
                             local tHrp = char:FindFirstChild("HumanoidRootPart")
-                            if tHrp and (tHrp.Position - myHrp.Position).Magnitude < PARRY_RADIUS then
-                                shouldParry = true; break
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            
+                            if tHrp and hum and hum.Health > 0 then
+                                local dist = (tHrp.Position - myHrp.Position).Magnitude
+                                local currentTime = tick()
+                                local lastTime = lastSwingTime[p] or 0
+                                
+                                if dist < PARRY_RADIUS and currentTime - lastTime > 0.6 then
+                                    -- Cek apakah dia mendeket atau ngayun
+                                    local animator = hum:FindFirstChildOfClass("Animator")
+                                    local attacking = false
+                                    if animator then
+                                        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                            local n = track.Name:lower()
+                                            if track.WeightCurrent > 0.1 and not (n:find("idle") or n:find("walk") or n:find("run") or n:find("fall")) then
+                                                attacking = true; break
+                                            end
+                                        end
+                                    end
+                                    
+                                    -- Kalau dia ngayun ATAU lari ke arah kita
+                                    local dir = (myHrp.Position - tHrp.Position).Unit
+                                    local velocity = tHrp.AssemblyLinearVelocity.Magnitude
+                                    local movingTowards = velocity > 8 and tHrp.AssemblyLinearVelocity.Unit:Dot(dir) > 0.4
+                                    
+                                    if attacking or movingTowards or dist < 12 then
+                                        parryBusy = true
+                                        lastSwingTime[p] = currentTime
+                                        local w = jittered(0.008, 0.018)
+                                        pcall(function()
+                                            VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
+                                            task.wait(w)
+                                            VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
+                                        end)
+                                        task.wait(0.25)
+                                        parryBusy = false
+                                        break
+                                    end
+                                end
                             end
                         end
                     end
-                end
-                
-                if shouldParry then
-                    pcall(function()
-                        VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
-                        task.wait(0.01)
-                        VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
-                    end)
                 end
             end
         end
     end
 end)
 
--- AUTO SKILLCHECK (Spam Spasi kalau ada Frame di tengah layar)
+-- ==========================================
+-- SCRIPTBLOX METHOD: SKILLCHECK (Pixel scan on center)
+-- ==========================================
 task.spawn(function()
     while true do
-        task.wait(0.05)
-        if MasterEnabled and CFG.auto_skillcheck then
-            if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                local pg = LP:FindFirstChild("PlayerGui")
-                if pg then
-                    local foundSkillcheck = false
-                    for _, v in ipairs(pg:GetDescendants()) do
-                        if v:IsA("Frame") or v:IsA("ImageLabel") then
-                            local pos = v.AbsolutePosition
-                            local size = v.AbsoluteSize
-                            -- Cek apakah ada UI kecil di tengah layar (Karakteristik Skillcheck)
-                            if pos.X > 200 and pos.X < 600 and pos.Y > 200 and pos.Y < 600 and size.X > 20 and size.Y > 20 then
-                                if v.Name:lower():find("circle") or v.Name:lower():find("dial") or v.Name:lower():find("bar") or v.Name:lower():find("indicator") then
-                                    foundSkillcheck = true
-                                    break
+        task.wait(0.01) -- Very fast loop to not miss the white bar
+        if MasterEnabled and CFG.auto_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and canSendInput() then
+            local pg = LP:FindFirstChild("PlayerGui")
+            if pg then
+                for _, v in ipairs(pg:GetDescendants()) do
+                    -- Cari UI berupa frame/image yang posisinya di tengah layar (Skillcheck)
+                    if v:IsA("Frame") or v:IsA("ImageLabel") then
+                        local pos = v.AbsolutePosition
+                        local size = v.AbsoluteSize
+                        
+                        -- Ukuran normal skillcheck di VD itu sekitar 200x200 di tengah layar
+                        if size.X > 50 and size.X < 400 and size.Y > 50 and size.Y < 400 then
+                            -- Cek apakah ada child bernama "Bar", "Area", atau semacamnya
+                            for _, child in ipairs(v:GetChildren()) do
+                                if child:IsA("Frame") or child:IsA("ImageLabel") then
+                                    local cName = child.Name:lower()
+                                    -- Area putih biasanya bernama White, Area, Target, atau Hit
+                                    if cName:find("white") or cName:find("area") or cName:find("target") or cName:find("hit") or cName:find("zone") or cName:find("success") then
+                                        -- Kalau ketemu area putih, klik Spasi!
+                                        local w = jittered(0.008, 0.020)
+                                        pcall(function()
+                                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                            task.wait(w)
+                                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                        end)
+                                        break
+                                    end
                                 end
                             end
                         end
-                    end
-                    
-                    if foundSkillcheck then
-                        pcall(function()
-                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                            task.wait(0.01)
-                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                        end)
                     end
                 end
             end
@@ -787,4 +898,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v64.0 loaded — ScriptBlox Method")
+print("[SpookingD] v65.0 loaded — ScriptBlox + 99% Bypass")
