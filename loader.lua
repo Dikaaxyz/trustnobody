@@ -1,5 +1,5 @@
 --[[
-    GRAYS ON TOP v10.0 — Anti-Kick Ghost Client
+    GRAYS ON TOP v10.1 — Anti-Kick Ghost Client (Fixed)
     No Metatable Hooks | No Teleport Hacks | Pure Safe Farm
 ]]
 
@@ -48,13 +48,19 @@ local function clickDialog(txt)
     if not pg then return end
     for _,g in pairs(pg:GetDescendants()) do
         if (g:IsA("TextButton") or g:IsA("TextLabel")) and g.Text:lower():find(txt:lower()) then
-            pcall(function() if g:IsA("TextButton") then g.MouseButton1Click:Fire() elseif g.Parent:IsA("TextButton") then g.Parent.MouseButton1Click:Fire() end end)
+            pcall(function() 
+                if g:IsA("TextButton") then 
+                    g.MouseButton1Click:Fire() 
+                elseif g.Parent:IsA("TextButton") then 
+                    g.Parent.MouseButton1Click:Fire() 
+                end 
+            end)
             return
         end
     end
 end
 
--- PURE SAFE WALK (No CFrame Teleport, No Tween, No Anti-Cheat Trigger)
+-- PURE SAFE WALK
 local function walkTo(tPos)
     local c = LP.Character
     local hum = c and c:FindFirstChildOfClass("Humanoid")
@@ -62,7 +68,6 @@ local function walkTo(tPos)
     
     hum:MoveTo(tPos)
     local t = 0
-    -- Jalan maksimal 10 detik, kalau nyangkut skip
     while t < 10 and CFG.farm do
         if not c or not c:FindFirstChild("HumanoidRootPart") then break end
         if (c.HumanoidRootPart.Position - tPos).Magnitude < 5 then break end
@@ -76,7 +81,7 @@ local function interactPart(p)
     if not p then return end
     if p:FindFirstChildOfClass("ProximityPrompt") then pcall(function() fireproximityprompt(p.ProximityPrompt) end) end
     if p:FindFirstChildOfClass("ClickDetector") then pcall(function() fireclickdetector(p.ClickDetector) end) end
-    pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) task.wait(0.05) VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
+    pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
 end
 
 -- === PROJECT D MANGA THEME ===
@@ -231,7 +236,7 @@ end end)
 RS.Stepped:Connect(function()
     local c=LP.Character; if not c then return end
     local h=c:FindFirstChild("HumanoidRootPart"); local hum=c:FindFirstChildOfClass("Humanoid")
-    if hum then hum.WalkSpeed=CFG.ws hum.JumpPower=CFG.jp end
+    if hum then hum.WalkSpeed=CFG.ws; hum.JumpPower=CFG.jp end
     if CFG.noclip then for _,p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") and p.CanCollide then p.CanCollide=false end end end
 end)
 
@@ -271,14 +276,17 @@ task.spawn(function() while true do task.wait(0.1)
     end
 end end)
 
--- SAFE FARM ENGINE (No CFrame)
+-- SAFE FARM ENGINE (Fixed Syntax)
 task.spawn(function()
     while task.wait(1) do
         if CFG.farm then
             local success, err = pcall(function()
                 local c=LP.Character
                 local hrp=c and c:FindFirstChild("HumanoidRootPart")
-                if not hrp then farmStatus.Text = ">> No Char" return end
+                if not hrp then 
+                    farmStatus.Text = ">> No Char" 
+                    return 
+                end
                 
                 local m=getMoney()
                 local t=tonumber(CFG.targetmoney) or 1000
@@ -287,8 +295,15 @@ task.spawn(function()
                     farmStatus.Text=">> Claiming..." 
                     local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
                     if npc and npc:FindFirstChild("HumanoidRootPart") then 
-                        walkTo(npc.HumanoidRootPart.Position) task.wait(0.5) clickDialog("claim my money") task.wait(2) CFG.farm=false farmStatus.Text=">> Done." 
-                    else farmStatus.Text=">> No NPC" end
+                        walkTo(npc.HumanoidRootPart.Position)
+                        task.wait(0.5)
+                        clickDialog("claim my money")
+                        task.wait(2)
+                        CFG.farm=false
+                        farmStatus.Text=">> Done." 
+                    else 
+                        farmStatus.Text=">> No NPC" 
+                    end
                 else
                     local has=c:FindFirstChildWhichIsA("Tool")
                     local tgtName=has and {"truck","deliver","trailer","mule"} or {"crate","pickup","box"}
@@ -309,22 +324,34 @@ task.spawn(function()
                     
                     if tpObj then 
                         farmStatus.Text=has and ">> To Truck" or ">> To Crate"
-                        walkTo(tpObj.Position) task.wait(0.3) interactPart(tpObj) task.wait(1.5)
+                        walkTo(tpObj.Position)
+                        task.wait(0.3)
+                        interactPart(tpObj)
+                        task.wait(1.5)
                     else
                         farmStatus.Text=">> To NPC" 
                         local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
                         if npc and npc:FindFirstChild("HumanoidRootPart") then 
-                            walkTo(npc.HumanoidRootPart.Position) task.wait(0.5) clickDialog("looking for work") task.wait(1.5)
-                        else farmStatus.Text=">> No NPC" end
+                            walkTo(npc.HumanoidRootPart.Position)
+                            task.wait(0.5)
+                            clickDialog("looking for work")
+                            task.wait(1.5)
+                        else 
+                            farmStatus.Text=">> No NPC" 
+                        end
                     end
                 end
             end)
-            if not success then farmStatus.Text = ">> Err: " .. tostring(err) end
+            if not success then 
+                farmStatus.Text = ">> Err: " .. tostring(err) 
+            end
         else
-            if farmStatus and farmStatus.Text ~= ">> Idle" then farmStatus.Text = ">> Idle" end
+            if farmStatus and farmStatus.Text ~= ">> Idle" then 
+                farmStatus.Text = ">> Idle" 
+            end
             task.wait(1)
         end
     end
 end)
 
-print("[GRAYS ON TOP] v10.0 Ghost Client loaded.")
+print("[GRAYS ON TOP] v10.1 Ghost Client loaded.")
