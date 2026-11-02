@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v25.0 — OMNI-VISION (Fixed ESP, Skill ESP, True Light)
+    v26.0 — Text ESP (Name, Health, Distance)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -142,10 +142,12 @@ logo.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Mou
 UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - ds; main.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y) end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
--- ENGINE: OMNI-VISION (ESP & SKILL ESP)
+-- ==========================================
+-- ENGINE: TEXT ESP (Name, Health, Distance)
+-- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
-local espHighlight = {}
+local espGui = {}
 local skillHighlights = {}
 
 local function isKiller(p)
@@ -163,39 +165,100 @@ local function isKiller(p)
     return false
 end
 
--- ESP LOOP (Ngecek tiap detik, Anti-Bolong)
-task.spawn(function()
-    while task.wait(1) do
-        if MasterEnabled and CFG.esp then
-            for _, p in ipairs(P:GetPlayers()) do
-                if p ~= LP and p.Character then
-                    if not espHighlight[p] then 
-                        local h = Instance.new("Highlight"); h.FillTransparency = 0.5; h.Parent = p.Character; espHighlight[p] = h 
-                    end
-                    local killer = isKiller(p)
-                    espHighlight[p].FillColor = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-                    espHighlight[p].OutlineColor = Color3.fromRGB(0, 0, 0)
-                end
+-- ESP LOOP (Text UI)
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
+    
+    for _, p in ipairs(P:GetPlayers()) do
+        if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
+            local killer = isKiller(p)
+            local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+
+            if not espGui[p] then
+                local bg = Instance.new("BillboardGui")
+                bg.Name = "TG_ESP"
+                bg.Size = UDim2.new(0, 200, 0, 50)
+                bg.StudsOffset = Vector3.new(0, 2.5, 0)
+                bg.AlwaysOnTop = true
+                bg.Parent = p.Character.Head
+                
+                local nameLbl = Instance.new("TextLabel")
+                nameLbl.Name = "Name"
+                nameLbl.Size = UDim2.new(1, 0, 0, 14)
+                nameLbl.BackgroundTransparency = 1
+                nameLbl.TextColor3 = color
+                nameLbl.TextStrokeTransparency = 0
+                nameLbl.Font = Enum.Font.GothamBold
+                nameLbl.TextSize = 12
+                nameLbl.Parent = bg
+                
+                local distLbl = Instance.new("TextLabel")
+                distLbl.Name = "Dist"
+                distLbl.Size = UDim2.new(1, 0, 0, 12)
+                distLbl.Position = UDim2.new(0, 0, 0, 14)
+                distLbl.BackgroundTransparency = 1
+                distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                distLbl.TextStrokeTransparency = 0
+                distLbl.Font = Enum.Font.Gotham
+                distLbl.TextSize = 10
+                distLbl.Parent = bg
+
+                local hpBg = Instance.new("Frame")
+                hpBg.Name = "HpBg"
+                hpBg.Size = UDim2.new(0.6, 0, 0, 4)
+                hpBg.Position = UDim2.new(0.2, 0, 0, 28)
+                hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                hpBg.BorderSizePixel = 0
+                hpBg.Parent = bg
+
+                local hpFill = Instance.new("Frame")
+                hpFill.Name = "HpFill"
+                hpFill.Size = UDim2.new(1, 0, 1, 0)
+                hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                hpFill.BorderSizePixel = 0
+                hpFill.Parent = hpBg
+
+                espGui[p] = bg
+            end
+
+            local bg = espGui[p]
+            local head = p.Character.Head
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+
+            if hrp and hum then
+                local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+                local hPercent = hum.Health / hum.MaxHealth
+
+                bg.NameLbl.Text = p.Name
+                bg.NameLbl.TextColor3 = color
+                bg.DistLbl.Text = "[" .. dist .. "m]"
+                bg.HpBg.HpFill.Size = UDim2.new(hPercent, 0, 1, 0)
+                bg.HpBg.HpFill.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                bg.Enabled = CFG.esp and CFG.esp_name
             end
         else
-            for p, h in pairs(espHighlight) do if h then h:Destroy() end; espHighlight[p] = nil end
+            if espGui[p] then espGui[p]:Destroy(); espGui[p] = nil end
         end
     end
 end)
 
--- KILLER SKILL ESP (Nge-scan map tiap 2 detik)
+P.PlayerRemoving:Connect(function(p) 
+    if espGui[p] then espGui[p]:Destroy(); espGui[p] = nil end
+    if hitboxParts[p] then hitboxParts[p]:Destroy(); hitboxParts[p] = nil end
+end)
+
+-- KILLER SKILL ESP
 task.spawn(function()
     while task.wait(2) do
         for obj, h in pairs(skillHighlights) do if h then h:Destroy() end; skillHighlights[obj] = nil end
-        
         if MasterEnabled and CFG.killer_esp then
             for _, v in ipairs(WS:GetDescendants()) do
                 if v:IsA("BasePart") and not v:IsDescendantOf(LP.Character) then
                     local n = v.Name:lower()
-                    -- Nge-scan nama part skill killer
                     if n:find("spear") or n:find("chain") or n:find("projectile") or n:find("hitbox") or n:find("slash") then
                         local h = Instance.new("Highlight")
-                        h.FillColor = Color3.fromRGB(255, 150, 0) -- Warna Oranye Nyala
+                        h.FillColor = Color3.fromRGB(255, 150, 0)
                         h.OutlineColor = Color3.fromRGB(255, 255, 255)
                         h.Parent = v
                         skillHighlights[v] = h
@@ -229,7 +292,6 @@ RS.RenderStepped:Connect(function()
         for p, bb in pairs(hitboxParts) do if bb then bb:Destroy() end; hitboxParts[p] = nil end
     end
 end)
-P.PlayerRemoving:Connect(function(p) if hitboxParts[p] then hitboxParts[p]:Destroy(); hitboxParts[p] = nil end end)
 
 -- ENGINE: TRUE FULLBRIGHT & FPS BOOSTER
 local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTime
@@ -238,24 +300,10 @@ local origQuality = settings().Rendering.QualityLevel
 RS.Heartbeat:Connect(function()
     if not MasterEnabled then return end
     if CFG.bright then 
-        -- Pake Exposure biar bener-bener terang
-        L.Brightness = 3
-        L.ClockTime = 12
-        L.Ambient = Color3.fromRGB(255, 255, 255)
-        L.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        L.ExposureCompensation = 1
-        L.FogEnd = 100000
-        L.GlobalShadows = false
-    else
-        L.Brightness = origBrightness
-        L.ClockTime = origClock
-        L.Ambient = Color3.fromRGB(0, 0, 0)
-        L.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-        L.ExposureCompensation = 0
-        L.FogEnd = origFogEnd
-        L.GlobalShadows = true
+        L.Brightness = 3; L.ClockTime = 12; L.Ambient = Color3.fromRGB(255, 255, 255); L.OutdoorAmbient = Color3.fromRGB(255, 255, 255); L.ExposureCompensation = 1; L.FogEnd = 100000; L.GlobalShadows = false
+    else 
+        L.Brightness = origBrightness; L.ClockTime = origClock; L.Ambient = Color3.fromRGB(0, 0, 0); L.OutdoorAmbient = Color3.fromRGB(128, 128, 128); L.ExposureCompensation = 0; L.FogEnd = origFogEnd; L.GlobalShadows = true
     end
-    
     if CFG.fpsboost then settings().Rendering.QualityLevel = 1; L.EnvironmentDiffuseScale = 0; L.EnvironmentSpecularScale = 0 end
 end)
 
@@ -311,4 +359,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v25.0 OMNI-VISION Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v26.0 Text ESP Loaded.")
