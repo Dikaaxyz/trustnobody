@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v63.4 — Personal Parry Radius Circle + Premium UI + Instant ESP
+    v64.0 — ScriptBlox Logic (Brute Force) + Premium UI
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -352,7 +352,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP ENGINE
+-- PLAYER ESP ENGINE
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -429,10 +429,9 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg, lines = lines }
 end
 
-local function doScan()
+local function doScanPlayers()
     if not (MasterEnabled and CFG.esp) then return end
     pcall(function()
-        local myChar = LP.Character
         for _, p in ipairs(P:GetPlayers()) do
             if p ~= LP then
                 local char = p.Character
@@ -455,7 +454,7 @@ task.spawn(function()
         if MasterEnabled and CFG.esp then
             local empty = true
             for _ in pairs(espData) do empty = false; break end
-            if empty then doScan() end
+            if empty then doScanPlayers() end
         end
     end
 end)
@@ -463,7 +462,7 @@ end)
 task.spawn(function()
     while true do
         task.wait(60)
-        doScan()
+        doScanPlayers()
     end
 end)
 
@@ -559,7 +558,7 @@ end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
 -- ==========================================
--- PARRY ZONE CIRCLE (VISUAL)
+-- SCRIPTBLOX METHOD: PARRY & SKILLCHECK
 -- ==========================================
 local PARRY_RADIUS=22
 RS.RenderStepped:Connect(function()
@@ -596,7 +595,6 @@ RS.RenderStepped:Connect(function()
                     selfCircle.Visible = false
                 end
             else
-                -- Fallback to Part if Drawing is unsupported
                 if not parryIndicator then
                     local carrier=getHiddenFolder()
                     local sphere=Instance.new("Part")
@@ -606,7 +604,7 @@ RS.RenderStepped:Connect(function()
                     sphere.Anchored=true; sphere.CanCollide=false
                     sphere.CanQuery=false; sphere.CanTouch=false
                     sphere.Massless=true; sphere.Transparency=0.8
-                    sphere.Color = Color3.fromRGB(0,255,255)
+                    sphere.Color = Color3.fromRGB(0, 255, 255)
                     sphere.Material = Enum.Material.ForceField
                     sphere.Parent=carrier
                     parryIndicator=sphere
@@ -620,149 +618,71 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- ==========================================
--- PRECISION PARRY
--- ==========================================
-local PARRY_MOUSE_BUTTON=2
-local parryBusy=false
-local lastSwingTime={}
-
-local function isKillerAttacking(char, hrp, myHrp)
-    local dist = (hrp.Position - myHrp.Position).Magnitude
-    if dist > PARRY_RADIUS then return false end
-    
-    local dir = (myHrp.Position - hrp.Position).Unit
-    local facing = hrp.CFrame.LookVector:Dot(dir) > 0.5
-    
-    local velocity = hrp.AssemblyLinearVelocity.Magnitude
-    local movingTowards = false
-    if velocity > 8 then
-        local velDir = hrp.AssemblyLinearVelocity.Unit
-        movingTowards = velDir:Dot(dir) > 0.4
-    end
-    
-    local animating = false
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        local animator = hum:FindFirstChildOfClass("Animator")
-        if animator then
-            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                local name = track.Name:lower()
-                if track.WeightCurrent > 0.1 and not (name:find("idle") or name:find("walk") or name:find("run") or name:find("fall")) then
-                    animating = true
-                    break
-                end
-            end
-        end
-    end
-    
-    if facing or movingTowards or animating then return true end
-    return false
-end
-
+-- AUTO PARRY (Spam Klik Kanan kalau ada player deket)
 task.spawn(function()
     while true do
-        task.wait(0.02)
-        if MasterEnabled and CFG.auto_parry and not parryBusy then
+        task.wait(0.1)
+        if MasterEnabled and CFG.auto_parry then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if myHrp then
+                local shouldParry = false
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP then
                         local char = p.Character
-                        if char and isKillerSafe(p) then
+                        if char then
                             local tHrp = char:FindFirstChild("HumanoidRootPart")
-                            local hum = char:FindFirstChildOfClass("Humanoid")
-                            if tHrp and hum and hum.Health > 0 then
-                                local currentTime = tick()
-                                local lastTime = lastSwingTime[p] or 0
-                                if currentTime - lastTime > 1.5 then
-                                    if isKillerAttacking(char, tHrp, myHrp) then
-                                        parryBusy = true
-                                        lastSwingTime[p] = currentTime
-                                        local w = math.random(5, 15) / 1000
-                                        pcall(function()
-                                            VIM:SendMouseButtonEvent(0, 0, PARRY_MOUSE_BUTTON, true, game, 1)
-                                            task.wait(w)
-                                            VIM:SendMouseButtonEvent(0, 0, PARRY_MOUSE_BUTTON, false, game, 1)
-                                        end)
-                                        task.wait(CFG.parry_cooldown + math.random() * 0.1)
-                                        parryBusy = false
-                                        break
-                                    end
-                                end
+                            if tHrp and (tHrp.Position - myHrp.Position).Magnitude < PARRY_RADIUS then
+                                shouldParry = true; break
                             end
                         end
                     end
+                end
+                
+                if shouldParry then
+                    pcall(function()
+                        VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
+                        task.wait(0.01)
+                        VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
+                    end)
                 end
             end
         end
     end
 end)
 
--- ==========================================
--- PRECISION SKILLCHECK
--- ==========================================
-local SKILL = { scanInterval=0.015, zoneTolerance=4.5, pressWidthLo=0.008, pressWidthHi=0.024, cooldown=0.12 }
-local firedThisCheck = {}
-local lastFireAt = 0
-
-local function norm360(d) d = d%360; if d<0 then d=d+360 end; return d end
-local function angDist(a,b) local d = norm360(b)-norm360(a); if d>180 then d=d-360 elseif d<-180 then d=d+360 end; return math.abs(d) end
-
-local function findSkillcheckRoot()
-    local pg = LP:FindFirstChild("PlayerGui")
-    local root = pg or game:GetService("Workspace")
-    if not root then return nil end
-    for _, g in ipairs(root:GetDescendants()) do
-        if g:IsA("Frame") or g:IsA("ImageLabel") then
-            local needle, zone = nil, nil
-            for _, c in ipairs(g:GetDescendants()) do
-                if c:IsA("ImageLabel") or c:IsA("Frame") then
-                    local n = c.Name:lower()
-                    if not needle and (n:find("needle") or n:find("indicator") or n:find("marker") or n:find("dial")) then
-                        needle = c
-                    elseif not zone and (n:find("zone") or n:find("target") or n:find("hit") or n:find("sweet") or n:find("white") or n:find("perfect")) then
-                        zone = c
-                    end
-                end
-            end
-            if needle and zone then return g, needle, zone end
-        end
-    end
-    return nil
-end
-
-local function angleOf(inst, root)
-    if inst.Rotation and math.abs(inst.Rotation) > 0 then return norm360(inst.Rotation) end
-    local rootAbs = root.AbsolutePosition; local rootSize = root.AbsoluteSize
-    local cx = rootAbs.X + rootSize.X*0.5; local cy = rootAbs.Y + rootSize.Y*0.5
-    local ip = inst.AbsolutePosition; local isz = inst.AbsoluteSize
-    local ix = ip.X + isz.X*0.5; local iy = ip.Y + isz.Y*0.5
-    return norm360(math.deg(math.atan2 and math.atan2(iy-cy, ix-cx) or math.atan(iy-cy, ix-cx)))
-end
-
+-- AUTO SKILLCHECK (Spam Spasi kalau ada Frame di tengah layar)
 task.spawn(function()
     while true do
-        task.wait(SKILL.scanInterval)
-        if MasterEnabled and CFG.auto_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and (tick()-lastFireAt >= SKILL.cooldown) then
-            local root, needle, zone = findSkillcheckRoot()
-            if root and needle and zone then
-                if not firedThisCheck[needle] then
-                    local nAng = angleOf(needle, root); local zAng = angleOf(zone, root)
-                    if angDist(nAng, zAng) <= SKILL.zoneTolerance then
-                        firedThisCheck[needle] = true; lastFireAt = tick()
-                        local w = math.random(8, 24) / 1000
+        task.wait(0.05)
+        if MasterEnabled and CFG.auto_skillcheck then
+            if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                local pg = LP:FindFirstChild("PlayerGui")
+                if pg then
+                    local foundSkillcheck = false
+                    for _, v in ipairs(pg:GetDescendants()) do
+                        if v:IsA("Frame") or v:IsA("ImageLabel") then
+                            local pos = v.AbsolutePosition
+                            local size = v.AbsoluteSize
+                            -- Cek apakah ada UI kecil di tengah layar (Karakteristik Skillcheck)
+                            if pos.X > 200 and pos.X < 600 and pos.Y > 200 and pos.Y < 600 and size.X > 20 and size.Y > 20 then
+                                if v.Name:lower():find("circle") or v.Name:lower():find("dial") or v.Name:lower():find("bar") or v.Name:lower():find("indicator") then
+                                    foundSkillcheck = true
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    
+                    if foundSkillcheck then
                         pcall(function()
                             VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                            task.wait(w)
+                            task.wait(0.01)
                             VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                         end)
                     end
                 end
             end
-        else
-            firedThisCheck = {}
         end
     end
 end)
@@ -867,4 +787,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v63.4 loaded — Personal Parry Zone Active")
+print("[SpookingD] v64.0 loaded — ScriptBlox Method")
