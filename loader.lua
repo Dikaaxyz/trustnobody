@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v60.9 — FIXED: Removed `continue` syntax bombs, safe Camera loading.
+    v61.1 — Xeno compatibility build (PlayerGui fallback, no `continue` syntax)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -10,7 +10,6 @@ local P    = game:GetService("Players")
 local RS   = game:GetService("RunService")
 local UIS  = game:GetService("UserInputService")
 local WS   = game:GetService("Workspace")
-local CG   = game:GetService("CoreGui")
 local L    = game:GetService("Lighting")
 local VIM  = game:GetService("VirtualInputManager")
 local LP   = P.LocalPlayer
@@ -88,15 +87,8 @@ end
 local function jittered(lo, hi) return lo + math.random() * (hi - lo) end
 
 -- ==========================================
--- GUI
+-- GUI (Xeno Safe - PlayerGui primary)
 -- ==========================================
-local function getHui()
-    if typeof(gethui) == "function" then
-        local ok, h = pcall(gethui); if ok and h then return h end
-    end
-    return CG
-end
-
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
     line=Color3.fromRGB(50,50,50), txt=Color3.fromRGB(255,255,255), dim=Color3.fromRGB(130,130,130),
@@ -104,8 +96,13 @@ local COL = {
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="SG_"..tostring(math.random(100000,999999)); gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true
-gui.DisplayOrder=10000; gui.Parent=getHui(); getgenv().TGui=gui
+gui.Name="SG_"..tostring(math.random(100000,999999))
+gui.ResetOnSpawn=false
+gui.IgnoreGuiInset=true
+gui.DisplayOrder=999999
+-- Xeno safe parent
+gui.Parent = LP:WaitForChild("PlayerGui")
+getgenv().TGui=gui
 
 local main = Instance.new("Frame")
 main.Size=UDim2.new(0,600,0,420); main.Position=UDim2.new(0.5,-300,0.5,-210)
@@ -832,4 +829,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v60.9 loaded — Engine live")
+print("[SpookingD] v61.1 loaded — Xeno safe mode active")
