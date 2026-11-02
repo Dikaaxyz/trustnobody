@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v63.3 — Premium UI (Wallpaper + Glow) + Instant ESP
+    v63.4 — Personal Parry Radius Circle + Premium UI + Instant ESP
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -22,7 +22,6 @@ local mouseUnlockKey = Enum.KeyCode.RightControl
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
     zombie_esp=true, 
-    gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
     crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
     auto_parry=false, auto_skillcheck=false,
@@ -48,6 +47,8 @@ local function getHiddenFolder()
     return hiddenFolder
 end
 
+local HAS_DRAWING = pcall(function() return Drawing.new("Square") end)
+
 -- ==========================================
 -- PREMIUM GUI
 -- ==========================================
@@ -69,11 +70,10 @@ local main = Instance.new("Frame")
 main.Size=UDim2.new(0,600,0,440); main.Position=UDim2.new(0.5,-300,0.5,-220)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 
--- WALLPAPER ADDED HERE
 local bgImage = Instance.new("ImageLabel")
 bgImage.Size = UDim2.new(1, 0, 1, 0)
 bgImage.BackgroundTransparency = 1
-bgImage.Image = "rbxassetid://17237874293" -- Abstract/Anime wallpaper
+bgImage.Image = "rbxassetid://17237874293"
 bgImage.ImageTransparency = 0.7
 bgImage.ScaleType = Enum.ScaleType.Crop
 bgImage.Parent = main
@@ -113,8 +113,8 @@ masterStroke.Color=COL.line; masterStroke.Thickness=1; masterStroke.Parent=maste
 
 local espData = {}
 local toolCache = {}
+local selfCircle = nil
 local parryIndicator = nil
-local HAS_DRAWING = pcall(function() return Drawing.new("Square") end)
 
 local function destroyEspEntry(p)
     local d = espData[p]
@@ -129,6 +129,7 @@ end
 
 local function fullTeardown()
     for p in pairs(espData) do destroyEspEntry(p) end
+    if selfCircle then pcall(function() selfCircle:Remove() end); selfCircle = nil end
     if parryIndicator then parryIndicator:Destroy(); parryIndicator = nil end
     if hiddenFolder then hiddenFolder:Destroy(); hiddenFolder = nil end
 end
@@ -558,34 +559,70 @@ end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
 -- ==========================================
--- PRECISION PARRY (No Spam)
+-- PARRY ZONE CIRCLE (VISUAL)
 -- ==========================================
 local PARRY_RADIUS=22
-local function ensureParrySphere()
-    if parryIndicator and parryIndicator.Parent then return parryIndicator end
-    local carrier=getHiddenFolder()
-    local sphere=Instance.new("Part")
-    sphere.Name="SpookReach"
-    sphere.Shape=Enum.PartType.Ball
-    sphere.Size=Vector3.new(PARRY_RADIUS*2,PARRY_RADIUS*2,PARRY_RADIUS*2)
-    sphere.Anchored=true; sphere.CanCollide=false
-    sphere.CanQuery=false; sphere.CanTouch=false
-    sphere.Massless=true; sphere.Transparency=1
-    sphere.Parent=carrier
-    parryIndicator=sphere
-    return sphere
-end
-
 RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
+    if not MasterEnabled then 
+        if selfCircle then pcall(function() selfCircle:Remove() end); selfCircle = nil end
+        return 
+    end
+    
     if CFG.auto_parry and LP.Character then
         local hrp=LP.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then local s=ensureParrySphere(); if s then s.Position=hrp.Position end end
+        local cam=WS.CurrentCamera
+        if hrp and cam then
+            if HAS_DRAWING then
+                if not selfCircle then
+                    selfCircle = Drawing.new("Circle")
+                    selfCircle.Thickness = 2
+                    selfCircle.Filled = false
+                    selfCircle.NumSides = 64
+                end
+                
+                local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+                if onScreenFoot then
+                    local checkPos, onScreen2 = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0) + Vector3.new(PARRY_RADIUS, 0, 0))
+                    if onScreen2 then
+                        local radiusPixels = (checkPos - footPos).Magnitude
+                        selfCircle.Visible = true
+                        selfCircle.Position = Vector2.new(footPos.X, footPos.Y)
+                        selfCircle.Radius = radiusPixels
+                        selfCircle.Color = Color3.fromRGB(0, 255, 255)
+                    else
+                        selfCircle.Visible = false
+                    end
+                else
+                    selfCircle.Visible = false
+                end
+            else
+                -- Fallback to Part if Drawing is unsupported
+                if not parryIndicator then
+                    local carrier=getHiddenFolder()
+                    local sphere=Instance.new("Part")
+                    sphere.Name="SpookReach"
+                    sphere.Shape=Enum.PartType.Ball
+                    sphere.Size=Vector3.new(PARRY_RADIUS*2,PARRY_RADIUS*2,PARRY_RADIUS*2)
+                    sphere.Anchored=true; sphere.CanCollide=false
+                    sphere.CanQuery=false; sphere.CanTouch=false
+                    sphere.Massless=true; sphere.Transparency=0.8
+                    sphere.Color = Color3.fromRGB(0,255,255)
+                    sphere.Material = Enum.Material.ForceField
+                    sphere.Parent=carrier
+                    parryIndicator=sphere
+                end
+                parryIndicator.Position = hrp.Position
+            end
+        end
     else
+        if selfCircle then pcall(function() selfCircle:Remove() end); selfCircle = nil end
         if parryIndicator then parryIndicator:Destroy(); parryIndicator=nil end
     end
 end)
 
+-- ==========================================
+-- PRECISION PARRY
+-- ==========================================
 local PARRY_MOUSE_BUTTON=2
 local parryBusy=false
 local lastSwingTime={}
@@ -664,7 +701,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- PRECISION SKILLCHECK (Aimed at White Zone)
+-- PRECISION SKILLCHECK
 -- ==========================================
 local SKILL = { scanInterval=0.015, zoneTolerance=4.5, pressWidthLo=0.008, pressWidthHi=0.024, cooldown=0.12 }
 local firedThisCheck = {}
@@ -830,4 +867,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v63.3 loaded — Premium UI")
+print("[SpookingD] v63.4 loaded — Personal Parry Zone Active")
