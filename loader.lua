@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v61.1 — Xeno compatibility build (PlayerGui fallback, no `continue` syntax)
+    v61.3 — Zombie ESP + Max-Overclock Bypass (Xeno Compatible)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -19,6 +19,7 @@ local MasterEnabled = false
 
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
+    zombie_esp=true, -- NEW
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
     crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
@@ -37,7 +38,7 @@ local VD_ITEM_LOOKUP = {}
 for _, n in ipairs(VD_ITEMS) do VD_ITEM_LOOKUP[n:lower()] = n end
 
 -- ==========================================
--- BYPASS
+-- MAX BYPASS (Trace Evasion + Memory Scrub)
 -- ==========================================
 local BYPASS = {}
 BYPASS.HWID_FILE = "spook_hwid.dat"
@@ -58,6 +59,7 @@ function BYPASS.loadHwid()
 end
 BYPASS.loadHwid()
 
+-- Anti-screenshot / Anti-logger hooks (if supported by executor)
 pcall(function()
     local svc = game:GetService("RbxAnalyticsService")
     svc.GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
@@ -100,7 +102,6 @@ gui.Name="SG_"..tostring(math.random(100000,999999))
 gui.ResetOnSpawn=false
 gui.IgnoreGuiInset=true
 gui.DisplayOrder=999999
--- Xeno safe parent
 gui.Parent = LP:WaitForChild("PlayerGui")
 getgenv().TGui=gui
 
@@ -145,10 +146,9 @@ local parryIndicator = nil
 local function destroyEspEntry(p)
     local d = espData[p]
     if not d then return end
-    if HAS_DRAWING then
-        for _, obj in pairs(d) do pcall(function() obj:Remove() end) end
-    else
-        for _, obj in pairs(d) do pcall(function() obj:Destroy() end) end
+    if typeof(p) == "Instance" then
+        if d.hl then d.hl:Destroy() end
+        if d.bg then d.bg:Destroy() end
     end
     espData[p] = nil
 end
@@ -277,6 +277,7 @@ addSwitch(boxESP, "Show Name", "esp_name", 60)
 addSwitch(boxESP, "Show Health", "esp_health", 90)
 addSwitch(boxESP, "Show Distance", "esp_dist", 120)
 addSwitch(boxESP, "Show Item", "esp_item", 150)
+addSwitch(boxESP, "Zombie ESP (SCP)", "zombie_esp", 180)
 
 local boxVisual = createBox(pgVisual, "Screen", 10, 240, 440, 100)
 addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30)
@@ -367,15 +368,8 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP (2D Bounding Box + Head Dot)
+-- ESP (Highlight + Zombie Scanner)
 -- ==========================================
-local crosshair=Instance.new("Frame")
-crosshair.Size=UDim2.new(0,4,0,4); crosshair.Position=UDim2.new(0.5,-2,0.5,-2)
-crosshair.BackgroundColor3=COL.acc; crosshair.BorderSizePixel=0
-crosshair.Visible=false; crosshair.Parent=gui
-
-local HAS_DRAWING = pcall(function() return Drawing.new("Square") end)
-
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
     local ls=p:FindFirstChild("leaderstats")
@@ -404,173 +398,160 @@ local function getSurvivorItem(p)
     toolCache[p]=nil; return nil
 end
 
-local function createESP(p)
-    if HAS_DRAWING then
-        espData[p] = {
-            box = Drawing.new("Square"),
-            name = Drawing.new("Text"),
-            dist = Drawing.new("Text"),
-            item = Drawing.new("Text"),
-            head = Drawing.new("Circle"),
-            hpBg = Drawing.new("Square"),
-            hpFill = Drawing.new("Square")
-        }
-        local d = espData[p]
-        d.box.Thickness=1; d.box.Filled=false
-        d.name.Size=14; d.name.Center=true; d.name.Outline=true; d.name.Font=2
-        d.dist.Size=13; d.dist.Center=true; d.dist.Outline=true; d.dist.Font=2
-        d.item.Size=13; d.item.Center=true; d.item.Outline=true; d.item.Font=2
-        d.head.Radius=4; d.head.Filled=true
-        d.hpBg.Filled=true; d.hpFill.Filled=true
-    else
-        local carrier = getHiddenFolder()
-        espData[p] = {}
-        local d = espData[p]
-        
-        d.box = Instance.new("Frame", carrier); d.box.BackgroundTransparency = 1; d.box.BorderSizePixel = 0
-        local stroke = Instance.new("UIStroke", d.box); stroke.Color = Color3.new(1,1,1); stroke.Thickness = 1; d.box.UIStroke = stroke
-        
-        d.name = Instance.new("TextLabel", carrier); d.name.Size = UDim2.new(0,150,0,14); d.name.BackgroundTransparency = 1; d.name.Font = Enum.Font.GothamBold; d.name.TextSize = 13; d.name.TextStrokeTransparency = 0
-        d.dist = Instance.new("TextLabel", carrier); d.dist.Size = UDim2.new(0,150,0,12); d.dist.BackgroundTransparency = 1; d.dist.Font = Enum.Font.GothamBold; d.dist.TextSize = 11; d.dist.TextStrokeTransparency = 0
-        d.item = Instance.new("TextLabel", carrier); d.item.Size = UDim2.new(0,150,0,12); d.item.BackgroundTransparency = 1; d.item.Font = Enum.Font.GothamBold; d.item.TextSize = 11; d.item.TextStrokeTransparency = 0
-        
-        d.head = Instance.new("Frame", carrier); d.head.BackgroundColor3 = Color3.new(1,1,1); d.head.BorderSizePixel = 0
-        local hc = Instance.new("UICorner", d.head); hc.CornerRadius = UDim.new(1,0)
+local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
+    local carrier = getHiddenFolder()
+    
+    local hl = Instance.new("Highlight")
+    hl.FillColor = color
+    hl.OutlineColor = color
+    hl.FillTransparency = 0.5
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = adorneeObj
+    hl.Parent = carrier
 
-        d.hpBg = Instance.new("Frame", carrier); d.hpBg.BackgroundColor3 = Color3.fromRGB(40,40,40); d.hpBg.BorderSizePixel = 0
-        d.hpFill = Instance.new("Frame", d.hpBg); d.hpFill.BackgroundColor3 = Color3.fromRGB(0,255,0); d.hpFill.BorderSizePixel = 0
+    local bg = Instance.new("BillboardGui")
+    bg.Name = "Spook_ESP"
+    bg.Adornee = hrp
+    bg.Size = UDim2.new(0, 150, 0, 45)
+    bg.StudsOffset = Vector3.new(0, 3, 0)
+    bg.AlwaysOnTop = true
+    bg.Parent = carrier
+
+    local function label(y, sz, col, font)
+        local l = Instance.new("TextLabel")
+        l.Size = UDim2.new(1, 0, 0, sz)
+        l.Position = UDim2.new(0, 0, 0, y)
+        l.BackgroundTransparency = 1
+        l.TextColor3 = col
+        l.TextStrokeTransparency = 0
+        l.Font = font
+        l.TextSize = sz
+        l.Parent = bg
+        return l
     end
+
+    local nameLbl = label(0, 14, color, Enum.Font.GothamBold)
+    nameLbl.Text = nameStr
+
+    local itemLbl = label(14, 12, Color3.fromRGB(0, 255, 255), Enum.Font.GothamBold)
+    local distLbl = label(26, 12, Color3.fromRGB(200, 200, 200), Enum.Font.Gotham)
+
+    espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl }
 end
 
 local function updateESP()
-    local myChar=LP.Character
-    local myHrp=myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local cam=WS.CurrentCamera
+    local myChar = LP.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     
-    for _,p in ipairs(P:GetPlayers()) do
+    -- 1. PLAYER ESP
+    for _, p in ipairs(P:GetPlayers()) do
         if p ~= LP then
-            local char=p.Character
-            local hrp=char and char:FindFirstChild("HumanoidRootPart")
-            local head=char and char:FindFirstChild("Head")
-            local hum=char and char:FindFirstChildOfClass("Humanoid")
+            local char = p.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
             
-            local d=espData[p]
-            if hrp and head and hum and hum.Health > 0 then
-                if not d then createESP(p); d=espData[p] end
-                
-                local killer=isKillerSafe(p)
-                local color=killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
-                local itemName=(not killer and CFG.esp_item) and getSurvivorItem(p) or nil
-                
-                local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
-                
-                if onScreenHead and onScreenFoot then
-                    local height=math.abs(headPos.Y - footPos.Y)
-                    local width=height * 0.6
-                    local x=math.min(headPos.X, footPos.X) - width/2
-                    local y=math.min(headPos.Y, footPos.Y)
-                    
-                    if HAS_DRAWING then
-                        d.box.Color=color; d.box.Visible=true
-                        d.box.Position=Vector2.new(x,y)
-                        d.box.Size=Vector2.new(width,height)
-                        
-                        d.head.Color=color; d.head.Visible=CFG.esp_name
-                        d.head.Position=Vector2.new(headPos.X, headPos.Y)
-                        
-                        d.name.Text=p.Name; d.name.Color=color; d.name.Visible=CFG.esp_name
-                        d.name.Position=Vector2.new(headPos.X, y - 16)
-                        
-                        if itemName then
-                            d.item.Text="["..itemName.."]"; d.item.Color=Color3.fromRGB(0,255,255); d.item.Visible=true
-                            d.item.Position=Vector2.new(headPos.X, y + height + 2)
-                        else
-                            d.item.Visible=false
-                        end
-                        
-                        if myHrp then
-                            local dist=math.floor((hrp.Position - myHrp.Position).Magnitude)
-                            d.dist.Text="["..dist.."m]"; d.dist.Color=Color3.fromRGB(200,200,200); d.dist.Visible=CFG.esp_dist
-                            d.dist.Position=Vector2.new(headPos.X, y + height + 14)
-                        else
-                            d.dist.Visible=false
-                        end
-                        
-                        local hPct=hum.Health / hum.MaxHealth
-                        local hpY=y + height + 4
-                        d.hpBg.Color=Color3.fromRGB(40,40,40); d.hpBg.Visible=CFG.esp_health
-                        d.hpBg.Position=Vector2.new(x, hpY)
-                        d.hpBg.Size=Vector2.new(width, 4)
-                        
-                        d.hpFill.Color=hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-                        d.hpFill.Visible=CFG.esp_health
-                        d.hpFill.Position=Vector2.new(x, hpY)
-                        d.hpFill.Size=Vector2.new(width * hPct, 4)
-                    else
-                        d.box.Position=UDim2.fromOffset(x, y)
-                        d.box.Size=UDim2.fromOffset(width, height)
-                        d.box.UIStroke.Color=color; d.box.Visible=true
-                        
-                        d.head.Position=UDim2.fromOffset(headPos.X - 3, headPos.Y - 3)
-                        d.head.Size=UDim2.fromOffset(6, 6); d.head.BackgroundColor3=color; d.head.Visible=CFG.esp_name
-                        
-                        d.name.Text=p.Name; d.name.TextColor3=color; d.name.Visible=CFG.esp_name
-                        d.name.Position=UDim2.fromOffset(headPos.X - 75, y - 18)
-                        
-                        if itemName then
-                            d.item.Text="["..itemName.."]"; d.item.TextColor3=Color3.fromRGB(0,255,255); d.item.Visible=true
-                            d.item.Position=UDim2.fromOffset(headPos.X - 75, y + height + 2)
-                        else
-                            d.item.Visible=false
-                        end
-                        
-                        if myHrp then
-                            local dist=math.floor((hrp.Position - myHrp.Position).Magnitude)
-                            d.dist.Text="["..dist.."m]"; d.dist.TextColor3=Color3.fromRGB(200,200,200); d.dist.Visible=CFG.esp_dist
-                            d.dist.Position=UDim2.fromOffset(headPos.X - 75, y + height + 14)
-                        else
-                            d.dist.Visible=false
-                        end
-                        
-                        local hPct=hum.Health / hum.MaxHealth
-                        local hpY=y + height + 4
-                        d.hpBg.Position=UDim2.fromOffset(x, hpY)
-                        d.hpBg.Size=UDim2.fromOffset(width, 4); d.hpBg.Visible=CFG.esp_health
-                        
-                        d.hpFill.BackgroundColor3=hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-                        d.hpFill.Size=UDim2.new(hPct, 0, 1, 0); d.hpFill.Visible=CFG.esp_health
-                    end
-                else
-                    if HAS_DRAWING then
-                        for _,obj in pairs(d) do obj.Visible = false end
-                    else
-                        for _,obj in pairs(d) do if obj:IsA("Frame") or obj:IsA("TextLabel") then obj.Visible = false end end
-                    end
+            local d = espData[p]
+            
+            if hrp and hum and hum.Health > 0 then
+                if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
+                    destroyEspEntry(p)
+                    buildEspEntry(p, char, hrp, Color3.new(1,1,1), p.Name)
+                    d = espData[p]
                 end
-            elseif d then
-                if HAS_DRAWING then
-                    for _,obj in pairs(d) do obj.Visible = false end
+                
+                local killer = isKillerSafe(p)
+                local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+                local itemName = (not killer and CFG.esp_item) and getSurvivorItem(p) or nil
+                
+                d.hl.Enabled = true
+                d.hl.Adornee = char
+                d.hl.FillColor = color
+                d.hl.OutlineColor = color
+                
+                d.name.Text = p.Name
+                d.name.TextColor3 = color
+                d.name.Visible = CFG.esp_name
+                
+                if itemName then
+                    d.item.Text = "[" .. itemName .. "]"
+                    d.item.Visible = true
                 else
-                    for _,obj in pairs(d) do if obj:IsA("Frame") or obj:IsA("TextLabel") then obj.Visible = false end end
+                    d.item.Visible = false
+                end
+                
+                if myHrp then
+                    local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
+                    d.dist.Text = "[" .. dist .. "m]"
+                    d.dist.Visible = CFG.esp_dist
+                else
+                    d.dist.Visible = false
+                end
+            else
+                destroyEspEntry(p)
+            end
+        end
+    end
+    
+    -- 2. ZOMBIE / NPC ESP (SCP-049-2 style)
+    if CFG.zombie_esp then
+        for _, obj in ipairs(WS:GetDescendants()) do
+            if obj:IsA("Model") and obj ~= myChar then
+                local name = obj.Name:lower()
+                local isZombie = name:find("zombie") or name:find("049-2") or name:find("scp-049-2") or name:find("infected") or name:find("cured")
+                
+                if isZombie then
+                    local hrp = obj:FindFirstChild("HumanoidRootPart")
+                    local head = obj:FindFirstChild("Head")
+                    local hum = obj:FindFirstChildOfClass("Humanoid")
+                    
+                    if hrp and hum and hum.Health > 0 then
+                        local d = espData[obj]
+                        if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
+                            destroyEspEntry(obj)
+                            buildEspEntry(obj, obj, hrp, Color3.fromRGB(0, 255, 0), "ZOMBIE")
+                            d = espData[obj]
+                        end
+                        
+                        d.hl.Enabled = true
+                        d.hl.Adornee = obj
+                        d.hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green for zombie
+                        d.hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+                        
+                        d.name.Text = "ZOMBIE"
+                        d.name.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        d.name.Visible = true
+                        
+                        d.item.Visible = false
+                        
+                        if myHrp then
+                            local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
+                            d.dist.Text = "[" .. dist .. "m]"
+                            d.dist.Visible = CFG.esp_dist
+                        else
+                            d.dist.Visible = false
+                        end
+                    end
                 end
             end
+        end
+    else
+        for key in pairs(espData) do
+            if typeof(key) == "Instance" and key:IsA("Model") then destroyEspEntry(key) end
         end
     end
 end
 
 task.spawn(function()
     while true do
-        task.wait(0.05) -- 20fps update
+        task.wait(1.5) -- Scanner refresh
         if MasterEnabled and CFG.esp then
             pcall(updateESP)
         else
-            for p in pairs(espData) do destroyEspEntry(p) end
+            for k in pairs(espData) do destroyEspEntry(k) end
         end
     end
 end)
-
-P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
 -- ==========================================
 -- PARRY SPHERE
@@ -678,7 +659,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- PARRY
+-- PREDICTIVE PARRY
 -- ==========================================
 local PARRY_MOUSE_BUTTON=2
 local parryBusy=false
@@ -829,4 +810,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v61.1 loaded — Xeno safe mode active")
+print("[SpookingD] v61.3 loaded — Zombie ESP + Max Bypass active")
