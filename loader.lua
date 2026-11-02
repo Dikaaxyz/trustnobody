@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v55.0 — Ultimate Evasion
+    v56.0 — Visual Skillcheck (Blind Scan)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,7 +15,6 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
@@ -35,41 +34,10 @@ local VD_ITEMS = {
     "WaxBound Candle", "Holy Water", "Riot Shield"
 }
 
--- ==========================================
--- [BYPASS] ULTIMATE EVASION
--- ==========================================
 pcall(function()
-    -- 1. Anti-Metatable Signature
-    local mt = getrawmetatable(game)
-    local registry = debug.getregistry()
-    for i = 1, 100 do
-        if registry[i] == mt then table.remove(registry, i) break end
-    end
-
-    -- 2. Handshake Obfuscation (Spoof Android)
-    local NetworkClient = game:GetService("NetworkClient")
-    local oldInvoke = NetworkClient.Invoke
-    NetworkClient.Invoke = function(self, req, ...)
-        if req == "Handshake" then return "Roblox/Android/2.599" end
-        return oldInvoke(self, req, ...)
-    end
-
-    -- 3. IP Masking
-    local oldGet = HttpService.GetAsync
-    HttpService.GetAsync = function(self, url, ...)
-        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US","city":"Los Angeles"}' end
-        return oldGet(self, url, ...)
-    end
-
-    -- 4. HWID Spoof & Cookie Wipe
     getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
-    if writefile and isfile and delfile then 
-        pcall(function() 
-            if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end 
-            if isfile("rbx_cookie") then delfile("rbx_cookie") end
-        end) 
-    end
+    if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
 end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
@@ -346,7 +314,7 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
--- ENGINE: PURE AUTO SKILLCHECK (With Random Delay)
+-- ENGINE: BLIND VISUAL SKILLCHECK (No Lag)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.1) do 
@@ -356,12 +324,14 @@ task.spawn(function()
             if isHoldingMouse then
                 local pg = LP:FindFirstChild("PlayerGui")
                 if pg then
+                    -- Blind Scan: Cek semua ImageLabel yang ada di layar
                     for _, g in ipairs(pg:GetDescendants()) do
-                        if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow") or g.Name:lower():find("needle")) then
-                            local posX = g.Position.X.Scale
-                            if posX > 0.4 and posX < 0.6 then
-                                -- Jeda random 10-30ms biar ga kecap robot
-                                task.wait(math.random(10, 30) / 1000)
+                        if g:IsA("ImageLabel") then
+                            -- Kalo ukurannya kecil (kaya jarum) dan posisinya di tengah
+                            local sx = g.Position.X.Scale
+                            local sy = g.Position.Y.Scale
+                            if sx > 0.35 and sx < 0.65 and sy > 0.35 and sy < 0.65 then
+                                -- Tembak Spasi
                                 pcall(function() 
                                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                                     task.wait(0.01)
@@ -376,7 +346,7 @@ task.spawn(function()
     end
 end)
 
--- AUTO PARRY (With Random Delay)
+-- AUTO PARRY
 task.spawn(function()
     while task.wait(0.1) do
         if not MasterEnabled then continue end
@@ -388,7 +358,6 @@ task.spawn(function()
                         local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
                         local hum = p.Character:FindFirstChildOfClass("Humanoid")
                         if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
-                            task.wait(math.random(20, 50) / 1000)
                             pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
                         end
                     end
@@ -456,7 +425,7 @@ end)
 RS.Stepped:Connect(function()
     if not MasterEnabled then return end
     local c = LP.Character
-    if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = math.min(CFG.ws_speed, 28) else hum.WalkSpeed = 16 end end end
+    if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v55.0 Ultimate Evasion")
+print("[SpookingD] Script Loaded — v56.0 Blind Scan")
