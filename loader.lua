@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v62.5 — Fixed Sidebar & Scrolling Layout
+    v62.7 — Geometric ESP (Circle, Triangle, Tracer Laser)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -74,7 +74,6 @@ local sidebar = Instance.new("Frame")
 sidebar.Size=UDim2.new(0,130,1,0); sidebar.BackgroundColor3=COL.sidebar
 sidebar.BorderSizePixel=0; sidebar.Parent=main
 
--- Make sidebar scrollable
 local sideScroll = Instance.new("ScrollingFrame")
 sideScroll.Size=UDim2.new(1, 0, 1, -90)
 sideScroll.Position=UDim2.new(0, 0, 0, 90)
@@ -101,12 +100,18 @@ masterStroke.Color=COL.line; masterStroke.Thickness=1; masterStroke.Parent=maste
 local espData = {}
 local toolCache = {}
 local parryIndicator = nil
+local HAS_DRAWING = pcall(function() return Drawing.new("Square") end)
 
 local function destroyEspEntry(p)
     local d = espData[p]
     if not d then return end
     if d.hl then d.hl:Destroy() end
     if d.bg then d.bg:Destroy() end
+    if d.lines then
+        for _, obj in pairs(d.lines) do
+            pcall(function() obj:Remove() end)
+        end
+    end
     espData[p] = nil
 end
 
@@ -129,7 +134,6 @@ end)
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
     local btn = Instance.new("TextButton")
-    -- Pos Y dikurangi karena dimasukin ke ScrollingFrame
     btn.Size=UDim2.new(1,-20,0,30); btn.Position=UDim2.new(0,10,0,(#sideTabs*35))
     btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0
     btn.Text="  "..name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold
@@ -153,7 +157,6 @@ local function addSideTab(name)
     return pg
 end
 
--- Utility for ScrollingFrame inside pages
 local function createScrollablePage(parent)
     local scroll = Instance.new("ScrollingFrame")
     scroll.Size=UDim2.new(1,-10,1,-10)
@@ -238,21 +241,18 @@ local function addButton(parent,label,cb,yOffset)
     btn.MouseButton1Click:Connect(function() if MasterEnabled then pcall(cb) end end)
 end
 
--- Create Tabs
 local pgVisual   = addSideTab("Visuals")
 local pgWorld    = addSideTab("World")
 local pgSurvivor = addSideTab("Survivor")
 local pgKiller   = addSideTab("Killer")
 local pgMisc     = addSideTab("Misc")
 
--- Add Scrolls to pages
 local scrollVisual   = createScrollablePage(pgVisual)
 local scrollWorld    = createScrollablePage(pgWorld)
 local scrollSurvivor = createScrollablePage(pgSurvivor)
 local scrollKiller   = createScrollablePage(pgKiller)
 local scrollMisc     = createScrollablePage(pgMisc)
 
--- Visuals
 local boxESP = createBox(scrollVisual, "Player ESP", 10, 440, 230)
 addSwitch(boxESP, "Enable ESP", "esp", 30)
 addSwitch(boxESP, "Show Name", "esp_name", 60)
@@ -265,23 +265,19 @@ local boxVisual = createBox(scrollVisual, "Screen", 250, 440, 100)
 addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30)
 addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60)
 
--- World
 local boxWorld = createBox(scrollWorld, "World ESP", 10, 440, 160)
 addSwitch(boxWorld, "Generator ESP", "gen_esp", 30)
 addSwitch(boxWorld, "Killer Skill ESP", "killer_esp", 60)
 addSwitch(boxWorld, "Item ESP", "item_esp", 90)
 addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
 
--- Survivor
 local boxSafe = createBox(scrollSurvivor, "Survivor Utility", 10, 440, 120)
 addSwitch(boxSafe, "Auto Parry (Prediction)", "auto_parry", 30)
 addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
 
--- Killer
 local boxKiller = createBox(scrollKiller, "Killer Utility", 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
 
--- Misc
 local boxEnv = createBox(scrollMisc, "Environment", 10, 440, 100)
 addSwitch(boxEnv, "TRUE Fullbright", "bright", 30)
 addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
@@ -354,7 +350,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP ENGINE
+-- ESP ENGINE (Highlight + Circle/Tracer)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -436,26 +432,40 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local itemLbl = label(22, 12, Color3.fromRGB(0, 255, 255), Enum.Font.GothamBold)
     local distLbl = label(34, 12, Color3.fromRGB(200, 200, 200), Enum.Font.Gotham)
 
-    espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg }
+    local lines = nil
+    if HAS_DRAWING then
+        lines = {
+            circle = Drawing.new("Circle"),
+            triangle = Drawing.new("Triangle"),
+            tracer = Drawing.new("Line")
+        }
+        lines.circle.Thickness = 1; lines.circle.Filled = false
+        lines.tracer.Thickness = 1
+        lines.triangle.Thickness = 1; lines.triangle.Filled = false
+    end
+
+    espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg, lines = lines }
 end
 
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.1)
         if MasterEnabled and CFG.esp then
             pcall(function()
                 local myChar = LP.Character
                 local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                local cam = WS.CurrentCamera
                 
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP then
                         local char = p.Character
                         local hrp = char and char:FindFirstChild("HumanoidRootPart")
                         local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        local head = char and char:FindFirstChild("Head")
                         
                         local d = espData[p]
                         
-                        if hrp and hum and hum.Health > 0 then
+                        if hrp and hum and hum.Health > 0 and head then
                             if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
                                 destroyEspEntry(p)
                                 buildEspEntry(p, char, hrp, Color3.new(1,1,1), p.Name)
@@ -464,6 +474,19 @@ task.spawn(function()
                             
                             local killer = isKillerSafe(p)
                             local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+                            
+                            -- Threat Detection for Yellow Flash
+                            if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 then
+                                local animator = hum:FindFirstChildOfClass("Animator")
+                                if animator then
+                                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                        local n = track.Name:lower()
+                                        if track.WeightCurrent > 0.1 and not (n:find("idle") or n:find("walk") or n:find("run") or n:find("fall")) then
+                                            color = Color3.fromRGB(255, 255, 0); break
+                                        end
+                                    end
+                                end
+                            end
                             
                             if d.lastColor ~= color then
                                 d.hl.FillColor = color
@@ -491,66 +514,60 @@ task.spawn(function()
                                 d.hpBg.Visible = false
                             end
                             
+                            local dist = 0
                             if myHrp then
-                                local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
+                                dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
                                 d.dist.Text = "[" .. dist .. "m]"
                                 d.dist.Visible = CFG.esp_dist
                             else
                                 d.dist.Visible = false
                             end
-                        else
-                            destroyEspEntry(p)
-                        end
-                    end
-                end
-                
-                if CFG.zombie_esp then
-                    for _, obj in ipairs(WS:GetDescendants()) do
-                        if obj:IsA("Model") and obj ~= myChar then
-                            local name = obj.Name:lower()
-                            local isZombie = name:find("zombie") or name:find("049-2") or name:find("scp-049-2") or name:find("infected") or name:find("cured")
                             
-                            if isZombie then
-                                local hrp = obj:FindFirstChild("HumanoidRootPart")
-                                local hum = obj:FindFirstChildOfClass("Humanoid")
+                            -- DRAWING API ENGINE
+                            if HAS_DRAWING and d.lines then
+                                local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                                local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
                                 
-                                if hrp and hum and hum.Health > 0 then
-                                    local d = espData[obj]
-                                    if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
-                                        destroyEspEntry(obj)
-                                        buildEspEntry(obj, obj, hrp, Color3.fromRGB(0, 255, 0), "ZOMBIE")
-                                        d = espData[obj]
+                                if onScreenHead and onScreenFoot then
+                                    local height = math.abs(headPos.Y - footPos.Y)
+                                    local width = height * 0.6
+                                    local cx = math.min(headPos.X, footPos.X) + (width/2)
+                                    local cy = math.min(headPos.Y, footPos.Y)
+                                    
+                                    -- Circle Under Feet
+                                    d.lines.circle.Color = color
+                                    d.lines.circle.Visible = true
+                                    d.lines.circle.Position = Vector2.new(footPos.X, footPos.Y)
+                                    d.lines.circle.Radius = width / 1.5
+                                    
+                                    -- Triangle Above Head (Killer only)
+                                    d.lines.triangle.Visible = killer
+                                    if killer then
+                                        d.lines.triangle.Color = color
+                                        local p1 = Vector2.new(cx, cy - 15)
+                                        local p2 = Vector2.new(cx - 8, cy - 30)
+                                        local p3 = Vector2.new(cx + 8, cy - 30)
+                                        d.lines.triangle.PointA = p1
+                                        d.lines.triangle.PointB = p2
+                                        d.lines.triangle.PointC = p3
                                     end
                                     
-                                    d.hl.Enabled = true
-                                    d.hl.Adornee = obj
-                                    d.hl.FillColor = Color3.fromRGB(0, 255, 0)
-                                    d.hl.OutlineColor = Color3.fromRGB(0, 255, 0)
-                                    
-                                    d.name.Text = "ZOMBIE"
-                                    d.name.TextColor3 = Color3.fromRGB(0, 255, 0)
-                                    d.name.Visible = true
-                                    
-                                    if CFG.esp_health then
-                                        local hPct = hum.Health / hum.MaxHealth
-                                        d.hpBg.Visible = true
-                                        d.hp.Size = UDim2.new(hPct, 0, 1, 0)
-                                        d.hp.BackgroundColor3 = hPct > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-                                    else
-                                        d.hpBg.Visible = false
+                                    -- Laser Tracer (Killer only)
+                                    d.lines.tracer.Visible = killer
+                                    if killer then
+                                        d.lines.tracer.Color = color
+                                        d.lines.tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+                                        d.lines.tracer.To = Vector2.new(headPos.X, headPos.Y)
                                     end
-                                    
-                                    d.item.Visible = false
-                                    
-                                    if myHrp then
-                                        local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
-                                        d.dist.Text = "[" .. dist .. "m]"
-                                        d.dist.Visible = CFG.esp_dist
-                                    else
-                                        d.dist.Visible = false
-                                    end
+                                else
+                                    d.lines.circle.Visible = false
+                                    d.lines.triangle.Visible = false
+                                    d.lines.tracer.Visible = false
                                 end
                             end
+                            
+                        else
+                            destroyEspEntry(p)
                         end
                     end
                 end
@@ -843,4 +860,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v62.5 loaded — Layout fixed")
+print("[SpookingD] v62.7 loaded — Geometric Visuals Active")
