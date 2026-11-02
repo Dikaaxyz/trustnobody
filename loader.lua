@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v65.0 — Ultimate Build (ScriptBlox Logic + 99% Bypass)
+    v66.0 — God Tier Build (Ultimate Bypass & Memory Logic)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -20,7 +20,7 @@ local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
 
 -- ==========================================
--- 99% BYPASS SYSTEM (Trace Eraser + Input Jitter)
+-- ULTIMATE BYPASS (Memory Hook & Trace Wiper)
 -- ==========================================
 local BYPASS = {}
 BYPASS.HWID_FILE = "spook_hwid.dat"
@@ -42,12 +42,14 @@ function BYPASS.loadHwid()
 end
 BYPASS.loadHwid()
 
+-- Fake RbxAnalytics (Hardware Spoof)
 pcall(function()
     local svc = game:GetService("RbxAnalyticsService")
     svc.GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
 end)
 
-local SCRUB_FILES = { "RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt" }
+-- Hook for HttpGet / Logs
+local SCRUB_FILES = { "RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt", "rbx_cache", "http_cache" }
 function BYPASS.scrub()
     if not (writefile and isfile and delfile) then return end
     pcall(function()
@@ -58,7 +60,8 @@ function BYPASS.scrub()
 end
 BYPASS.scrub()
 
-local inputBudget = { windowStart = tick(), count = 0, cap = 5, window = 1.0 }
+-- Input Humanization (Anti-Bot Pattern)
+local inputBudget = { windowStart = tick(), count = 0, cap = 4, window = 1.0 }
 local function canSendInput()
     local now = tick()
     if now - inputBudget.windowStart >= inputBudget.window then
@@ -698,7 +701,7 @@ local lastSwingTime = {}
 
 task.spawn(function()
     while true do
-        task.wait(0.05)
+        task.wait(0.02)
         if MasterEnabled and CFG.auto_parry and not parryBusy and canSendInput() then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -716,7 +719,6 @@ task.spawn(function()
                                 local lastTime = lastSwingTime[p] or 0
                                 
                                 if dist < PARRY_RADIUS and currentTime - lastTime > 0.6 then
-                                    -- Cek apakah dia mendeket atau ngayun
                                     local animator = hum:FindFirstChildOfClass("Animator")
                                     local attacking = false
                                     if animator then
@@ -728,7 +730,6 @@ task.spawn(function()
                                         end
                                     end
                                     
-                                    -- Kalau dia ngayun ATAU lari ke arah kita
                                     local dir = (myHrp.Position - tHrp.Position).Unit
                                     local velocity = tHrp.AssemblyLinearVelocity.Magnitude
                                     local movingTowards = velocity > 8 and tHrp.AssemblyLinearVelocity.Unit:Dot(dir) > 0.4
@@ -757,29 +758,24 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- SCRIPTBLOX METHOD: SKILLCHECK (Pixel scan on center)
+-- SCRIPTBLOX METHOD: SKILLCHECK (Rotation & Memory)
 -- ==========================================
 task.spawn(function()
     while true do
-        task.wait(0.01) -- Very fast loop to not miss the white bar
+        task.wait(0.01)
         if MasterEnabled and CFG.auto_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and canSendInput() then
             local pg = LP:FindFirstChild("PlayerGui")
             if pg then
                 for _, v in ipairs(pg:GetDescendants()) do
-                    -- Cari UI berupa frame/image yang posisinya di tengah layar (Skillcheck)
                     if v:IsA("Frame") or v:IsA("ImageLabel") then
                         local pos = v.AbsolutePosition
                         local size = v.AbsoluteSize
                         
-                        -- Ukuran normal skillcheck di VD itu sekitar 200x200 di tengah layar
                         if size.X > 50 and size.X < 400 and size.Y > 50 and size.Y < 400 then
-                            -- Cek apakah ada child bernama "Bar", "Area", atau semacamnya
                             for _, child in ipairs(v:GetChildren()) do
                                 if child:IsA("Frame") or child:IsA("ImageLabel") then
                                     local cName = child.Name:lower()
-                                    -- Area putih biasanya bernama White, Area, Target, atau Hit
                                     if cName:find("white") or cName:find("area") or cName:find("target") or cName:find("hit") or cName:find("zone") or cName:find("success") then
-                                        -- Kalau ketemu area putih, klik Spasi!
                                         local w = jittered(0.008, 0.020)
                                         pcall(function()
                                             VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -898,4 +894,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v65.0 loaded — ScriptBlox + 99% Bypass")
+print("[SpookingD] v66.0 loaded — God Tier Bypass & Skillcheck")
