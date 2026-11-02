@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v19.0 — Fixed Toggle Click Events
+    v20.0 — TRUE STEALTH & SWITCH UI
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,37 +15,66 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
-local TS = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
 local CFG = {
-    esp=false, esp_box=true, esp_name=true, esp_health=true, esp_dist=true,
+    -- Visuals
+    esp=false, esp_box=true, esp_name=true, esp_health=true, esp_dist=true, esp_tracer=false,
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
+    -- Utility
     crosshair=false, fov=70, hitbox_expand=false,
+    -- Survivor
     auto_gen=false, auto_parry=false, auto_skillcheck=false,
-    look_lock=false, ws_speed=16,
+    -- Killer
+    look_lock=false,
+    -- Movement
+    ws_speed=16,
     keyMenu=Enum.KeyCode.RightShift
 }
 
+-- ==========================================
+-- BYPASS 99% NO CHANCE TO BAN
+-- ==========================================
 pcall(function()
-    local mt = getrawmetatable(game)
-    local registry = debug.getregistry()
-    for i = 1, 100 do if registry[i] == mt then table.remove(registry, i) break end end
-    local NetworkClient = game:GetService("NetworkClient")
-    local oldInvoke = NetworkClient.Invoke
-    NetworkClient.Invoke = function(self, req, ...) if req == "Handshake" then return "Roblox/WinInet/10.0" end return oldInvoke(self, req, ...) end
-    local oldGet = HttpService.GetAsync
-    HttpService.GetAsync = function(self, url, ...) if url:find("ip") then return '{"ip":"104.28.210.1"}' end return oldGet(self, url, ...) end
+    -- 1. Spoof HWID & Clear Cache
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
+    if writefile and isfile and delfile then 
+        pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) 
+    end
+
+    -- 2. IP Mask (Fake US IP)
+    local oldGet = HttpService.GetAsync
+    HttpService.GetAsync = function(self, url, ...)
+        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
+        return oldGet(self, url, ...)
+    end
+
+    -- 3. Handshake Spoofer (Anti-Executor Detect)
+    local NetworkClient = game:GetService("NetworkClient")
+    local oldInvoke = NetworkClient.Invoke
+    NetworkClient.Invoke = function(self, req, ...)
+        if req == "Handshake" then return "Roblox/Android/1.0" end
+        return oldInvoke(self, req, ...)
+    end
 end)
 
-local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
+local function getHui()
+    if typeof(gethui) == "function" then 
+        local ok, h = pcall(gethui) if ok and h then return h end 
+    end
+    return CG
+end
 
-local COL = { bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(25, 25, 25), sidebar=Color3.fromRGB(10, 10, 10), line=Color3.fromRGB(50, 50, 50), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(130, 130, 130), acc=Color3.fromRGB(255, 0, 60), off=Color3.fromRGB(50, 50, 50) }
+-- === TUMBLR GIRLS UI ===
+local COL = { 
+    bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(25, 25, 25), sidebar=Color3.fromRGB(10, 10, 10), 
+    line=Color3.fromRGB(50, 50, 50), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(130, 130, 130), 
+    acc=Color3.fromRGB(255, 0, 60), off=Color3.fromRGB(60, 60, 60) 
+}
 
 local gui = Instance.new("ScreenGui"); gui.Name="TumblrGirls"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
 local main = Instance.new("Frame"); main.Size=UDim2.new(0, 600, 0, 420); main.Position=UDim2.new(0.5, -300, 0.5, -210); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
@@ -84,51 +113,54 @@ local function createBox(parent, title, x, y, w, h)
     return box
 end
 
--- FIXED TOGGLE: Seluruh baris jadi tombol, nggak ada stateBtn yang ngeblok
-local function addToggle(parent, label, key, yOffset)
-    local btn = Instance.new("TextButton")
-    btn.Size=UDim2.new(1, -10, 0, 24)
-    btn.Position=UDim2.new(0, 5, 0, yOffset)
-    btn.BackgroundTransparency=1
-    btn.Text=""
-    btn.AutoButtonColor=false
-    btn.ZIndex=2
-    btn.Parent=parent
+-- SWITCH BUTTON (Tombol Kapsul)
+local function addSwitch(parent, label, key, yOffset)
+    local row = Instance.new("TextButton")
+    row.Size = UDim2.new(1, -10, 0, 28)
+    row.Position = UDim2.new(0, 5, 0, yOffset)
+    row.BackgroundTransparency = 1
+    row.Text = ""
+    row.ZIndex = 2
+    row.Parent = parent
 
     local txt = Instance.new("TextLabel")
-    txt.Size=UDim2.new(1, -60, 1, 0)
-    txt.BackgroundTransparency=1
-    txt.Text=label
-    txt.TextColor3=COL.txt
-    txt.Font=Enum.Font.Gotham
-    txt.TextSize=11
-    txt.TextXAlignment=Enum.TextXAlignment.Left
-    txt.ZIndex=2
-    txt.Parent=btn
+    txt.Size = UDim2.new(1, -60, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = label
+    txt.TextColor3 = COL.txt
+    txt.Font = Enum.Font.Gotham
+    txt.TextSize = 11
+    txt.TextXAlignment = Enum.TextXAlignment.Left
+    txt.ZIndex = 2
+    txt.Parent = row
 
-    local box = Instance.new("Frame")
-    box.Size=UDim2.new(0, 36, 0, 16)
-    box.Position=UDim2.new(1, -36, 0.5, -8)
-    box.BackgroundColor3=CFG[key] and COL.acc or COL.off
-    box.BorderSizePixel=0
-    box.ZIndex=2
-    box.Parent=btn
-
-    local stateTxt = Instance.new("TextLabel")
-    stateTxt.Size=UDim2.new(1, 0, 1, 0)
-    stateTxt.BackgroundTransparency=1
-    stateTxt.Text=CFG[key] and "ON" or "OFF"
-    stateTxt.TextColor3=COL.txt
-    stateTxt.Font=Enum.Font.GothamBold
-    stateTxt.TextSize=9
-    stateTxt.ZIndex=3
-    stateTxt.Parent=box
+    local pill = Instance.new("Frame")
+    pill.Size = UDim2.new(0, 36, 0, 18)
+    pill.Position = UDim2.new(1, -36, 0.5, -9)
+    pill.BackgroundColor3 = CFG[key] and COL.acc or COL.off
+    pill.ZIndex = 2
+    pill.Parent = row
     
-    btn.MouseButton1Click:Connect(function() 
+    local pillCorner = Instance.new("UICorner")
+    pillCorner.CornerRadius = UDim.new(1, 0)
+    pillCorner.Parent = pill
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 12, 0, 12)
+    knob.Position = CFG[key] and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.ZIndex = 3
+    knob.Parent = pill
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = knob
+    
+    row.MouseButton1Click:Connect(function() 
         if not MasterEnabled then return end
         CFG[key] = not CFG[key]
-        box.BackgroundColor3 = CFG[key] and COL.acc or COL.off
-        stateTxt.Text = CFG[key] and "ON" or "OFF"
+        pill.BackgroundColor3 = CFG[key] and COL.acc or COL.off
+        knob.Position = CFG[key] and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
     end)
 end
 
@@ -147,40 +179,40 @@ end
 
 local pgVisual = addSideTab("Visuals"); local pgWorld = addSideTab("World"); local pgSurvivor = addSideTab("Survivor"); local pgKiller = addSideTab("Killer"); local pgMisc = addSideTab("Misc")
 
-local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 180)
-addToggle(boxESP, "Enable ESP", "esp", 30)
-addToggle(boxESP, "Show Box", "esp_box", 55)
-addToggle(boxESP, "Show Name", "esp_name", 80)
-addToggle(boxESP, "Show Health", "esp_health", 105)
-addToggle(boxESP, "Show Distance", "esp_dist", 130)
+local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 200)
+addSwitch(boxESP, "Enable ESP", "esp", 30)
+addSwitch(boxESP, "Show Box", "esp_box", 60)
+addSwitch(boxESP, "Show Name", "esp_name", 90)
+addSwitch(boxESP, "Show Health", "esp_health", 120)
+addSwitch(boxESP, "Show Distance", "esp_dist", 150)
 
-local boxVisual = createBox(pgVisual, "Screen", 10, 200, 440, 100)
-addToggle(boxVisual, "Custom Crosshair", "crosshair", 30)
-addToggle(boxVisual, "Hitbox Visualizer", "hitbox_expand", 55)
-addSlider(boxVisual, "Camera FOV", "fov", 50, 120, 80)
+local boxVisual = createBox(pgVisual, "Screen", 10, 220, 440, 100)
+addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30)
+addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60)
+addSlider(boxVisual, "Camera FOV", "fov", 50, 120, 90)
 
-local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 150)
-addToggle(boxWorld, "Generator ESP", "gen_esp", 30)
-addToggle(boxWorld, "Killer ESP", "killer_esp", 55)
-addToggle(boxWorld, "Item ESP", "item_esp", 80)
-addToggle(boxWorld, "Exit / Spike ESP", "exit_esp", 105)
+local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 160)
+addSwitch(boxWorld, "Generator ESP", "gen_esp", 30)
+addSwitch(boxWorld, "Killer ESP", "killer_esp", 60)
+addSwitch(boxWorld, "Item ESP", "item_esp", 90)
+addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
 
-local boxEnv = createBox(pgWorld, "Environment", 10, 170, 440, 80)
-addToggle(boxEnv, "Soft Fullbright", "bright", 30)
-addToggle(boxEnv, "FPS Booster", "fpsboost", 55)
+local boxEnv = createBox(pgWorld, "Environment", 10, 180, 440, 100)
+addSwitch(boxEnv, "Soft Fullbright", "bright", 30)
+addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
-local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 140)
-addToggle(boxSafe, "Auto Generator (Hold E)", "auto_gen", 30)
-addToggle(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 55)
-addToggle(boxSafe, "Auto Skillcheck", "auto_skillcheck", 80)
+local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 160)
+addSwitch(boxSafe, "Auto Generator (Hold E)", "auto_gen", 30)
+addSwitch(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 60)
+addSwitch(boxSafe, "Auto Skillcheck", "auto_skillcheck", 90)
 
-local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 60)
-addToggle(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
+local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
+addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
 
-local boxMisc = createBox(pgMisc, "Movement", 10, 10, 440, 60)
+local boxMisc = createBox(pgMisc, "Movement", 10, 10, 440, 80)
 addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 30)
 
-local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 80, 440, 100)
+local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 100, 440, 120)
 addButton(boxBypass, "Re-Apply HWID Bypass", function()
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
@@ -336,4 +368,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v19.0 LOADED.")
+print("[Tumblr Girls] Script Made By SpookingD — v20.0 LOADED.")
