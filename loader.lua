@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v29.0 — Clean ESP & Duplicate Fix
+    v30.1 — Smart Skillcheck (Position Reading)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -138,10 +138,11 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: CLEAN ESP (FIXED)
+-- ENGINE: ESP
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
-local espGui = {}
+local hitboxParts = {}
+local skillHighlights = {}
 
 local function isKiller(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -158,95 +159,107 @@ local function isKiller(p)
     return false
 end
 
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    
-    for _, p in ipairs(P:GetPlayers()) do
-        if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
-            local killer = isKiller(p)
-            local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-
-            if not espGui[p] or not espGui[p].Parent then
-                -- Hapus sisa GUI lama biar ga dobel
+task.spawn(function()
+    while true do
+        task.wait(2)
+        for _, p in ipairs(P:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("Head") then
                 for _, child in ipairs(p.Character.Head:GetChildren()) do
                     if child.Name == "TG_ESP" then child:Destroy() end
                 end
-                
-                local bg = Instance.new("BillboardGui")
-                bg.Name = "TG_ESP"
-                bg.Adornee = p.Character.Head
-                bg.Size = UDim2.new(0, 150, 0, 50)
-                bg.StudsOffset = Vector3.new(0, 2.5, 0)
-                bg.AlwaysOnTop = true
-                bg.Parent = p.Character.Head
-                
-                local nameLbl = Instance.new("TextLabel")
-                nameLbl.Name = "Name"
-                nameLbl.Size = UDim2.new(1, 0, 0, 14)
-                nameLbl.BackgroundTransparency = 1
-                nameLbl.TextColor3 = color
-                nameLbl.TextStrokeTransparency = 0
-                nameLbl.Font = Enum.Font.GothamBold
-                nameLbl.TextSize = 13
-                nameLbl.Parent = bg
-                
-                local distLbl = Instance.new("TextLabel")
-                distLbl.Name = "Dist"
-                distLbl.Size = UDim2.new(1, 0, 0, 12)
-                distLbl.Position = UDim2.new(0, 0, 0, 14)
-                distLbl.BackgroundTransparency = 1
-                distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-                distLbl.TextStrokeTransparency = 0
-                distLbl.Font = Enum.Font.Gotham
-                distLbl.TextSize = 11
-                distLbl.Parent = bg
-
-                local hpBg = Instance.new("Frame")
-                hpBg.Name = "HpBg"
-                hpBg.Size = UDim2.new(0.6, 0, 0, 4)
-                hpBg.Position = UDim2.new(0.2, 0, 0, 30)
-                hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                hpBg.BorderSizePixel = 0
-                hpBg.Parent = bg
-
-                local hpFill = Instance.new("Frame")
-                hpFill.Name = "HpFill"
-                hpFill.Size = UDim2.new(1, 0, 1, 0)
-                hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                hpFill.BorderSizePixel = 0
-                hpFill.Parent = hpBg
-
-                espGui[p] = bg
             end
-
-            local bg = espGui[p]
-            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-
-            if hrp and hum then
-                local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
-                local hPercent = hum.Health / hum.MaxHealth
-
-                bg.Enabled = CFG.esp
-                
-                -- Ganti text jadi nama asli, bukan "Label"
-                bg.Name.Text = p.Name 
-                bg.Name.TextColor3 = color
-                bg.Name.Visible = CFG.esp_name
-                
-                bg.Dist.Text = "[" .. dist .. "m]"
-                bg.Dist.Visible = CFG.esp_dist
-                
-                bg.HpBg.Visible = CFG.esp_health
-                bg.HpBg.HpFill.Size = UDim2.new(hPercent, 0, 1, 0)
-                bg.HpBg.HpFill.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        end
+        if MasterEnabled and CFG.esp then
+            for _, p in ipairs(P:GetPlayers()) do
+                if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
+                    local killer = isKiller(p)
+                    local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+                    local bg = Instance.new("BillboardGui"); bg.Name = "TG_ESP"; bg.Adornee = p.Character.Head; bg.Size = UDim2.new(0, 150, 0, 50); bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true; bg.Parent = p.Character.Head
+                    local nameLbl = Instance.new("TextLabel"); nameLbl.Name = "Name"; nameLbl.Size = UDim2.new(1, 0, 0, 14); nameLbl.BackgroundTransparency = 1; nameLbl.TextColor3 = color; nameLbl.TextStrokeTransparency = 0; nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 13; nameLbl.Parent = bg
+                    local distLbl = Instance.new("TextLabel"); distLbl.Name = "Dist"; distLbl.Size = UDim2.new(1, 0, 0, 12); distLbl.Position = UDim2.new(0, 0, 0, 14); distLbl.BackgroundTransparency = 1; distLbl.TextColor3 = Color3.fromRGB(200, 200, 200); distLbl.TextStrokeTransparency = 0; distLbl.Font = Enum.Font.Gotham; distLbl.TextSize = 11; distLbl.Parent = bg
+                    local hpBg = Instance.new("Frame"); hpBg.Name = "HpBg"; hpBg.Size = UDim2.new(0.6, 0, 0, 4); hpBg.Position = UDim2.new(0.2, 0, 0, 28); hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40); hpBg.BorderSizePixel = 0; hpBg.Parent = bg
+                    local hpFill = Instance.new("Frame"); hpFill.Name = "HpFill"; hpFill.Size = UDim2.new(1, 0, 1, 0); hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0); hpFill.BorderSizePixel = 0; hpFill.Parent = hpBg
+                end
             end
-        else
-            if espGui[p] then espGui[p]:Destroy(); espGui[p] = nil end
         end
     end
 end)
-P.PlayerRemoving:Connect(function(p) if espGui[p] then espGui[p]:Destroy(); espGui[p] = nil end end)
+
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled or not CFG.esp then return end
+    for _, p in ipairs(P:GetPlayers()) do
+        if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
+            local bg = p.Character.Head:FindFirstChild("TG_ESP")
+            if bg then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum then
+                    local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+                    local hPercent = hum.Health / hum.MaxHealth
+                    bg.Name.Text = p.Name; bg.Name.Visible = CFG.esp_name
+                    bg.Dist.Text = "[" .. dist .. "m]"; bg.Dist.Visible = CFG.esp_dist
+                    bg.HpBg.Visible = CFG.esp_health; bg.HpBg.HpFill.Size = UDim2.new(hPercent, 0, 1, 0); bg.HpBg.HpFill.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- ENGINE: SMART SKILLCHECK (Position Reading)
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.05) do
+        if not MasterEnabled then continue end
+        if CFG.auto_gen or CFG.auto_skillcheck then
+            local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
+            if isHoldingMouse then
+                if CFG.auto_gen then pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) end) end
+                
+                if CFG.auto_skillcheck then
+                    local pg = LP:FindFirstChild("PlayerGui")
+                    if pg then
+                        for _, g in pairs(pg:GetDescendants()) do
+                            if (g:IsA("ImageLabel") or g:IsA("Frame")) and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow")) then
+                                local pos = math.abs(g.Position.X.Scale - 0.5)
+                                if pos < 0.15 then
+                                    pcall(function() 
+                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                        task.wait(0.01)
+                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                pcall(function() VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
+            end
+        end
+    end
+end)
+
+-- AUTO PARRY
+task.spawn(function()
+    while task.wait(0.05) do
+        if not MasterEnabled then continue end
+        if CFG.auto_parry and LP.Character then
+            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP and p.Character and isKiller(p) then
+                        local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
+                            pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 
 RS.Stepped:Connect(function()
     if not MasterEnabled then return end
@@ -254,4 +267,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v29.0 Clean ESP Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v30.1 Smart Skillcheck Loaded.")
