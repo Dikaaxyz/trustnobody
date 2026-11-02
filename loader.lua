@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v26.0 — Text ESP (Name, Health, Distance)
+    v26.1 — WalkSpeed Toggle Fix
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -25,7 +25,7 @@ local CFG = {
     bright=false, fpsboost=false,
     crosshair=false, fov=70, hitbox_expand=false,
     auto_gen=false, auto_parry=false, auto_skillcheck=false,
-    look_lock=false, ws_speed=16,
+    look_lock=false, ws_enabled=false, ws_speed=16,
     keyMenu=Enum.KeyCode.RightShift
 }
 
@@ -124,10 +124,11 @@ addSwitch(boxSafe, "Auto Generator (Hold LMB)", "auto_gen", 30); addSwitch(boxSa
 local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
 
-local boxMisc = createBox(pgMisc, "Movement", 10, 10, 440, 80)
-addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 30)
+local boxMisc = createBox(pgMisc, "Movement", 10, 10, 440, 100)
+addSwitch(boxMisc, "Enable WalkSpeed", "ws_enabled", 30)
+addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
 
-local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 100, 440, 120)
+local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 120, 440, 120)
 addButton(boxBypass, "Re-Apply HWID Bypass", function() getgenv().SpoofedHWID = tostring(math.random(100000,999999)); pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end); if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end end, 30)
 addButton(boxBypass, "Panic Wipe (Log Out)", function() if writefile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end; game:Shutdown() end, 60)
 
@@ -142,9 +143,7 @@ logo.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Mou
 UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - ds; main.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y) end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
--- ==========================================
--- ENGINE: TEXT ESP (Name, Health, Distance)
--- ==========================================
+-- ENGINE: TEXT ESP
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
 local espGui = {}
@@ -165,7 +164,6 @@ local function isKiller(p)
     return false
 end
 
--- ESP LOOP (Text UI)
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     
@@ -293,7 +291,7 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- ENGINE: TRUE FULLBRIGHT & FPS BOOSTER
+-- ENGINE: FULLBRIGHT & FPS BOOSTER
 local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTime
 local origQuality = settings().Rendering.QualityLevel
 
@@ -353,10 +351,20 @@ task.spawn(function()
     end
 end)
 
+-- WALKSPEED ENGINE (Switch)
 RS.Stepped:Connect(function()
     if not MasterEnabled then return end
     local c = LP.Character
-    if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
+    if c then 
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum then 
+            if CFG.ws_enabled then 
+                hum.WalkSpeed = CFG.ws_speed 
+            else 
+                hum.WalkSpeed = 16 
+            end
+        end
+    end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v26.0 Text ESP Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v26.1 Loaded.")
