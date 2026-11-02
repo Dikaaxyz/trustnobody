@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v42.0 — Survivor Item ESP (Full VD List)
+    v43.0 — Zero Lag, Smart Skillcheck, Soft Light
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -28,7 +28,6 @@ local CFG = {
     keyMenu=Enum.KeyCode.RightShift
 }
 
--- DAFTAR ITEM SURVIVOR VD
 local VD_ITEMS = {
     "Parrying Dagger", "Flashlight", "Bandage", "Adrenaline Shot", 
     "Motion Tracker", "Shadow Clone", "Gate", "Twist of Fate", 
@@ -148,12 +147,11 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: FULL MAP SCANNER + ITEM ESP
+-- ENGINE: ESP (Zero Lag)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
 local espData = {}
-local worldESP = {}
 
 local function isKiller(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -168,9 +166,7 @@ local function getSurvivorItem(p)
     local tool = char:FindFirstChildWhichIsA("Tool")
     if tool then
         for _, itemName in ipairs(VD_ITEMS) do
-            if tool.Name:lower():find(itemName:lower()) then
-                return itemName
-            end
+            if tool.Name:lower():find(itemName:lower()) then return itemName end
         end
     end
     return nil
@@ -187,11 +183,8 @@ RS.RenderStepped:Connect(function()
             local killer = isKiller(p)
             local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
             
-            -- Deteksi Item Survivor
             local itemName = nil
-            if not killer and CFG.esp_item then
-                itemName = getSurvivorItem(p)
-            end
+            if not killer and CFG.esp_item then itemName = getSurvivorItem(p) end
 
             if not espData[p] then
                 local hl = Instance.new("Highlight")
@@ -221,7 +214,7 @@ RS.RenderStepped:Connect(function()
                 itemLbl.Size = UDim2.new(1, 0, 0, 12)
                 itemLbl.Position = UDim2.new(0, 0, 0, 14)
                 itemLbl.BackgroundTransparency = 1
-                itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255) -- Cyan
+                itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
                 itemLbl.TextStrokeTransparency = 0
                 itemLbl.Font = Enum.Font.GothamBold
                 itemLbl.TextSize = 11
@@ -284,35 +277,20 @@ RS.RenderStepped:Connect(function()
 end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
--- DEEP MAP SCANNER (GENERATOR, ITEM, EXIT)
+-- DEEP MAP SCANNER (Zero Lag)
 task.spawn(function()
-    while task.wait(1.5) do
-        for obj, h in pairs(worldESP) do 
-            if h then h:Destroy() end 
-            worldESP[obj] = nil 
-        end
-
+    while task.wait(3) do
+        for obj, h in pairs(worldESP) do if h then h:Destroy() end; worldESP[obj] = nil end
         if MasterEnabled then
-            for _, v in ipairs(WS:GetDescendants()) do
-                if (v:IsA("Model") or v:IsA("BasePart") or v:IsA("MeshPart")) and not v:IsDescendantOf(LP.Character) then
+            for _, v in ipairs(WS:GetChildren()) do
+                if (v:IsA("Model") or v:IsA("BasePart")) and not v:IsDescendantOf(LP.Character) then
                     local n = v.Name:lower()
                     local doESP = false
                     local color = Color3.fromRGB(255, 255, 0)
 
-                    if CFG.gen_esp and (n:find("gen") or n:find("fuse") or n:find("generator")) then
-                        doESP = true
-                        color = Color3.fromRGB(255, 255, 0)
-                    end
-                    
-                    if CFG.item_esp and (n:find("dagger") or n:find("flash") or n:find("bandage") or n:find("medkit") or n:find("pistol") or n:find("candle") or n:find("water") or n:find("shield")) then
-                        doESP = true
-                        color = Color3.fromRGB(0, 255, 0)
-                    end
-                    
-                    if CFG.exit_esp and (n:find("exit") or n:find("spike") or n:find("hook") or n:find("gate")) then
-                        doESP = true
-                        color = Color3.fromRGB(0, 150, 255)
-                    end
+                    if CFG.gen_esp and (n:find("gen") or n:find("fuse") or n:find("generator")) then doESP = true; color = Color3.fromRGB(255, 255, 0) end
+                    if CFG.item_esp and (n:find("dagger") or n:find("flash") or n:find("bandage") or n:find("medkit") or n:find("pistol") or n:find("candle") or n:find("water") or n:find("shield")) then doESP = true; color = Color3.fromRGB(0, 255, 0) end
+                    if CFG.exit_esp and (n:find("exit") or n:find("spike") or n:find("hook") or n:find("gate")) then doESP = true; color = Color3.fromRGB(0, 150, 255) end
 
                     if doESP then
                         local h = Instance.new("Highlight")
@@ -328,55 +306,30 @@ task.spawn(function()
     end
 end)
 
--- KILLER SKILL ESP
-task.spawn(function()
-    while task.wait(2) do
-        if MasterEnabled and CFG.killer_esp then
-            for _, v in ipairs(WS:GetDescendants()) do
-                if (v:IsA("Model") or v:IsA("BasePart")) and not v:IsDescendantOf(LP.Character) then
-                    local n = v.Name:lower()
-                    if n:find("spear") or n:find("chain") or n:find("projectile") or n:find("hitbox") or n:find("slash") then
-                        local h = Instance.new("Highlight")
-                        h.FillColor = Color3.fromRGB(255, 0, 0)
-                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
-                        h.FillTransparency = 0.5
-                        h.Parent = v
-                    end
-                end
-            end
-        end
-    end
-end)
-
 -- ==========================================
--- ENGINE: FULL OVERRIDE LIGHTING
+-- ENGINE: SOFT LIGHTING & FPS
 -- ==========================================
 local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTime
 local origQuality = settings().Rendering.QualityLevel
 
 for _, v in pairs(L:GetChildren()) do
-    if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
-        v:Destroy()
-    end
+    if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") then v:Destroy() end
 end
 
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     
     if CFG.bright then 
-        L.Brightness = 10
-        L.ClockTime = 12
-        L.Ambient = Color3.fromRGB(255, 255, 255)
-        L.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        L.ExposureCompensation = 2
-        L.FogEnd = 1000000
+        L.Brightness = 3
+        L.ClockTime = 14
+        L.Ambient = Color3.fromRGB(150, 150, 150)
+        L.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+        L.ExposureCompensation = 0.5
+        L.FogEnd = 5000
         L.GlobalShadows = false
-        L.ShadowSoftness = 0
         
         for _, v in pairs(L:GetChildren()) do
-            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
-                v:Destroy()
-            end
+            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") then v:Destroy() end
         end
     else 
         L.Brightness = origBrightness
@@ -392,9 +345,6 @@ RS.RenderStepped:Connect(function()
         settings().Rendering.QualityLevel = 1
         L.EnvironmentDiffuseScale = 0
         L.EnvironmentSpecularScale = 0
-        for _, v in ipairs(WS:GetDescendants()) do 
-            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") then v.Enabled = false end 
-        end
     end
 end)
 
@@ -402,21 +352,24 @@ end)
 -- ENGINE: SMART SKILLCHECK
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.1) do
         if not MasterEnabled then continue end
         if CFG.auto_gen or CFG.auto_skillcheck then
             local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
             if isHoldingMouse then
                 if CFG.auto_gen then pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) end) end
+                
                 if CFG.auto_skillcheck then
                     local pg = LP:FindFirstChild("PlayerGui")
                     if pg then
                         for _, g in pairs(pg:GetDescendants()) do
-                            if (g:IsA("ImageLabel") or g:IsA("Frame")) and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow")) then
-                                local pos = math.abs(g.Position.X.Scale - 0.5)
-                                if pos < 0.15 then
-                                    pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
-                                end
+                            -- Scan UI yang ada hubungannya sama progress bar / timing
+                            if (g:IsA("ImageLabel") or g:IsA("Frame") or g:IsA("TextLabel")) and (g.Name:lower():find("bar") or g.Name:lower():find("line") or g.Name:lower():find("progress") or g.Text:lower():find("perbaikan")) then
+                                pcall(function() 
+                                    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                    task.wait(0.01)
+                                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                end)
                             end
                         end
                     end
@@ -430,7 +383,7 @@ end)
 
 -- AUTO PARRY
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.1) do
         if not MasterEnabled then continue end
         if CFG.auto_parry and LP.Character then
             local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
@@ -455,4 +408,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v42.0 Item ESP Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v43.0 Zero Lag Loaded.")
