@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v26.1 — WalkSpeed Toggle Fix
+    v27.0 — Indestructible Text ESP
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -143,7 +143,9 @@ logo.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Mou
 UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - ds; main.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y) end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
--- ENGINE: TEXT ESP
+-- ==========================================
+-- ENGINE: INDESTRUCTIBLE TEXT ESP
+-- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
 local espGui = {}
@@ -164,6 +166,7 @@ local function isKiller(p)
     return false
 end
 
+-- ESP LOOP (Ngecek tiap frame)
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     
@@ -172,10 +175,12 @@ RS.RenderStepped:Connect(function()
             local killer = isKiller(p)
             local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
 
-            if not espGui[p] then
+            -- Kalo GUI ilang, bikin baru
+            if not espGui[p] or not espGui[p].Parent then
                 local bg = Instance.new("BillboardGui")
                 bg.Name = "TG_ESP"
-                bg.Size = UDim2.new(0, 200, 0, 50)
+                bg.Adornee = p.Character.Head -- WAJIB DI-SET
+                bg.Size = UDim2.new(0, 200, 0, 60)
                 bg.StudsOffset = Vector3.new(0, 2.5, 0)
                 bg.AlwaysOnTop = true
                 bg.Parent = p.Character.Head
@@ -187,7 +192,7 @@ RS.RenderStepped:Connect(function()
                 nameLbl.TextColor3 = color
                 nameLbl.TextStrokeTransparency = 0
                 nameLbl.Font = Enum.Font.GothamBold
-                nameLbl.TextSize = 12
+                nameLbl.TextSize = 13
                 nameLbl.Parent = bg
                 
                 local distLbl = Instance.new("TextLabel")
@@ -198,7 +203,7 @@ RS.RenderStepped:Connect(function()
                 distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
                 distLbl.TextStrokeTransparency = 0
                 distLbl.Font = Enum.Font.Gotham
-                distLbl.TextSize = 10
+                distLbl.TextSize = 11
                 distLbl.Parent = bg
 
                 local hpBg = Instance.new("Frame")
@@ -219,8 +224,8 @@ RS.RenderStepped:Connect(function()
                 espGui[p] = bg
             end
 
+            -- Update UI
             local bg = espGui[p]
-            local head = p.Character.Head
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
 
@@ -228,12 +233,17 @@ RS.RenderStepped:Connect(function()
                 local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
                 local hPercent = hum.Health / hum.MaxHealth
 
-                bg.NameLbl.Text = p.Name
-                bg.NameLbl.TextColor3 = color
-                bg.DistLbl.Text = "[" .. dist .. "m]"
+                bg.Enabled = CFG.esp
+                bg.Name.Text = p.Name
+                bg.Name.TextColor3 = color
+                bg.Name.Visible = CFG.esp_name
+                
+                bg.Dist.Text = "[" .. dist .. "m]"
+                bg.Dist.Visible = CFG.esp_dist
+                
+                bg.HpBg.Visible = CFG.esp_health
                 bg.HpBg.HpFill.Size = UDim2.new(hPercent, 0, 1, 0)
                 bg.HpBg.HpFill.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-                bg.Enabled = CFG.esp and CFG.esp_name
             end
         else
             if espGui[p] then espGui[p]:Destroy(); espGui[p] = nil end
@@ -358,13 +368,9 @@ RS.Stepped:Connect(function()
     if c then 
         local hum = c:FindFirstChildOfClass("Humanoid")
         if hum then 
-            if CFG.ws_enabled then 
-                hum.WalkSpeed = CFG.ws_speed 
-            else 
-                hum.WalkSpeed = 16 
-            end
+            if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end
         end
     end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v26.1 Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v27.0 Indestructible ESP Loaded.")
