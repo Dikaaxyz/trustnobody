@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v47.0 — Featherweight & Max Bypass
+    v48.0 — Crash-Proof & Lightweight
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,7 +15,6 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
@@ -36,44 +35,19 @@ local VD_ITEMS = {
 }
 
 -- ==========================================
--- [1] MAXIMUM BYPASS & ANTI-FLAG
+-- [1] LIGHT BYPASS (No Metatable)
 -- ==========================================
 pcall(function()
-    -- 1. Anti-Metatable Signature
-    local mt = getrawmetatable(game)
-    local registry = debug.getregistry()
-    for i = 1, 100 do
-        if registry[i] == mt then table.remove(registry, i) break end
-    end
-
-    -- 2. Handshake Spoof
-    local NetworkClient = game:GetService("NetworkClient")
-    local oldInvoke = NetworkClient.Invoke
-    NetworkClient.Invoke = function(self, req, ...)
-        if req == "Handshake" then return "Roblox/Android/1.0" end
-        return oldInvoke(self, req, ...)
-    end
-
-    -- 3. IP Mask
-    local oldGet = HttpService.GetAsync
-    HttpService.GetAsync = function(self, url, ...)
-        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
-        return oldGet(self, url, ...)
-    end
-
-    -- 4. HWID Spoof
     getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
-
-    -- 5. Cache Wipe
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
 end)
 
--- ==========================================
--- [2] FEATHERWEIGHT UI
--- ==========================================
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
 
+-- ==========================================
+-- [2] UI BUILD (Cepat & Ringan)
+-- ==========================================
 local COL = { bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(25, 25, 25), sidebar=Color3.fromRGB(10, 10, 10), line=Color3.fromRGB(50, 50, 50), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(130, 130, 130), acc=Color3.fromRGB(255, 0, 60), off=Color3.fromRGB(60, 60, 60) }
 
 local gui = Instance.new("ScreenGui"); gui.Name="SpookingD"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
@@ -188,7 +162,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: ESP ANTI-BOLONG
+-- ENGINE: ESP (Lightweight & Lazy Load)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local espData = {}
@@ -214,108 +188,110 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(1) -- Jeda 1 detik biar ringan
         if MasterEnabled and CFG.esp then
-            for _, p in ipairs(P:GetPlayers()) do
-                if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-                    local hrp = p.Character.HumanoidRootPart
-                    local hum = p.Character.Humanoid
-                    local killer = isKiller(p)
-                    local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-                    local itemName = nil
-                    if not killer and CFG.esp_item then itemName = getSurvivorItem(p) end
+            pcall(function()
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+                        local hrp = p.Character.HumanoidRootPart
+                        local hum = p.Character.Humanoid
+                        local killer = isKiller(p)
+                        local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+                        local itemName = nil
+                        if not killer and CFG.esp_item then itemName = getSurvivorItem(p) end
 
-                    if not espData[p] or not espData[p].bg or not espData[p].bg.Parent then
-                        if espData[p] and espData[p].hl then espData[p].hl:Destroy() end
-                        if espData[p] and espData[p].bg then espData[p].bg:Destroy() end
+                        if not espData[p] or not espData[p].bg or not espData[p].bg.Parent then
+                            if espData[p] and espData[p].hl then espData[p].hl:Destroy() end
+                            if espData[p] and espData[p].bg then espData[p].bg:Destroy() end
 
-                        local hl = Instance.new("Highlight")
-                        hl.FillColor = color
-                        hl.OutlineColor = color
-                        hl.FillTransparency = 0.7
-                        hl.Parent = p.Character
+                            local hl = Instance.new("Highlight")
+                            hl.FillColor = color
+                            hl.OutlineColor = color
+                            hl.FillTransparency = 0.7
+                            hl.Parent = p.Character
 
-                        local bg = Instance.new("BillboardGui")
-                        bg.Name = "Spook_ESP"
-                        bg.Adornee = hrp
-                        bg.Size = UDim2.new(0, 150, 0, 65)
-                        bg.StudsOffset = Vector3.new(0, 3, 0)
-                        bg.AlwaysOnTop = true
-                        bg.Parent = hrp
+                            local bg = Instance.new("BillboardGui")
+                            bg.Name = "Spook_ESP"
+                            bg.Adornee = hrp
+                            bg.Size = UDim2.new(0, 150, 0, 65)
+                            bg.StudsOffset = Vector3.new(0, 3, 0)
+                            bg.AlwaysOnTop = true
+                            bg.Parent = hrp
+                            
+                            local nameLbl = Instance.new("TextLabel")
+                            nameLbl.Size = UDim2.new(1, 0, 0, 14)
+                            nameLbl.BackgroundTransparency = 1
+                            nameLbl.TextColor3 = color
+                            nameLbl.TextStrokeTransparency = 0
+                            nameLbl.Font = Enum.Font.GothamBold
+                            nameLbl.TextSize = 13
+                            nameLbl.Parent = bg
+                            
+                            local itemLbl = Instance.new("TextLabel")
+                            itemLbl.Size = UDim2.new(1, 0, 0, 12)
+                            itemLbl.Position = UDim2.new(0, 0, 0, 14)
+                            itemLbl.BackgroundTransparency = 1
+                            itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
+                            itemLbl.TextStrokeTransparency = 0
+                            itemLbl.Font = Enum.Font.GothamBold
+                            itemLbl.TextSize = 11
+                            itemLbl.Parent = bg
+
+                            local distLbl = Instance.new("TextLabel")
+                            distLbl.Size = UDim2.new(1, 0, 0, 12)
+                            distLbl.Position = UDim2.new(0, 0, 0, 26)
+                            distLbl.BackgroundTransparency = 1
+                            distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                            distLbl.TextStrokeTransparency = 0
+                            distLbl.Font = Enum.Font.Gotham
+                            distLbl.TextSize = 11
+                            distLbl.Parent = bg
+
+                            local hpBg = Instance.new("Frame")
+                            hpBg.Size = UDim2.new(0.6, 0, 0, 4)
+                            hpBg.Position = UDim2.new(0.2, 0, 0, 42)
+                            hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                            hpBg.BorderSizePixel = 0
+                            hpBg.Parent = bg
+
+                            local hpFill = Instance.new("Frame")
+                            hpFill.Size = UDim2.new(1, 0, 1, 0)
+                            hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                            hpFill.BorderSizePixel = 0
+                            hpFill.Parent = hpBg
+                            
+                            espData[p] = {hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
+                        end
+
+                        local data = espData[p]
+                        local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+                        local hPercent = hum.Health / hum.MaxHealth
+
+                        data.hl.Enabled = CFG.esp
+                        data.hl.FillColor = color
+                        data.hl.OutlineColor = color
+                        data.bg.Enabled = CFG.esp
+                        data.name.Text = p.Name
+                        data.name.TextColor3 = color
+                        data.name.Visible = CFG.esp_name
                         
-                        local nameLbl = Instance.new("TextLabel")
-                        nameLbl.Size = UDim2.new(1, 0, 0, 14)
-                        nameLbl.BackgroundTransparency = 1
-                        nameLbl.TextColor3 = color
-                        nameLbl.TextStrokeTransparency = 0
-                        nameLbl.Font = Enum.Font.GothamBold
-                        nameLbl.TextSize = 13
-                        nameLbl.Parent = bg
+                        data.item.Text = itemName and ("[" .. itemName .. "]") or ""
+                        data.item.Visible = CFG.esp_item and (itemName ~= nil)
                         
-                        local itemLbl = Instance.new("TextLabel")
-                        itemLbl.Size = UDim2.new(1, 0, 0, 12)
-                        itemLbl.Position = UDim2.new(0, 0, 0, 14)
-                        itemLbl.BackgroundTransparency = 1
-                        itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
-                        itemLbl.TextStrokeTransparency = 0
-                        itemLbl.Font = Enum.Font.GothamBold
-                        itemLbl.TextSize = 11
-                        itemLbl.Parent = bg
-
-                        local distLbl = Instance.new("TextLabel")
-                        distLbl.Size = UDim2.new(1, 0, 0, 12)
-                        distLbl.Position = UDim2.new(0, 0, 0, 26)
-                        distLbl.BackgroundTransparency = 1
-                        distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-                        distLbl.TextStrokeTransparency = 0
-                        distLbl.Font = Enum.Font.Gotham
-                        distLbl.TextSize = 11
-                        distLbl.Parent = bg
-
-                        local hpBg = Instance.new("Frame")
-                        hpBg.Size = UDim2.new(0.6, 0, 0, 4)
-                        hpBg.Position = UDim2.new(0.2, 0, 0, 42)
-                        hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                        hpBg.BorderSizePixel = 0
-                        hpBg.Parent = bg
-
-                        local hpFill = Instance.new("Frame")
-                        hpFill.Size = UDim2.new(1, 0, 1, 0)
-                        hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                        hpFill.BorderSizePixel = 0
-                        hpFill.Parent = hpBg
-                        
-                        espData[p] = {hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
-                    end
-
-                    local data = espData[p]
-                    local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
-                    local hPercent = hum.Health / hum.MaxHealth
-
-                    data.hl.Enabled = CFG.esp
-                    data.hl.FillColor = color
-                    data.hl.OutlineColor = color
-                    data.bg.Enabled = CFG.esp
-                    data.name.Text = p.Name
-                    data.name.TextColor3 = color
-                    data.name.Visible = CFG.esp_name
-                    
-                    data.item.Text = itemName and ("[" .. itemName .. "]") or ""
-                    data.item.Visible = CFG.esp_item and (itemName ~= nil)
-                    
-                    data.dist.Text = "[" .. dist .. "m]"
-                    data.dist.Visible = CFG.esp_dist
-                    data.hpBg.Visible = CFG.esp_health
-                    data.hp.Size = UDim2.new(hPercent, 0, 1, 0)
-                    data.hp.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-                else
-                    if espData[p] then
-                        if espData[p].hl then espData[p].hl:Destroy() end
-                        if espData[p].bg then espData[p].bg:Destroy() end
-                        espData[p] = nil
+                        data.dist.Text = "[" .. dist .. "m]"
+                        data.dist.Visible = CFG.esp_dist
+                        data.hpBg.Visible = CFG.esp_health
+                        data.hp.Size = UDim2.new(hPercent, 0, 1, 0)
+                        data.hp.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                    else
+                        if espData[p] then
+                            if espData[p].hl then espData[p].hl:Destroy() end
+                            if espData[p].bg then espData[p].bg:Destroy() end
+                            espData[p] = nil
+                        end
                     end
                 end
-            end
+            end)
         else
             for p, data in pairs(espData) do
                 if data.hl then data.hl:Destroy() end
@@ -326,35 +302,6 @@ task.spawn(function()
     end
 end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
-
--- DEEP MAP SCANNER (Zero Lag)
-task.spawn(function()
-    while task.wait(3) do
-        for obj, h in pairs(worldESP) do if h then h:Destroy() end; worldESP[obj] = nil end
-        if MasterEnabled then
-            for _, v in ipairs(WS:GetChildren()) do
-                if (v:IsA("Model") or v:IsA("BasePart")) and not v:IsDescendantOf(LP.Character) then
-                    local n = v.Name:lower()
-                    local doESP = false
-                    local color = Color3.fromRGB(255, 255, 0)
-
-                    if CFG.gen_esp and (n:find("gen") or n:find("fuse") or n:find("generator")) then doESP = true; color = Color3.fromRGB(255, 255, 0) end
-                    if CFG.item_esp and (n:find("dagger") or n:find("flash") or n:find("bandage") or n:find("medkit") or n:find("pistol") or n:find("candle") or n:find("water") or n:find("shield")) then doESP = true; color = Color3.fromRGB(0, 255, 0) end
-                    if CFG.exit_esp and (n:find("exit") or n:find("spike") or n:find("hook") or n:find("gate")) then doESP = true; color = Color3.fromRGB(0, 150, 255) end
-
-                    if doESP then
-                        local h = Instance.new("Highlight")
-                        h.FillColor = color
-                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
-                        h.FillTransparency = 0.5
-                        h.Parent = v
-                        worldESP[v] = h
-                    end
-                end
-            end
-        end
-    end
-end)
 
 -- ==========================================
 -- ENGINE: SOFT LIGHTING & FPS
@@ -460,4 +407,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v47.0 Featherweight")
+print("[SpookingD] Script Loaded — v48.0 Crash Proof")
