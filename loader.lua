@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v61.3 — Zombie ESP + Max-Overclock Bypass (Xeno Compatible)
+    v61.4 — Pure Avatar Outline ESP (No Boxes, No Drawing)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -19,7 +19,7 @@ local MasterEnabled = false
 
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
-    zombie_esp=true, -- NEW
+    zombie_esp=true, 
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
     crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
@@ -38,7 +38,7 @@ local VD_ITEM_LOOKUP = {}
 for _, n in ipairs(VD_ITEMS) do VD_ITEM_LOOKUP[n:lower()] = n end
 
 -- ==========================================
--- MAX BYPASS (Trace Evasion + Memory Scrub)
+-- MAX BYPASS
 -- ==========================================
 local BYPASS = {}
 BYPASS.HWID_FILE = "spook_hwid.dat"
@@ -59,7 +59,6 @@ function BYPASS.loadHwid()
 end
 BYPASS.loadHwid()
 
--- Anti-screenshot / Anti-logger hooks (if supported by executor)
 pcall(function()
     local svc = game:GetService("RbxAnalyticsService")
     svc.GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
@@ -89,7 +88,7 @@ end
 local function jittered(lo, hi) return lo + math.random() * (hi - lo) end
 
 -- ==========================================
--- GUI (Xeno Safe - PlayerGui primary)
+-- GUI
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -146,10 +145,8 @@ local parryIndicator = nil
 local function destroyEspEntry(p)
     local d = espData[p]
     if not d then return end
-    if typeof(p) == "Instance" then
-        if d.hl then d.hl:Destroy() end
-        if d.bg then d.bg:Destroy() end
-    end
+    if d.hl then d.hl:Destroy() end
+    if d.bg then d.bg:Destroy() end
     espData[p] = nil
 end
 
@@ -368,7 +365,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP (Highlight + Zombie Scanner)
+-- PURE HIGHLIGHT ESP (No Boxes)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -413,7 +410,7 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local bg = Instance.new("BillboardGui")
     bg.Name = "Spook_ESP"
     bg.Adornee = hrp
-    bg.Size = UDim2.new(0, 150, 0, 45)
+    bg.Size = UDim2.new(0, 150, 0, 30)
     bg.StudsOffset = Vector3.new(0, 3, 0)
     bg.AlwaysOnTop = true
     bg.Parent = carrier
@@ -440,121 +437,116 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl }
 end
 
-local function updateESP()
-    local myChar = LP.Character
-    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    
-    -- 1. PLAYER ESP
-    for _, p in ipairs(P:GetPlayers()) do
-        if p ~= LP then
-            local char = p.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            
-            local d = espData[p]
-            
-            if hrp and hum and hum.Health > 0 then
-                if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
-                    destroyEspEntry(p)
-                    buildEspEntry(p, char, hrp, Color3.new(1,1,1), p.Name)
-                    d = espData[p]
-                end
+task.spawn(function()
+    while true do
+        task.wait(1) -- Refresh every 1 second
+        if MasterEnabled and CFG.esp then
+            pcall(function()
+                local myChar = LP.Character
+                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 
-                local killer = isKillerSafe(p)
-                local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-                local itemName = (not killer and CFG.esp_item) and getSurvivorItem(p) or nil
-                
-                d.hl.Enabled = true
-                d.hl.Adornee = char
-                d.hl.FillColor = color
-                d.hl.OutlineColor = color
-                
-                d.name.Text = p.Name
-                d.name.TextColor3 = color
-                d.name.Visible = CFG.esp_name
-                
-                if itemName then
-                    d.item.Text = "[" .. itemName .. "]"
-                    d.item.Visible = true
-                else
-                    d.item.Visible = false
-                end
-                
-                if myHrp then
-                    local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
-                    d.dist.Text = "[" .. dist .. "m]"
-                    d.dist.Visible = CFG.esp_dist
-                else
-                    d.dist.Visible = false
-                end
-            else
-                destroyEspEntry(p)
-            end
-        end
-    end
-    
-    -- 2. ZOMBIE / NPC ESP (SCP-049-2 style)
-    if CFG.zombie_esp then
-        for _, obj in ipairs(WS:GetDescendants()) do
-            if obj:IsA("Model") and obj ~= myChar then
-                local name = obj.Name:lower()
-                local isZombie = name:find("zombie") or name:find("049-2") or name:find("scp-049-2") or name:find("infected") or name:find("cured")
-                
-                if isZombie then
-                    local hrp = obj:FindFirstChild("HumanoidRootPart")
-                    local head = obj:FindFirstChild("Head")
-                    local hum = obj:FindFirstChildOfClass("Humanoid")
-                    
-                    if hrp and hum and hum.Health > 0 then
-                        local d = espData[obj]
-                        if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
-                            destroyEspEntry(obj)
-                            buildEspEntry(obj, obj, hrp, Color3.fromRGB(0, 255, 0), "ZOMBIE")
-                            d = espData[obj]
-                        end
+                -- Player Scan
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP then
+                        local char = p.Character
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
                         
-                        d.hl.Enabled = true
-                        d.hl.Adornee = obj
-                        d.hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green for zombie
-                        d.hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+                        local d = espData[p]
                         
-                        d.name.Text = "ZOMBIE"
-                        d.name.TextColor3 = Color3.fromRGB(0, 255, 0)
-                        d.name.Visible = true
-                        
-                        d.item.Visible = false
-                        
-                        if myHrp then
-                            local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
-                            d.dist.Text = "[" .. dist .. "m]"
-                            d.dist.Visible = CFG.esp_dist
+                        if hrp and hum and hum.Health > 0 then
+                            if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
+                                destroyEspEntry(p)
+                                buildEspEntry(p, char, hrp, Color3.new(1,1,1), p.Name)
+                                d = espData[p]
+                            end
+                            
+                            local killer = isKillerSafe(p)
+                            local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+                            local itemName = (not killer and CFG.esp_item) and getSurvivorItem(p) or nil
+                            
+                            d.hl.Enabled = true
+                            d.hl.Adornee = char
+                            d.hl.FillColor = color
+                            d.hl.OutlineColor = color
+                            
+                            d.name.Text = p.Name
+                            d.name.TextColor3 = color
+                            d.name.Visible = CFG.esp_name
+                            
+                            if itemName then
+                                d.item.Text = "[" .. itemName .. "]"
+                                d.item.Visible = true
+                            else
+                                d.item.Visible = false
+                            end
+                            
+                            if myHrp then
+                                local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
+                                d.dist.Text = "[" .. dist .. "m]"
+                                d.dist.Visible = CFG.esp_dist
+                            else
+                                d.dist.Visible = false
+                            end
                         else
-                            d.dist.Visible = false
+                            destroyEspEntry(p)
                         end
                     end
                 end
-            end
-        end
-    else
-        for key in pairs(espData) do
-            if typeof(key) == "Instance" and key:IsA("Model") then destroyEspEntry(key) end
-        end
-    end
-end
-
-task.spawn(function()
-    while true do
-        task.wait(1.5) -- Scanner refresh
-        if MasterEnabled and CFG.esp then
-            pcall(updateESP)
+                
+                -- Zombie Scan
+                if CFG.zombie_esp then
+                    for _, obj in ipairs(WS:GetDescendants()) do
+                        if obj:IsA("Model") and obj ~= myChar then
+                            local name = obj.Name:lower()
+                            local isZombie = name:find("zombie") or name:find("049-2") or name:find("scp-049-2") or name:find("infected") or name:find("cured")
+                            
+                            if isZombie then
+                                local hrp = obj:FindFirstChild("HumanoidRootPart")
+                                local hum = obj:FindFirstChildOfClass("Humanoid")
+                                
+                                if hrp and hum and hum.Health > 0 then
+                                    local d = espData[obj]
+                                    if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
+                                        destroyEspEntry(obj)
+                                        buildEspEntry(obj, obj, hrp, Color3.fromRGB(0, 255, 0), "ZOMBIE")
+                                        d = espData[obj]
+                                    end
+                                    
+                                    d.hl.Enabled = true
+                                    d.hl.Adornee = obj
+                                    d.hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green
+                                    d.hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+                                    
+                                    d.name.Text = "ZOMBIE"
+                                    d.name.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                    d.name.Visible = true
+                                    
+                                    d.item.Visible = false
+                                    
+                                    if myHrp then
+                                        local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
+                                        d.dist.Text = "[" .. dist .. "m]"
+                                        d.dist.Visible = CFG.esp_dist
+                                    else
+                                        d.dist.Visible = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
         else
             for k in pairs(espData) do destroyEspEntry(k) end
         end
     end
 end)
 
+P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
+
 -- ==========================================
--- PARRY SPHERE
+-- PARRY & SKILLCHECK (TETAP SAMA)
 -- ==========================================
 local PARRY_RADIUS=18
 local function ensureParrySphere()
@@ -582,9 +574,6 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- ==========================================
--- SKILLCHECK
--- ==========================================
 local SKILL = { scanInterval=0.015, zoneTolerance=4.5, pressWidthLo=0.008, pressWidthHi=0.024, cooldown=0.12 }
 local firedThisCheck = {}
 local lastFireAt = 0
@@ -658,9 +647,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- PREDICTIVE PARRY
--- ==========================================
 local PARRY_MOUSE_BUTTON=2
 local parryBusy=false
 
@@ -714,9 +700,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- FOV & LIGHTING & WALKSPEED
--- ==========================================
 local lastFovSet=nil
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
@@ -810,4 +793,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v61.3 loaded — Zombie ESP + Max Bypass active")
+print("[SpookingD] v61.4 loaded — Pure Avatar Outline")
