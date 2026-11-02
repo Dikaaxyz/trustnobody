@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v62.8 — 60s ESP Refresh (Zero Stutter)
+    v63.1 — Precision Skillcheck & Parry (No Spam, Targeted)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -16,6 +16,8 @@ local LP   = P.LocalPlayer
 local CAM  = WS.CurrentCamera
 
 local MasterEnabled = false
+local MouseLocked = true
+local mouseUnlockKey = Enum.KeyCode.RightControl
 
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
@@ -272,8 +274,8 @@ addSwitch(boxWorld, "Item ESP", "item_esp", 90)
 addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
 
 local boxSafe = createBox(scrollSurvivor, "Survivor Utility", 10, 440, 120)
-addSwitch(boxSafe, "Auto Parry (Prediction)", "auto_parry", 30)
-addSwitch(boxSafe, "Auto Skillcheck (Space)", "auto_skillcheck", 60)
+addSwitch(boxSafe, "Auto Parry (Precision)", "auto_parry", 30)
+addSwitch(boxSafe, "Auto Skillcheck (Precision)", "auto_skillcheck", 60)
 
 local boxKiller = createBox(scrollKiller, "Killer Utility", 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
@@ -326,10 +328,15 @@ openBtn.TextSize=22; openBtn.Parent=gui; openBtn.Visible=false
 
 closeBtn.MouseButton1Click:Connect(function() main.Visible=false; openBtn.Visible=true end)
 openBtn.MouseButton1Click:Connect(function() main.Visible=true; openBtn.Visible=false end)
+
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
     if i.KeyCode == CFG.keyMenu then
         main.Visible = not main.Visible; openBtn.Visible = not main.Visible
+    elseif i.KeyCode == mouseUnlockKey then
+        MouseLocked = not MouseLocked
+        UIS.MouseBehavior = MouseLocked and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
+        UIS.MouseIconEnabled = not MouseLocked
     end
 end)
 
@@ -350,7 +357,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP ENGINE (60s Refresh Cycle)
+-- ESP ENGINE (60s Scan)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -382,7 +389,6 @@ end
 
 local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local carrier = getHiddenFolder()
-    
     local hl = Instance.new("Highlight")
     hl.FillColor = color; hl.OutlineColor = color
     hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
@@ -402,13 +408,10 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
         return l
     end
 
-    local nameLbl = label(0, 14, color, Enum.Font.GothamBold)
-    nameLbl.Text = nameStr
-
+    local nameLbl = label(0, 14, color, Enum.Font.GothamBold); nameLbl.Text = nameStr
     local hpBg = Instance.new("Frame")
     hpBg.Size = UDim2.new(0.6, 0, 0, 4); hpBg.Position = UDim2.new(0.2, 0, 0, 16)
     hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40); hpBg.BorderSizePixel = 0; hpBg.Parent = bg
-
     local hpFill = Instance.new("Frame")
     hpFill.Size = UDim2.new(1, 0, 1, 0); hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     hpFill.BorderSizePixel = 0; hpFill.Parent = hpBg
@@ -431,29 +434,23 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg, lines = lines }
 end
 
--- 60 SECOND SCANNER
 task.spawn(function()
     while true do
-        task.wait(60) -- Interval lu, Chef
+        task.wait(60)
         if MasterEnabled and CFG.esp then
             pcall(function()
                 local myChar = LP.Character
-                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP then
                         local char = p.Character
                         local hrp = char and char:FindFirstChild("HumanoidRootPart")
                         local hum = char and char:FindFirstChildOfClass("Humanoid")
-                        
                         if hrp and hum and hum.Health > 0 then
                             destroyEspEntry(p)
                             local killer = isKillerSafe(p)
                             local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
                             buildEspEntry(p, char, hrp, color, p.Name)
-                        else
-                            destroyEspEntry(p)
-                        end
+                        else destroyEspEntry(p) end
                     end
                 end
             end)
@@ -461,7 +458,6 @@ task.spawn(function()
     end
 end)
 
--- FAST UPDATER (Positions & text only)
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -481,7 +477,6 @@ task.spawn(function()
                         local killer = isKillerSafe(p)
                         local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
                         
-                        -- Threat Detection (Yellow)
                         if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 then
                             local animator = hum:FindFirstChildOfClass("Animator")
                             if animator then
@@ -517,7 +512,6 @@ task.spawn(function()
                         if HAS_DRAWING and d.lines then
                             local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
                             local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
-                            
                             if onScreenHead and onScreenFoot then
                                 local height = math.abs(headPos.Y - footPos.Y)
                                 local width = height * 0.6
@@ -546,10 +540,7 @@ task.spawn(function()
                                 d.lines.circle.Visible = false; d.lines.triangle.Visible = false; d.lines.tracer.Visible = false
                             end
                         end
-                    else
-                        -- Clean up dead/missing entities
-                        destroyEspEntry(p)
-                    end
+                    else destroyEspEntry(p) end
                 end
             end)
         end
@@ -559,7 +550,7 @@ end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
 -- ==========================================
--- PRECISION PARRY
+-- PRECISION PARRY (No Spam)
 -- ==========================================
 local PARRY_RADIUS=22
 local function ensureParrySphere()
@@ -620,9 +611,7 @@ local function isKillerAttacking(char, hrp, myHrp)
         end
     end
     
-    if facing or movingTowards or animating then
-        return true
-    end
+    if facing or movingTowards or animating then return true end
     return false
 end
 
@@ -667,7 +656,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- PRECISION SKILLCHECK
+-- PRECISION SKILLCHECK (Aimed at White Zone)
 -- ==========================================
 local SKILL = { scanInterval=0.015, zoneTolerance=4.5, pressWidthLo=0.008, pressWidthHi=0.024, cooldown=0.12 }
 local firedThisCheck = {}
@@ -719,7 +708,7 @@ task.spawn(function()
                     local nAng = angleOf(needle, root); local zAng = angleOf(zone, root)
                     if angDist(nAng, zAng) <= SKILL.zoneTolerance then
                         firedThisCheck[needle] = true; lastFireAt = tick()
-                        local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
+                        local w = math.random(8, 24) / 1000
                         pcall(function()
                             VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                             task.wait(w)
@@ -727,14 +716,6 @@ task.spawn(function()
                         end)
                     end
                 end
-            elseif tick() - lastUiCheck > 1.5 then
-                local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
-                pcall(function()
-                    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                    task.wait(w)
-                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                end)
-                lastUiCheck = tick()
             end
         else
             firedThisCheck = {}
@@ -743,19 +724,8 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ENVIRONMENT
+-- LIGHTING & ENVIRONMENT
 -- ==========================================
-local lastFovSet=nil
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    if CAM and CFG.fov_enabled then
-        local target=CFG.fov_val
-        if lastFovSet~=target then CAM.FieldOfView=target; lastFovSet=target end
-    elseif lastFovSet and CAM then
-        CAM.FieldOfView=70; lastFovSet=nil
-    end
-end)
-
 local LIGHT_ORIG = {
     Brightness=L.Brightness, ClockTime=L.ClockTime,
     Ambient=L.Ambient, OutdoorAmbient=L.OutdoorAmbient,
@@ -815,6 +785,21 @@ local function applyFps()
     L.EnvironmentDiffuseScale=0; L.EnvironmentSpecularScale=0
 end
 
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if MasterEnabled and CFG.bright then
+            pcall(function()
+                L.ClockTime = 12
+                L.Brightness = 2
+                L.Ambient = Color3.fromRGB(180,180,180)
+                L.OutdoorAmbient = Color3.fromRGB(200,200,200)
+                L.FogEnd = 100000
+            end)
+        end
+    end
+end)
+
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then
         if lightMode~="orig" then applyOrig() end
@@ -838,4 +823,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v62.8 loaded — 60s Scan Active")
+print("[SpookingD] v63.1 loaded — Precision Target")
