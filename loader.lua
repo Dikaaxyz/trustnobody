@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v56.0 — Visual Skillcheck (Blind Scan)
+    v57.0 — Generator-Only Skillcheck
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -156,7 +156,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: ESP (Auto-Refresh 60s)
+-- ENGINE: ESP
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local espData = {}
@@ -314,24 +314,22 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
--- ENGINE: BLIND VISUAL SKILLCHECK (No Lag)
+-- ENGINE: GENERATOR SKILLCHECK (Presisi Tinggi)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.1) do 
+    while task.wait(0.05) do 
         if not MasterEnabled then continue end
         if CFG.auto_skillcheck then
             local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
             if isHoldingMouse then
                 local pg = LP:FindFirstChild("PlayerGui")
                 if pg then
-                    -- Blind Scan: Cek semua ImageLabel yang ada di layar
+                    -- Scan cuma ImageLabel yang namanya ada kaitan sama UI Generator
                     for _, g in ipairs(pg:GetDescendants()) do
-                        if g:IsA("ImageLabel") then
-                            -- Kalo ukurannya kecil (kaya jarum) dan posisinya di tengah
-                            local sx = g.Position.X.Scale
-                            local sy = g.Position.Y.Scale
-                            if sx > 0.35 and sx < 0.65 and sy > 0.35 and sy < 0.65 then
-                                -- Tembak Spasi
+                        if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("needle") or g.Name:lower():find("bar")) then
+                            -- Cek posisi jarum, kalo di tengah (zona putih) tembak Spasi
+                            local posX = g.Position.X.Scale
+                            if posX > 0.4 and posX < 0.6 then
                                 pcall(function() 
                                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                                     task.wait(0.01)
@@ -428,4 +426,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v56.0 Blind Scan")
+print("[SpookingD] Script Loaded — v57.0 Generator Skillcheck")
