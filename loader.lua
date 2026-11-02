@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v49.0 — FOV Lock & 60s Auto-Refresh
+    v51.0 — No-Stutter Skillcheck
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -156,7 +156,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: ESP (Auto-Refresh 60 Detik)
+-- ENGINE: ESP (Auto-Refresh 60s)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local espData = {}
@@ -180,7 +180,6 @@ local function getSurvivorItem(p)
     return nil
 end
 
--- Fungsi buat ngehapus semua ESP (buat refresh)
 local function clearAllESP()
     for p, data in pairs(espData) do
         if data.hl then data.hl:Destroy() end
@@ -189,13 +188,11 @@ local function clearAllESP()
     end
 end
 
--- Timer buat auto refresh 60 detik
 task.spawn(function()
     while true do
         task.wait(60)
         if MasterEnabled and CFG.esp then
             clearAllESP()
-            print("[SpookingD] ESP Refreshed (60s cycle)")
         end
     end
 end)
@@ -312,7 +309,84 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
--- ENGINE: FOV LOCK (Jalan tiap frame)
+-- ENGINE: SMART SKILLCHECK (No Stutter)
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.1) do -- Turunin rate jadi 10x/detik biar ga berat
+        if not MasterEnabled then continue end
+        if CFG.auto_gen or CFG.auto_skillcheck then
+            local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
+            if isHoldingMouse then
+                if CFG.auto_gen then pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) end) end
+                
+                if CFG.auto_skillcheck then
+                    local pg = LP:FindFirstChild("PlayerGui")
+                    if pg then
+                        -- Cek ImageLabel (jarum) aja, jangan ke semuanya
+                        for _, g in ipairs(pg:GetChildren()) do
+                            if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow")) then
+                                local posX = g.Position.X.Scale
+                                if posX > 0.4 and posX < 0.6 then
+                                    pcall(function() 
+                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                        task.wait(0.01)
+                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                pcall(function() VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- ENGINE: TRUE AUTO GENERATOR & SKILLCHECK
+-- ==========================================
+local lastGen = nil
+task.spawn(function()
+    while task.wait(0.5) do -- 2x sedetik biar ga berat
+        if not MasterEnabled then continue end
+        if CFG.auto_gen then
+            local myChar = LP.Character
+            local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local gen = nil
+                local minDist = 25
+                
+                for _, v in ipairs(WS:GetChildren()) do
+                    if v:IsA("Model") or v:IsA("BasePart") then
+                        local n = v.Name:lower()
+                        if n:find("generator") or n:find("gen") or n:find("fuse") then
+                            local targetPos = v:IsA("BasePart") and v.Position or (v:FindFirstChildWhichIsA("BasePart") and v.PrimaryPart and v.PrimaryPart.Position)
+                            if targetPos then
+                                local dist = (targetPos - hrp.Position).Magnitude
+                                if dist < minDist then
+                                    minDist = dist
+                                    gen = targetPos
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if gen then
+                    CAM.CFrame = CFrame.lookAt(CAM.CFrame.Position, gen)
+                    pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0) end)
+                else
+                    pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- ENGINE: FOV LOCK
 -- ==========================================
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
@@ -366,41 +440,6 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- ==========================================
--- ENGINE: PERFECT SKILLCHECK
--- ==========================================
-task.spawn(function()
-    while task.wait(0.02) do
-        if not MasterEnabled then continue end
-        if CFG.auto_gen or CFG.auto_skillcheck then
-            local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
-            if isHoldingMouse then
-                if CFG.auto_gen then pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) end) end
-                
-                if CFG.auto_skillcheck then
-                    local pg = LP:FindFirstChild("PlayerGui")
-                    if pg then
-                        for _, g in pairs(pg:GetDescendants()) do
-                            if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow") or g.Name:lower():find("needle")) then
-                                local posX = g.Position.X.Scale
-                                if posX > 0.4 and posX < 0.6 then
-                                    pcall(function() 
-                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                        task.wait(0.01)
-                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                    end)
-                                end
-                            end
-                        end
-                    end
-                end
-            else
-                pcall(function() VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
-            end
-        end
-    end
-end)
-
 -- AUTO PARRY
 task.spawn(function()
     while task.wait(0.1) do
@@ -428,4 +467,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[SpookingD] Script Loaded — v49.0 FOV Lock & Auto-Refresh")
+print("[SpookingD] Script Loaded — v51.0 No-Stutter")
