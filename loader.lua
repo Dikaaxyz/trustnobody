@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v18.1 — The Real Fix (CFG State Update)
+    v19.0 — Fixed Toggle Click Events
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -84,16 +84,51 @@ local function createBox(parent, title, x, y, w, h)
     return box
 end
 
+-- FIXED TOGGLE: Seluruh baris jadi tombol, nggak ada stateBtn yang ngeblok
 local function addToggle(parent, label, key, yOffset)
-    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, -10, 0, 24); btn.Position=UDim2.new(0, 5, 0, yOffset); btn.BackgroundTransparency=1; btn.Text=""; btn.AutoButtonColor=false; btn.ZIndex=2; btn.Parent=parent
-    local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -60, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.ZIndex=2; txt.Parent=btn
-    local stateBtn = Instance.new("TextButton"); stateBtn.Size=UDim2.new(0, 36, 0, 16); stateBtn.Position=UDim2.new(1, -36, 0.5, -8); stateBtn.BackgroundColor3=CFG[key] and COL.acc or COL.off; stateBtn.BorderSizePixel=0; stateBtn.Text=CFG[key] and "ON" or "OFF"; stateBtn.TextColor3=COL.txt; stateBtn.Font=Enum.Font.GothamBold; stateBtn.TextSize=9; stateBtn.ZIndex=3; stateBtn.Parent=btn
+    local btn = Instance.new("TextButton")
+    btn.Size=UDim2.new(1, -10, 0, 24)
+    btn.Position=UDim2.new(0, 5, 0, yOffset)
+    btn.BackgroundTransparency=1
+    btn.Text=""
+    btn.AutoButtonColor=false
+    btn.ZIndex=2
+    btn.Parent=parent
+
+    local txt = Instance.new("TextLabel")
+    txt.Size=UDim2.new(1, -60, 1, 0)
+    txt.BackgroundTransparency=1
+    txt.Text=label
+    txt.TextColor3=COL.txt
+    txt.Font=Enum.Font.Gotham
+    txt.TextSize=11
+    txt.TextXAlignment=Enum.TextXAlignment.Left
+    txt.ZIndex=2
+    txt.Parent=btn
+
+    local box = Instance.new("Frame")
+    box.Size=UDim2.new(0, 36, 0, 16)
+    box.Position=UDim2.new(1, -36, 0.5, -8)
+    box.BackgroundColor3=CFG[key] and COL.acc or COL.off
+    box.BorderSizePixel=0
+    box.ZIndex=2
+    box.Parent=btn
+
+    local stateTxt = Instance.new("TextLabel")
+    stateTxt.Size=UDim2.new(1, 0, 1, 0)
+    stateTxt.BackgroundTransparency=1
+    stateTxt.Text=CFG[key] and "ON" or "OFF"
+    stateTxt.TextColor3=COL.txt
+    stateTxt.Font=Enum.Font.GothamBold
+    stateTxt.TextSize=9
+    stateTxt.ZIndex=3
+    stateTxt.Parent=box
     
     btn.MouseButton1Click:Connect(function() 
         if not MasterEnabled then return end
-        CFG[key] = not CFG[key] -- INI YANG BIKIN JALAN
-        stateBtn.BackgroundColor3 = CFG[key] and COL.acc or COL.off
-        stateBtn.Text = CFG[key] and "ON" or "OFF"
+        CFG[key] = not CFG[key]
+        box.BackgroundColor3 = CFG[key] and COL.acc or COL.off
+        stateTxt.Text = CFG[key] and "ON" or "OFF"
     end)
 end
 
@@ -301,4 +336,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v18.1 Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v19.0 LOADED.")
