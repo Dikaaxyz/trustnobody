@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v16.1 — FIXED UI & LAYOUT
+    v17.0 — Shadow UI (Total Rework)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -40,7 +40,6 @@ local CFG = {
 -- [ULTIMATE STEALTH BYPASS]
 -- ==========================================
 pcall(function()
-    -- 1. Anti-Metatable Signature
     local mt = getrawmetatable(game)
     local registry = debug.getregistry()
     for i = 1, 100 do
@@ -50,7 +49,6 @@ pcall(function()
         end
     end
 
-    -- 2. Handshake Spoofer (Fake Android)
     local NetworkClient = game:GetService("NetworkClient")
     local oldInvoke = NetworkClient.Invoke
     NetworkClient.Invoke = function(self, req, ...)
@@ -58,7 +56,6 @@ pcall(function()
         return oldInvoke(self, req, ...)
     end
 
-    -- 3. Network Masking (Fake IP)
     local oldGet = HttpService.GetAsync
     HttpService.GetAsync = function(self, url, ...)
         if url:find("ip") or url:find("geo") or url:find("location") then 
@@ -67,7 +64,6 @@ pcall(function()
         return oldGet(self, url, ...)
     end
 
-    -- 4. Physics Clamp (Anti Speed-Flag)
     local oldIndex = getrawmetatable(game).__index
     getrawmetatable(game).__index = newcclosure(function(self, k)
         if self == LP and k == "WalkSpeed" then
@@ -76,11 +72,9 @@ pcall(function()
         return oldIndex(self, k)
     end)
     
-    -- 5. HWID Spoof
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     
-    -- 6. Cookie Wipe
     if writefile and isfile and delfile then 
         pcall(function() 
             if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end 
@@ -98,23 +92,23 @@ end
 
 -- === TUMBLR GIRLS UI ===
 local COL = { 
-    bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(20, 20, 20), sidebar=Color3.fromRGB(12, 12, 12), 
-    line=Color3.fromRGB(40, 40, 40), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(120, 120, 120), 
-    acc=Color3.fromRGB(255, 0, 50), off=Color3.fromRGB(60, 60, 60) 
+    bg=Color3.fromRGB(12, 12, 12), panel=Color3.fromRGB(20, 20, 20), sidebar=Color3.fromRGB(16, 16, 16), 
+    line=Color3.fromRGB(45, 45, 45), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(120, 120, 120), 
+    acc=Color3.fromRGB(255, 0, 60), off=Color3.fromRGB(60, 60, 60) 
 }
 
 local gui = Instance.new("ScreenGui"); gui.Name="TumblrGirls"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
-local main = Instance.new("Frame"); main.Size=UDim2.new(0, 650, 0, 450); main.Position=UDim2.new(0.5, -325, 0.5, -225); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
+local main = Instance.new("Frame"); main.Size=UDim2.new(0, 600, 0, 420); main.Position=UDim2.new(0.5, -300, 0.5, -210); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
 
-local sidebar = Instance.new("Frame"); sidebar.Size=UDim2.new(0, 150, 1, 0); sidebar.BackgroundColor3=COL.sidebar; sidebar.BorderSizePixel=0; sidebar.Parent=main
+local sidebar = Instance.new("Frame"); sidebar.Size=UDim2.new(0, 130, 1, 0); sidebar.BackgroundColor3=COL.sidebar; sidebar.BorderSizePixel=0; sidebar.Parent=main
 local logo = Instance.new("TextLabel"); logo.Size=UDim2.new(1, 0, 0, 50); logo.BackgroundTransparency=1; logo.Text="TUMBLR"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack; logo.TextSize=24; logo.Parent=sidebar
 local subLogo = Instance.new("TextLabel"); subLogo.Size=UDim2.new(1, 0, 0, 10); subLogo.Position=UDim2.new(0,0,0,40); subLogo.BackgroundTransparency=1; subLogo.Text="GIRLS"; subLogo.TextColor3=COL.txt; subLogo.Font=Enum.Font.GothamBold; subLogo.TextSize=10; subLogo.Parent=sidebar
 
 local masterBtn = Instance.new("TextButton")
 masterBtn.Size = UDim2.new(1, -20, 0, 30); masterBtn.Position = UDim2.new(0, 10, 0, 55)
 masterBtn.BackgroundColor3 = COL.panel; masterBtn.BorderSizePixel = 0
-masterBtn.Text = "ENABLE SCRIPT"; masterBtn.TextColor3 = COL.dim; masterBtn.Font = Enum.Font.GothamBold; masterBtn.TextSize = 11; masterBtn.Parent = sidebar
+masterBtn.Text = "ENABLE SCRIPT"; masterBtn.TextColor3 = COL.dim; masterBtn.Font = Enum.Font.GothamBold; masterBtn.TextSize = 10; masterBtn.Parent = sidebar
 local masterStroke = Instance.new("UIStroke"); masterStroke.Color = COL.line; masterStroke.Thickness = 1; masterStroke.Parent = masterBtn
 
 masterBtn.MouseButton1Click:Connect(function()
@@ -128,9 +122,23 @@ end)
 
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
-    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, -20, 0, 30); btn.Position=UDim2.new(0, 10, 0, 90 + (#sideTabs * 32)); btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0; btn.Text="  " .. name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=12; btn.TextXAlignment=Enum.TextXAlignment.Left; btn.AutoButtonColor=false; btn.Parent=sidebar; table.insert(sideTabs, btn)
+    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, -20, 0, 30); btn.Position=UDim2.new(0, 10, 0, 90 + (#sideTabs * 32)); btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0; btn.Text="  " .. name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.TextXAlignment=Enum.TextXAlignment.Left; btn.AutoButtonColor=false; btn.Parent=sidebar; table.insert(sideTabs, btn)
     
-    local pg = Instance.new("Frame"); pg.Size=UDim2.new(1, -150, 1, 0); pg.Position=UDim2.new(0, 150, 0, 0); pg.BackgroundTransparency=1; pg.Visible=false; pg.Parent=main; table.insert(sidePages, pg)
+    local pg = Instance.new("ScrollingFrame") -- Changed from Frame to ScrollingFrame
+    pg.Size=UDim2.new(1, -130, 1, 0); pg.Position=UDim2.new(0, 130, 0, 0); pg.BackgroundTransparency=1
+    pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc
+    pg.CanvasSize=UDim2.new(0,0,0,0); pg.AutomaticCanvasSize=Enum.AutomaticSize.Y; pg.Visible=false; pg.Parent=main
+    table.insert(sidePages, pg)
+    
+    local pgLayout = Instance.new("UIListLayout")
+    pgLayout.Padding = UDim.new(0, 10)
+    pgLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pgLayout.Parent = pg
+
+    local pgPad = Instance.new("UIPadding")
+    pgPad.PaddingTop = UDim.new(0, 15)
+    pgPad.PaddingLeft = UDim.new(0, 15)
+    pgPad.Parent = pg
     
     local idx = #sideTabs
     btn.MouseButton1Click:Connect(function()
@@ -145,31 +153,29 @@ local function addSideTab(name)
     return pg
 end
 
--- FIXED BOX BUILDER
-local function createBox(parent, title, x, y, w, h)
-    local box = Instance.new("Frame"); box.Size=UDim2.new(0, w, 0, h); box.Position=UDim2.new(0, x, 0, y); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Parent=parent
+-- FIXED BOX BUILDER (Tanpa UIListLayout di dalem, biar digabung sama parent scroll)
+local function createBox(parent, title, w, h)
+    local box = Instance.new("Frame"); box.Size=UDim2.new(0, w, 0, h); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Parent=parent
     local bs = Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=box
     
-    local header = Instance.new("Frame"); header.Size=UDim2.new(1, 0, 0, 26); header.BackgroundColor3=COL.sidebar; header.BorderSizePixel=0; header.Parent=box
-    local hl = Instance.new("Frame"); hl.Size=UDim2.new(1, 0, 0, 1); hl.Position=UDim2.new(0, 0, 1, 0); hl.BackgroundColor3=COL.line; hl.BorderSizePixel=0; hl.Parent=header
-    local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1, -10, 1, 0); tl.Position=UDim2.new(0, 10, 0, 0); tl.BackgroundTransparency=1; tl.Text=title; tl.TextColor3=COL.txt; tl.Font=Enum.Font.GothamBold; tl.TextSize=12; tl.TextXAlignment=Enum.TextXAlignment.Left; tl.Parent=header
+    local header = Instance.new("Frame"); header.Size=UDim2.new(1, 0, 0, 24); header.BackgroundColor3=COL.sidebar; header.BorderSizePixel=0; header.Parent=box
+    local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1, -10, 1, 0); tl.Position=UDim2.new(0, 10, 0, 0); tl.BackgroundTransparency=1; tl.Text=title; tl.TextColor3=COL.txt; tl.Font=Enum.Font.GothamBold; tl.TextSize=11; tl.TextXAlignment=Enum.TextXAlignment.Left; tl.Parent=header
     
     local contentFrame = Instance.new("Frame")
-    contentFrame.Size = UDim2.new(1, -10, 1, -36)
-    contentFrame.Position = UDim2.new(0, 5, 0, 30)
+    contentFrame.Size = UDim2.new(1, -10, 1, -30)
+    contentFrame.Position = UDim2.new(0, 5, 0, 28)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = box
 
-    local list = Instance.new("UIListLayout"); list.Padding=UDim.new(0, 4); list.Parent=contentFrame
-    local pad = Instance.new("UIPadding"); pad.PaddingTop=UDim.new(0, 4); pad.PaddingLeft=UDim.new(0, 4); pad.PaddingRight=UDim.new(0, 4); pad.Parent=contentFrame
+    local list = Instance.new("UIListLayout"); list.Padding=UDim.new(0, 2); list.Parent=contentFrame
     
     return box, contentFrame
 end
 
 local function addToggle(parent, label, key)
-    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 26); btn.BackgroundTransparency=1; btn.Text=""; btn.AutoButtonColor=false; btn.Parent=parent
+    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 24); btn.BackgroundTransparency=1; btn.Text=""; btn.AutoButtonColor=false; btn.Parent=parent
     local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -60, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=btn
-    local stateBtn = Instance.new("TextButton"); stateBtn.Size=UDim2.new(0, 40, 0, 18); stateBtn.Position=UDim2.new(1, -40, 0.5, -9); stateBtn.BackgroundColor3=CFG[key] and COL.acc or COL.off; stateBtn.BorderSizePixel=0; stateBtn.Text=CFG[key] and "ON" or "OFF"; stateBtn.TextColor3=COL.txt; stateBtn.Font=Enum.Font.GothamBold; stateBtn.TextSize=10; stateBtn.Parent=btn
+    local stateBtn = Instance.new("TextButton"); stateBtn.Size=UDim2.new(0, 36, 0, 16); stateBtn.Position=UDim2.new(1, -36, 0.5, -8); stateBtn.BackgroundColor3=CFG[key] and COL.acc or COL.off; stateBtn.BorderSizePixel=0; stateBtn.Text=CFG[key] and "ON" or "OFF"; stateBtn.TextColor3=COL.txt; stateBtn.Font=Enum.Font.GothamBold; stateBtn.TextSize=9; stateBtn.Parent=btn
     
     btn.MouseButton1Click:Connect(function() 
         if not MasterEnabled then return end
@@ -182,7 +188,7 @@ end
 local function addSlider(parent, label, key, min, max)
     local frame = Instance.new("Frame"); frame.Size=UDim2.new(1, 0, 0, 24); frame.BackgroundTransparency=1; frame.Parent=parent
     local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -60, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=frame
-    local input = Instance.new("TextBox"); input.Size=UDim2.new(0, 50, 0, 18); input.Position=UDim2.new(1, -50, 0.5, -9); input.BackgroundColor3=COL.bg; input.BorderSizePixel=0; input.Text=tostring(CFG[key]); input.TextColor3=COL.acc; input.Font=Enum.Font.GothamBold; input.TextSize=11; input.Parent=frame
+    local input = Instance.new("TextBox"); input.Size=UDim2.new(0, 40, 0, 18); input.Position=UDim2.new(1, -40, 0.5, -9); input.BackgroundColor3=COL.bg; input.BorderSizePixel=0; input.Text=tostring(CFG[key]); input.TextColor3=COL.acc; input.Font=Enum.Font.GothamBold; input.TextSize=10; input.Parent=frame
     input.FocusLost:Connect(function() 
         if not MasterEnabled then return end
         local val = tonumber(input.Text); if val then CFG[key] = math.clamp(val, min, max) end; input.Text = tostring(CFG[key]) 
@@ -190,31 +196,36 @@ local function addSlider(parent, label, key, min, max)
 end
 
 local function addButton(parent, label, cb)
-    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 26); btn.BackgroundColor3=COL.bg; btn.BorderSizePixel=0; btn.Text=label; btn.TextColor3=COL.txt; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=parent
+    local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 24); btn.BackgroundColor3=COL.bg; btn.BorderSizePixel=0; btn.Text=label; btn.TextColor3=COL.txt; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=parent
     local bs = Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=btn
     btn.MouseButton1Click:Connect(function() if MasterEnabled then pcall(cb) end end)
 end
 
 local pgVisual = addSideTab("Visuals"); local pgWorld = addSideTab("World"); local pgSurvivor = addSideTab("Survivor"); local pgKiller = addSideTab("Killer"); local pgMisc = addSideTab("Misc")
 
-local boxESP, listESP = createBox(pgVisual, "Player ESP", 10, 10, 230, 180)
+-- Mounting dengan size yang explicit (biar gak ilang)
+local boxESP, listESP = createBox(pgVisual, "Player ESP", 420, 175)
 addToggle(listESP, "Enable ESP", "esp"); addToggle(listESP, "Show Box", "esp_box"); addToggle(listESP, "Show Name", "esp_name"); addToggle(listESP, "Show Health", "esp_health"); addToggle(listESP, "Show Distance", "esp_dist")
-local boxVisual, listVisual = createBox(pgVisual, "Screen", 250, 10, 230, 140)
+
+local boxVisual, listVisual = createBox(pgVisual, "Screen", 420, 110)
 addToggle(listVisual, "Custom Crosshair", "crosshair"); addToggle(listVisual, "Hitbox Visualizer", "hitbox_expand"); addSlider(listVisual, "Camera FOV", "fov", 50, 120)
 
-local boxWorld, listWorld = createBox(pgWorld, "World ESP", 10, 10, 230, 160)
+local boxWorld, listWorld = createBox(pgWorld, "World ESP", 420, 150)
 addToggle(listWorld, "Generator ESP", "gen_esp"); addToggle(listWorld, "Killer ESP", "killer_esp"); addToggle(listWorld, "Item ESP", "item_esp"); addToggle(listWorld, "Exit / Spike ESP", "exit_esp")
-local boxEnv, listEnv = createBox(pgWorld, "Environment", 250, 10, 230, 120)
+
+local boxEnv, listEnv = createBox(pgWorld, "Environment", 420, 90)
 addToggle(listEnv, "Soft Fullbright", "bright"); addToggle(listEnv, "FPS Booster", "fpsboost")
 
-local boxSafe, listSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 230, 160)
+local boxSafe, listSafe = createBox(pgSurvivor, "Survivor Utility", 420, 150)
 addToggle(listSafe, "Auto Generator (Hold E)", "auto_gen"); addToggle(listSafe, "Auto Parry (God-Tier)", "auto_parry"); addToggle(listSafe, "Auto Skillcheck", "auto_skillcheck")
-local boxKiller, listKiller = createBox(pgKiller, "Killer Utility", 10, 10, 230, 80)
+
+local boxKiller, listKiller = createBox(pgKiller, "Killer Utility", 420, 60)
 addToggle(listKiller, "Look Lock (Aim Assist)", "look_lock")
 
-local boxMisc, listMisc = createBox(pgMisc, "Movement", 10, 10, 230, 80)
+local boxMisc, listMisc = createBox(pgMisc, "Movement", 420, 60)
 addSlider(listMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28)
-local boxBypass, listBypass = createBox(pgMisc, "SpookingD Bypass", 10, 100, 230, 150)
+
+local boxBypass, listBypass = createBox(pgMisc, "SpookingD Bypass", 420, 100)
 addButton(listBypass, "Re-Apply HWID Bypass", function()
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
@@ -415,4 +426,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v16.1 FIXED UI.")
+print("[Tumblr Girls] Script Made By SpookingD — Shadow UI Loaded.")
