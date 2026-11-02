@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v16.0 — ULTIMATE STEALTH BYPASS
+    v16.1 — FIXED UI & LAYOUT
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -129,30 +129,48 @@ end)
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
     local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, -20, 0, 30); btn.Position=UDim2.new(0, 10, 0, 90 + (#sideTabs * 32)); btn.BackgroundColor3=COL.sidebar; btn.BorderSizePixel=0; btn.Text="  " .. name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=12; btn.TextXAlignment=Enum.TextXAlignment.Left; btn.AutoButtonColor=false; btn.Parent=sidebar; table.insert(sideTabs, btn)
+    
     local pg = Instance.new("Frame"); pg.Size=UDim2.new(1, -150, 1, 0); pg.Position=UDim2.new(0, 150, 0, 0); pg.BackgroundTransparency=1; pg.Visible=false; pg.Parent=main; table.insert(sidePages, pg)
+    
     local idx = #sideTabs
     btn.MouseButton1Click:Connect(function()
-        for i, t in ipairs(sideTabs) do t.TextColor3 = (i == idx) and COL.txt or COL.dim; t.BackgroundColor3 = (i == idx) and COL.panel or COL.sidebar end
-        for i, p in ipairs(sidePages) do p.Visible = (i == idx) end
+        for i, t in ipairs(sideTabs) do 
+            t.TextColor3 = (i == idx) and COL.txt or COL.dim
+            t.BackgroundColor3 = (i == idx) and COL.panel or COL.sidebar 
+        end
+        for i, p in ipairs(sidePages) do 
+            p.Visible = (i == idx) 
+        end
     end)
     return pg
 end
 
+-- FIXED BOX BUILDER
 local function createBox(parent, title, x, y, w, h)
     local box = Instance.new("Frame"); box.Size=UDim2.new(0, w, 0, h); box.Position=UDim2.new(0, x, 0, y); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Parent=parent
     local bs = Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=box
+    
     local header = Instance.new("Frame"); header.Size=UDim2.new(1, 0, 0, 26); header.BackgroundColor3=COL.sidebar; header.BorderSizePixel=0; header.Parent=box
     local hl = Instance.new("Frame"); hl.Size=UDim2.new(1, 0, 0, 1); hl.Position=UDim2.new(0, 0, 1, 0); hl.BackgroundColor3=COL.line; hl.BorderSizePixel=0; hl.Parent=header
     local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1, -10, 1, 0); tl.Position=UDim2.new(0, 10, 0, 0); tl.BackgroundTransparency=1; tl.Text=title; tl.TextColor3=COL.txt; tl.Font=Enum.Font.GothamBold; tl.TextSize=12; tl.TextXAlignment=Enum.TextXAlignment.Left; tl.Parent=header
-    local list = Instance.new("UIListLayout"); list.Padding=UDim.new(0, 4); list.Parent=box
-    local pad = Instance.new("UIPadding"); pad.PaddingTop=UDim.new(0, 32); pad.PaddingLeft=UDim.new(0, 8); pad.PaddingRight=UDim.new(0, 8); pad.Parent=box
-    return box, list
+    
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Size = UDim2.new(1, -10, 1, -36)
+    contentFrame.Position = UDim2.new(0, 5, 0, 30)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = box
+
+    local list = Instance.new("UIListLayout"); list.Padding=UDim.new(0, 4); list.Parent=contentFrame
+    local pad = Instance.new("UIPadding"); pad.PaddingTop=UDim.new(0, 4); pad.PaddingLeft=UDim.new(0, 4); pad.PaddingRight=UDim.new(0, 4); pad.Parent=contentFrame
+    
+    return box, contentFrame
 end
 
 local function addToggle(parent, label, key)
     local btn = Instance.new("TextButton"); btn.Size=UDim2.new(1, 0, 0, 26); btn.BackgroundTransparency=1; btn.Text=""; btn.AutoButtonColor=false; btn.Parent=parent
     local txt = Instance.new("TextLabel"); txt.Size=UDim2.new(1, -60, 1, 0); txt.BackgroundTransparency=1; txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham; txt.TextSize=11; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=btn
     local stateBtn = Instance.new("TextButton"); stateBtn.Size=UDim2.new(0, 40, 0, 18); stateBtn.Position=UDim2.new(1, -40, 0.5, -9); stateBtn.BackgroundColor3=CFG[key] and COL.acc or COL.off; stateBtn.BorderSizePixel=0; stateBtn.Text=CFG[key] and "ON" or "OFF"; stateBtn.TextColor3=COL.txt; stateBtn.Font=Enum.Font.GothamBold; stateBtn.TextSize=10; stateBtn.Parent=btn
+    
     btn.MouseButton1Click:Connect(function() 
         if not MasterEnabled then return end
         CFG[key] = not CFG[key]
@@ -181,12 +199,12 @@ local pgVisual = addSideTab("Visuals"); local pgWorld = addSideTab("World"); loc
 
 local boxESP, listESP = createBox(pgVisual, "Player ESP", 10, 10, 230, 180)
 addToggle(listESP, "Enable ESP", "esp"); addToggle(listESP, "Show Box", "esp_box"); addToggle(listESP, "Show Name", "esp_name"); addToggle(listESP, "Show Health", "esp_health"); addToggle(listESP, "Show Distance", "esp_dist")
-local boxVisual, listVisual = createBox(pgVisual, "Screen", 250, 10, 230, 120)
+local boxVisual, listVisual = createBox(pgVisual, "Screen", 250, 10, 230, 140)
 addToggle(listVisual, "Custom Crosshair", "crosshair"); addToggle(listVisual, "Hitbox Visualizer", "hitbox_expand"); addSlider(listVisual, "Camera FOV", "fov", 50, 120)
 
 local boxWorld, listWorld = createBox(pgWorld, "World ESP", 10, 10, 230, 160)
 addToggle(listWorld, "Generator ESP", "gen_esp"); addToggle(listWorld, "Killer ESP", "killer_esp"); addToggle(listWorld, "Item ESP", "item_esp"); addToggle(listWorld, "Exit / Spike ESP", "exit_esp")
-local boxEnv, listEnv = createBox(pgWorld, "Environment", 250, 10, 230, 100)
+local boxEnv, listEnv = createBox(pgWorld, "Environment", 250, 10, 230, 120)
 addToggle(listEnv, "Soft Fullbright", "bright"); addToggle(listEnv, "FPS Booster", "fpsboost")
 
 local boxSafe, listSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 230, 160)
@@ -196,7 +214,6 @@ addToggle(listKiller, "Look Lock (Aim Assist)", "look_lock")
 
 local boxMisc, listMisc = createBox(pgMisc, "Movement", 10, 10, 230, 80)
 addSlider(listMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28)
-
 local boxBypass, listBypass = createBox(pgMisc, "SpookingD Bypass", 10, 100, 230, 150)
 addButton(listBypass, "Re-Apply HWID Bypass", function()
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
@@ -364,7 +381,6 @@ task.spawn(function()
     end
 end)
 
--- GOD-TIER PREDICTIVE AUTO PARRY
 task.spawn(function()
     while task.wait(0.05) do
         if not MasterEnabled then continue end
@@ -399,4 +415,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — ULTIMATE STEALTH Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v16.1 FIXED UI.")
