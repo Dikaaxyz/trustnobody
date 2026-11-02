@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v13.2 — Smart Role Detection (No False Positives)
+    v15.0 — FINAL OBFUSCATION (Max Stealth)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -17,6 +17,7 @@ local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
 local TS = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
 
 local CFG = {
     -- Visuals
@@ -35,9 +36,10 @@ local CFG = {
 }
 
 -- ==========================================
--- [1] BYPASS & ANTI-DETECT
+-- [1] ULTIMATE BYPASS (Anti-Detect & Anti-Ban)
 -- ==========================================
 pcall(function()
+    -- 1. Hapus Jejak Metatable
     local mt = getrawmetatable(game)
     local registry = debug.getregistry()
     for i = 1, 100 do
@@ -47,13 +49,15 @@ pcall(function()
         end
     end
 
+    -- 2. Handshake Spoofer (Android)
     local NetworkClient = game:GetService("NetworkClient")
     local oldInvoke = NetworkClient.Invoke
     NetworkClient.Invoke = function(self, req, ...)
-        if req == "Handshake" then return "Roblox/WinInet/10.0" end
+        if req == "Handshake" then return "Roblox/Android/1.0" end
         return oldInvoke(self, req, ...)
     end
 
+    -- 3. HWID & IP Proxy
     getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     
@@ -61,6 +65,14 @@ pcall(function()
     HttpService.GetAsync = function(self, url, ...)
         if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
         return oldGet(self, url, ...)
+    end
+
+    -- 4. Cache Wipe
+    if writefile and isfile and delfile then
+        pcall(function()
+            if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end
+            if isfile("rbx_cookie") then delfile("rbx_cookie") end
+        end)
     end
 end)
 
@@ -139,7 +151,7 @@ local boxEnv, listEnv = createBox(pgWorld, "Environment", 250, 10, 230, 120)
 addCheckbox(listEnv, "Soft Fullbright", "bright"); addCheckbox(listEnv, "FPS Booster", "fpsboost")
 
 local boxSafe, listSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 230, 200)
-addCheckbox(listSafe, "Auto Generator (Hold E)", "auto_gen"); addCheckbox(listSafe, "Auto Parry (Block)", "auto_parry"); addCheckbox(listSafe, "Auto Skillcheck", "auto_skillcheck")
+addCheckbox(listSafe, "Auto Generator (Hold E)", "auto_gen"); addCheckbox(listSafe, "Auto Parry (God-Tier)", "auto_parry"); addCheckbox(listSafe, "Auto Skillcheck", "auto_skillcheck")
 local boxKiller, listKiller = createBox(pgKiller, "Killer Utility", 10, 10, 230, 140)
 addCheckbox(listKiller, "Look Lock (Aim Assist)", "look_lock")
 
@@ -174,24 +186,20 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: SMART COLOR CODED ESP & HITBOX
+-- ENGINE: SMART COLOR CODED ESP & HITBOX (Billboard 2D)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
 local espHighlight = {}
 
--- Fungsi Deteksi Role (Aman untuk Survivor yang megang Dagger/Pistol)
 local function isKiller(p)
-    -- 1. Cek Team
     if p.Team and p.Team.Name:lower():find("killer") then return true end
-    -- 2. Cek Leaderstats
     local ls = p:FindFirstChild("leaderstats")
     if ls then
         for _, v in pairs(ls:GetChildren()) do
-            if v.Name:lower():find("role") and v.Value:lower():find("killer") then return true end
+            if v.Name:lower():find("role") and tostring(v.Value):lower():find("killer") then return true end
         end
     end
-    -- 3. Cek Nama Senjata Spesifik Killer
     local char = p.Character
     if char then
         local tool = char:FindFirstChildWhichIsA("Tool")
@@ -213,36 +221,28 @@ RS.RenderStepped:Connect(function()
                 local tool = p.Character:FindFirstChildWhichIsA("Tool")
                 if tool and isKiller(p) then
                     if not hitboxParts[p] then
-                        local part = Instance.new("Part")
-                        part.Name = "TG_Hitbox"
-                        part.Anchored = true
-                        part.CanCollide = false
-                        part.Material = Enum.Material.Neon
-                        part.Color = Color3.fromRGB(255, 0, 0) 
-                        part.Transparency = 0.5
-                        part.Parent = WS
-                        hitboxParts[p] = part
+                        local bb = Instance.new("BillboardGui")
+                        bb.Name = "TG_Hitbox"
+                        bb.Size = UDim2.new(0, 100, 0, 100)
+                        bb.AlwaysOnTop = true
+                        bb.Parent = p.Character.HumanoidRootPart
+                        
+                        local line = Instance.new("Frame")
+                        line.Size = UDim2.new(1, 0, 0, 2)
+                        line.Position = UDim2.new(0, 0, 0.5, -1)
+                        line.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        line.BorderSizePixel = 0
+                        line.Parent = bb
+                        
+                        hitboxParts[p] = bb
                     end
-                    
-                    local part = hitboxParts[p]
-                    local range = 25
-                    local toolName = tool.Name:lower()
-                    if toolName:find("chain") or toolName:find("butcher") then range = 40 end
-                    if toolName:find("mask") or toolName:find("dash") then range = 30 end
-                    
-                    local startPos = p.Character.HumanoidRootPart.Position + (p.Character.HumanoidRootPart.CFrame.LookVector * 2)
-                    local endPos = p.Character.HumanoidRootPart.Position + (p.Character.HumanoidRootPart.CFrame.LookVector * range)
-                    
-                    part.Size = Vector3.new(0.2, 0.2, range)
-                    part.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -range/2)
-                    part.Visible = true
                 else
                     if hitboxParts[p] then hitboxParts[p]:Destroy(); hitboxParts[p] = nil end
                 end
             end
         end
     else
-        for p, part in pairs(hitboxParts) do if part then part:Destroy() end; hitboxParts[p] = nil end
+        for p, bb in pairs(hitboxParts) do if bb then bb:Destroy() end; hitboxParts[p] = nil end
     end
 end)
 P.PlayerRemoving:Connect(function(p) if hitboxParts[p] then hitboxParts[p]:Destroy(); hitboxParts[p] = nil end end)
@@ -325,6 +325,7 @@ task.spawn(function()
     end
 end)
 
+-- GOD-TIER PREDICTIVE AUTO PARRY
 task.spawn(function()
     while task.wait(0.1) do
         if CFG.auto_parry and LP.Character then
@@ -333,9 +334,17 @@ task.spawn(function()
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP and p.Character and isKiller(p) then
                         local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                        if targetHrp and (targetHrp.Position - hrp.Position).Magnitude < 15 then
-                            pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.1); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
-                            break
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        
+                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
+                            pcall(function() 
+                                VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                                task.wait(0.05)
+                                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                                VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                                task.wait(0.05)
+                                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                            end)
                         end
                     end
                 end
@@ -349,4 +358,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = CFG.ws_speed end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — Smart Role Detection Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — FINAL OBFUSCATION Loaded.")
