@@ -1,14 +1,6 @@
 --[[
     SpookingD - Violence District
-    v60.2 — Sniper Parry & True Skillcheck (detection-surface hardening pass)
-    Delta vs v60.0:
-      - stable per-install HWID (persisted if executor supports it) + cookie scrub interval
-      - input injection: humanized timing, per-second request budget, no fixed cadence
-      - walkspeed: lerp + clamp, silent when idle
-      - FOV/Lighting: set-on-change, no per-frame writes
-      - ESP + parry sphere relocated off Workspace/Character -> Camera folder, CanQuery=false
-      - skillcheck: fully event-driven, zero idle scan
-      - full teardown sweep on disable
+    v60.5 — full assembled: outline ESP, aimed skillcheck, right-click parry, hardened bypass
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -32,7 +24,7 @@ local CFG = {
     bright=false, fpsboost=false,
     crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
     auto_parry=false, auto_skillcheck=false,
-    skillcheck_window=0.06, parry_cooldown=0.35,
+    skillcheck_window=4.5, parry_cooldown=0.35,
     look_lock=false, ws_enabled=false, ws_speed=16,
     keyMenu=Enum.KeyCode.RightShift
 }
@@ -46,60 +38,57 @@ local VD_ITEM_LOOKUP = {}
 for _, n in ipairs(VD_ITEMS) do VD_ITEM_LOOKUP[n:lower()] = n end
 
 -- ==========================================
--- HARDENED: HWID spoof (stable per install) + cookie scrub
+-- BYPASS
 -- ==========================================
-local HWID_FILE = "spook_hwid.txt"
-local function loadOrMakeHwid()
+local BYPASS = {}
+BYPASS.HWID_FILE = "spook_hwid.dat"
+function BYPASS.loadHwid()
     if readfile and isfile and writefile then
         pcall(function()
-            if isfile(HWID_FILE) then
-                local v = readfile(HWID_FILE)
-                if v and #v > 0 then getgenv().SpoofedHWID = v; return end
+            if isfile(BYPASS.HWID_FILE) then
+                local v = readfile(BYPASS.HWID_FILE)
+                if v and #v >= 6 then getgenv().SpoofedHWID = v; return end
             end
+            local v = tostring(math.random(100000,999999)) .. "SPOOK"
+            writefile(BYPASS.HWID_FILE, v)
+            getgenv().SpoofedHWID = v
         end)
-        local v = tostring(math.random(100000,999999)) .. "SPOOK"
-        pcall(function() writefile(HWID_FILE, v) end)
-        getgenv().SpoofedHWID = v
-        return
+    else
+        getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     end
-    getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
 end
-loadOrMakeHwid()
+BYPASS.loadHwid()
 
 pcall(function()
-    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
+    local svc = game:GetService("RbxAnalyticsService")
+    svc.GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
 end)
 
-local function scrubCookies()
-    if writefile and isfile and delfile then
-        pcall(function()
-            for _, f in ipairs({ "RobloxCookies.dat", "rbx_cookie", "log.txt" }) do
-                if isfile(f) then delfile(f) end
-            end
-        end)
-    end
+local SCRUB_FILES = { "RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt" }
+function BYPASS.scrub()
+    if not (writefile and isfile and delfile) then return end
+    pcall(function()
+        for _, f in ipairs(SCRUB_FILES) do
+            if isfile(f) then delfile(f) end
+        end
+    end)
 end
-scrubCookies()
+BYPASS.scrub()
 
--- ==========================================
--- HARDENED: input budget (anti input-spam detector)
--- ==========================================
-local inputBudget = { windowStart = tick(), count = 0, cap = 8, window = 1.0 }
+local inputBudget = { windowStart = tick(), count = 0, cap = 6, window = 1.0 }
 local function canSendInput()
     local now = tick()
     if now - inputBudget.windowStart >= inputBudget.window then
-        inputBudget.windowStart = now
-        inputBudget.count = 0
+        inputBudget.windowStart = now; inputBudget.count = 0
     end
     if inputBudget.count >= inputBudget.cap then return false end
     inputBudget.count = inputBudget.count + 1
     return true
 end
-
 local function jittered(lo, hi) return lo + math.random() * (hi - lo) end
 
 -- ==========================================
--- GUI (identical visual surface to v60)
+-- GUI
 -- ==========================================
 local function getHui()
     if typeof(gethui) == "function" then
@@ -115,8 +104,8 @@ local COL = {
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="SpookingD"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true
-gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
+gui.Name="SG_"..tostring(math.random(100000,999999)); gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true
+gui.DisplayOrder=10000; gui.Parent=getHui(); getgenv().TGui=gui
 
 local main = Instance.new("Frame")
 main.Size=UDim2.new(0,600,0,420); main.Position=UDim2.new(0.5,-300,0.5,-210)
@@ -143,9 +132,6 @@ masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=10; masterBtn.Parent=sid
 local masterStroke = Instance.new("UIStroke")
 masterStroke.Color=COL.line; masterStroke.Thickness=1; masterStroke.Parent=masterBtn
 
--- ==========================================
--- HIDDEN CARRIER (Camera folder — off Workspace/Character graph)
--- ==========================================
 local hiddenFolder
 local function getHiddenFolder()
     if hiddenFolder and hiddenFolder.Parent then return hiddenFolder end
@@ -155,9 +141,6 @@ local function getHiddenFolder()
     return hiddenFolder
 end
 
--- ==========================================
--- TEARDOWN SWEEP
--- ==========================================
 local espData = {}
 local toolCache = {}
 local parryIndicator = nil
@@ -186,9 +169,6 @@ masterBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==========================================
--- Sidebar / boxes / switches (same shapes as v60; abbreviated here)
--- ==========================================
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
     local btn = Instance.new("TextButton")
@@ -198,12 +178,10 @@ local function addSideTab(name)
     btn.TextSize=11; btn.TextXAlignment=Enum.TextXAlignment.Left
     btn.AutoButtonColor=false; btn.Parent=sidebar
     table.insert(sideTabs, btn)
-
     local pg=Instance.new("Frame")
     pg.Size=UDim2.new(1,-130,1,0); pg.Position=UDim2.new(0,130,0,0)
     pg.BackgroundTransparency=1; pg.Visible=false; pg.Parent=main
     table.insert(sidePages, pg)
-
     local idx=#sideTabs
     btn.MouseButton1Click:Connect(function()
         for i,t in ipairs(sideTabs) do
@@ -331,17 +309,23 @@ addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
 
 local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 340, 440, 150)
 addButton(boxBypass, "Re-Apply HWID Bypass", function()
-    loadOrMakeHwid()
+    BYPASS.loadHwid()
     pcall(function()
         game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     end)
-    scrubCookies()
+    BYPASS.scrub()
 end, 30)
 addButton(boxBypass, "FLUSH LOGS & CACHE", function()
-    scrubCookies(); print("[SpookingD] Logs & Cache Flushed.")
+    BYPASS.scrub(); print("[SpookingD] Logs & Cache Flushed.")
 end, 60)
 addButton(boxBypass, "Panic Wipe (Log Out)", function()
-    scrubCookies(); game:Shutdown()
+    BYPASS.scrub()
+    if writefile and isfile and delfile then
+        pcall(function() if isfile(BYPASS.HWID_FILE) then delfile(BYPASS.HWID_FILE) end end)
+    end
+    fullTeardown()
+    task.wait(0.05)
+    game:Shutdown()
 end, 90)
 
 sideTabs[1].TextColor3=COL.txt; sideTabs[1].BackgroundColor3=COL.panel; sidePages[1].Visible=true
@@ -383,7 +367,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ENGINE: ESP (carrier-folder-hosted, no Workspace writes)
+-- ESP + OUTLINE (the garis)
 -- ==========================================
 local crosshair=Instance.new("Frame")
 crosshair.Size=UDim2.new(0,4,0,4); crosshair.Position=UDim2.new(0.5,-2,0.5,-2)
@@ -421,9 +405,11 @@ end
 local function buildEspEntry(p, hrp, color)
     local carrier = getHiddenFolder()
     local hl=Instance.new("Highlight")
-    hl.FillColor=color; hl.OutlineColor=color; hl.FillTransparency=0.7
-    hl.Parent = carrier   -- off Character graph; Adornee set below
-    hl.Adornee = p.Character
+    hl.FillColor=color; hl.OutlineColor=color
+    hl.FillTransparency=1
+    hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent=carrier
+    hl.Adornee=p.Character
 
     local bg=Instance.new("BillboardGui")
     bg.Name="Spook_ESP"; bg.Adornee=hrp
@@ -477,7 +463,11 @@ task.spawn(function()
                     buildEspEntry(p,hrp,color)
                     d=espData[p]
                 end
-                if d.hl then d.hl.Adornee = char end
+
+                d.hl.Enabled = true
+                d.hl.Adornee = char
+                d.hl.FillColor = color
+                d.hl.OutlineColor = color
                 d.name.Text=p.Name; d.name.TextColor3=color
                 d.name.Visible=CFG.esp_name
                 if itemName then
@@ -501,7 +491,7 @@ end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p]=nil end)
 
 -- ==========================================
--- ENGINE: PARRY SPHERE (Camera-hosted, non-queryable)
+-- PARRY SPHERE
 -- ==========================================
 local PARRY_RADIUS=18
 local function ensureParrySphere()
@@ -513,7 +503,7 @@ local function ensureParrySphere()
     sphere.Size=Vector3.new(PARRY_RADIUS*2,PARRY_RADIUS*2,PARRY_RADIUS*2)
     sphere.Anchored=true; sphere.CanCollide=false
     sphere.CanQuery=false; sphere.CanTouch=false
-    sphere.Massless=true; sphere.Transparency=1   -- fully invisible; visual off
+    sphere.Massless=true; sphere.Transparency=1
     sphere.Parent=carrier
     parryIndicator=sphere
     return sphere
@@ -530,58 +520,87 @@ RS.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- ENGINE: SKILLCHECK (event-driven, zero idle scan)
+-- SKILLCHECK — aimed at the white zone, single-fire
 -- ==========================================
-local skillcheckCandidates={}
-local function isCandidate(g)
-    if not g:IsA("ImageLabel") then return false end
-    local n=g.Name:lower()
-    return n:find("indicator") or n:find("needle") or n:find("bar") or n:find("marker")
+local SKILL = {
+    scanInterval = 0.015,
+    zoneTolerance = 4.5,
+    pressWidthLo = 0.008,
+    pressWidthHi = 0.024,
+    cooldown = 0.12,
+}
+local firedThisCheck = {}
+local lastFireAt = 0
+
+local function norm360(d) d=d%360; if d<0 then d=d+360 end; return d end
+local function angDist(a,b)
+    local d=norm360(b)-norm360(a)
+    if d>180 then d=d-360 elseif d<-180 then d=d+360 end
+    return math.abs(d)
+end
+
+local function findSkillcheckRoot()
+    local pg=LP:FindFirstChild("PlayerGui"); if not pg then return nil end
+    for _,g in ipairs(pg:GetDescendants()) do
+        if g:IsA("Frame") or g:IsA("ImageLabel") then
+            local needle, zone = nil, nil
+            for _,c in ipairs(g:GetDescendants()) do
+                if c:IsA("ImageLabel") or c:IsA("Frame") then
+                    local n=c.Name:lower()
+                    if not needle and (n:find("needle") or n:find("indicator") or n:find("marker") or n:find("dial")) then
+                        needle=c
+                    elseif not zone and (n:find("zone") or n:find("target") or n:find("hit") or n:find("sweet") or n:find("white") or n:find("perfect")) then
+                        zone=c
+                    end
+                end
+            end
+            if needle and zone then return g, needle, zone end
+        end
+    end
+    return nil
+end
+
+local function angleOf(inst, root)
+    if inst.Rotation and math.abs(inst.Rotation) > 0 then
+        return norm360(inst.Rotation)
+    end
+    local rootAbs=root.AbsolutePosition; local rootSize=root.AbsoluteSize
+    local cx=rootAbs.X+rootSize.X*0.5; local cy=rootAbs.Y+rootSize.Y*0.5
+    local ip=inst.AbsolutePosition; local isz=inst.AbsoluteSize
+    local ix=ip.X+isz.X*0.5; local iy=ip.Y+isz.Y*0.5
+    local deg=math.deg(math.atan(iy-cy, ix-cx))
+    return norm360(deg)
 end
 
 task.spawn(function()
-    local pg=LP:WaitForChild("PlayerGui",10); if not pg then return end
-    for _,g in ipairs(pg:GetDescendants()) do
-        if isCandidate(g) then skillcheckCandidates[g]=true end
-    end
-    pg.DescendantAdded:Connect(function(g)
-        if isCandidate(g) then skillcheckCandidates[g]=true end
-    end)
-    pg.DescendantRemoving:Connect(function(g)
-        if skillcheckCandidates[g] then skillcheckCandidates[g]=nil end
-    end)
-end)
-
-local skillcheckBusy=false
-task.spawn(function()
     while true do
-        task.wait(0.02)
-        if not (MasterEnabled and CFG.auto_skillcheck) then continue end
-        if not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then continue end
-        if skillcheckBusy then continue end
+        task.wait(SKILL.scanInterval)
+        if not (MasterEnabled and CFG.auto_skillcheck) then
+            firedThisCheck={}; continue
+        end
+        if not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            firedThisCheck={}; continue
+        end
         if not canSendInput() then continue end
-        local half=CFG.skillcheck_window
-        for g in pairs(skillcheckCandidates) do
-            if not g.Parent then skillcheckCandidates[g]=nil; continue end
-            local px,py=g.Position.X.Scale,g.Position.Y.Scale
-            if px>(0.5-half) and px<(0.5+half) and py>(0.5-half) and py<(0.5+half) then
-                skillcheckBusy=true
-                local pressW=jittered(0.008,0.022)
-                pcall(function()
-                    VIM:SendKeyEvent(true,Enum.KeyCode.Space,false,game)
-                    task.wait(pressW)
-                    VIM:SendKeyEvent(false,Enum.KeyCode.Space,false,game)
-                end)
-                task.wait(jittered(0.03,0.07))
-                skillcheckBusy=false
-                break
-            end
+        if tick()-lastFireAt < SKILL.cooldown then continue end
+        local root,needle,zone=findSkillcheckRoot()
+        if not (root and needle and zone) then continue end
+        if firedThisCheck[needle] then continue end
+        local nAng=angleOf(needle,root); local zAng=angleOf(zone,root)
+        if angDist(nAng,zAng) <= SKILL.zoneTolerance then
+            firedThisCheck[needle]=true; lastFireAt=tick()
+            local w=jittered(SKILL.pressWidthLo,SKILL.pressWidthHi)
+            pcall(function()
+                VIM:SendKeyEvent(true,Enum.KeyCode.Space,false,game)
+                task.wait(w)
+                VIM:SendKeyEvent(false,Enum.KeyCode.Space,false,game)
+            end)
         end
     end
 end)
 
 -- ==========================================
--- ENGINE: PREDICTIVE PARRY (right-click, humanized, budgeted)
+-- PREDICTIVE PARRY — right-click
 -- ==========================================
 local PARRY_MOUSE_BUTTON=2
 local parryBusy=false
@@ -596,9 +615,7 @@ local function killerIsAttacking(char,hrp,myHrp)
         if animator then
             for _,track in ipairs(animator:GetPlayingAnimationTracks()) do
                 local n=(track.Name or ""):lower()
-                if n:find("attack") or n:find("slash") or n:find("swing") or n:find("hit") then
-                    return true
-                end
+                if n:find("attack") or n:find("slash") or n:find("swing") or n:find("hit") then return true end
             end
         end
     end
@@ -623,85 +640,9 @@ task.spawn(function()
             if not (tHrp and hum and hum.Health>0) then continue end
             if (tHrp.Position-myHrp.Position).Magnitude>=PARRY_RADIUS then continue end
             if not killerIsAttacking(char,tHrp,myHrp) then continue end
-
             parryBusy=true
-            local pressW=jittered(0.008,0.020)
+            local w=jittered(0.008,0.020)
             pcall(function()
                 VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,true,game,1)
-                task.wait(pressW)
-                VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,false,game,1)
-            end)
-            task.wait(CFG.parry_cooldown + jittered(0,0.06))
-            parryBusy=false
-            break
-        end
-    end
-end)
-
--- ==========================================
--- ENGINE: FOV — set-on-change only
--- ==========================================
-local lastFovSet=nil
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    if CAM and CFG.fov_enabled then
-        local target=CFG.fov_val
-        if lastFovSet~=target then
-            CAM.FieldOfView=target; lastFovSet=target
-        end
-    elseif lastFovSet and CAM then
-        CAM.FieldOfView=70; lastFovSet=nil
-    end
-end)
-
--- ==========================================
--- ENGINE: LIGHTING — set-on-change only
--- ==========================================
-local origFogEnd,origBrightness,origClock = L.FogEnd, L.Brightness, L.ClockTime
-local origAmbient,origOutdoor,origExposure,origShadows = L.Ambient, L.OutdoorAmbient, L.ExposureCompensation, L.GlobalShadows
-local lastLightState=nil
-
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    if CFG.bright then
-        if lastLightState=="bright" then return end
-        lastLightState="bright"
-        L.Brightness=1.5; L.ClockTime=14.5
-        L.Ambient=Color3.fromRGB(130,130,130); L.OutdoorAmbient=Color3.fromRGB(150,150,150)
-        L.ExposureCompensation=0.1; L.FogEnd=5000
-        L.GlobalShadows=false; L.ShadowSoftness=0.5
-        for _,v in pairs(L:GetChildren()) do
-            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then v:Destroy() end
-        end
-    else
-        if lastLightState=="orig" then return end
-        lastLightState="orig"
-        L.Brightness=origBrightness; L.ClockTime=origClock
-        L.Ambient=origAmbient; L.OutdoorAmbient=origOutdoor
-        L.ExposureCompensation=origExposure; L.FogEnd=origFogEnd
-        L.GlobalShadows=origShadows
-    end
-
-    if CFG.fpsboost then
-        settings().Rendering.QualityLevel=1
-        L.EnvironmentDiffuseScale=0; L.EnvironmentSpecularScale=0
-    end
-end)
-
--- ==========================================
--- ENGINE: WALKSPEED — lerp + clamp, silent when idle
--- ==========================================
-local WS_MAX_SAFE=22
-local lastAppliedWs=nil
-RS.Stepped:Connect(function(_,dt)
-    if not MasterEnabled then return end
-    local c=LP.Character; if not c then return end
-    local hum=c:FindFirstChildOfClass("Humanoid"); if not hum then return end
-    local target=CFG.ws_enabled and math.clamp(CFG.ws_speed,16,WS_MAX_SAFE) or 16
-    if lastAppliedWs and math.abs(hum.WalkSpeed-target)<0.05 then return end
-    local step=math.min(dt*30, math.abs(target-hum.WalkSpeed)) * (target>hum.WalkSpeed and 1 or -1)
-    hum.WalkSpeed = hum.WalkSpeed + step
-    lastAppliedWs = hum.WalkSpeed
-end)
-
-print("[SpookingD] v60.2 loaded — detection-surface hardening applied")
+                task.wait(w)
+                VIM:SendMouse
