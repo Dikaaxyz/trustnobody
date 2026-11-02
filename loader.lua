@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v9.1 — Safe Walk Farm
-    No Freeze | No Ban | 100% Undetected Walking
+    GRAYS ON TOP v9.2 — Project D Manga Edition
+    Image Theme | 40 Features | Safe Farm
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -21,7 +21,7 @@ local L = game:GetService("Lighting")
 local CFG = {
     aim=false, wallcheck=false, aimfov=150, aimpart="Head",
     esp=false, bright=false, fpsboost=false, nofog=false, xray=false,
-    camfly=false, bodyfly=false, noclip=false, ws=40, jp=50, infjump=false, freeze=false, antifling=false,
+    camfly=false, bodyfly=false, noclip=false, ws=16, jp=50, infjump=false, freeze=false, antifling=false,
     autofire=false, autofix=false, clicker=false, hitbox=false, killaura=false,
     farm=false, targetmoney=1000, tpnpc=false, tpcrate=false, tptruck=false, tpplayer=false,
     antiafk=false, chatspam=false, godmode=false,
@@ -61,7 +61,7 @@ local function walkTo(tPos)
     if not hum or not h then return end
     
     local oldSpeed = hum.WalkSpeed
-    hum.WalkSpeed = 40 -- Fast but legit
+    hum.WalkSpeed = 40
     
     hum:MoveTo(tPos)
     local t = 0
@@ -70,7 +70,7 @@ local function walkTo(tPos)
         task.wait(0.1)
         t += 0.1
     end
-    hum:MoveTo(h.Position) -- Stop
+    hum:MoveTo(h.Position)
     hum.WalkSpeed = oldSpeed
 end
 
@@ -81,31 +81,71 @@ local function interactPart(p)
     pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) task.wait(0.05) VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
 end
 
--- INITIAL D UI
-local COL = { bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(20,20,20), line=Color3.fromRGB(50,50,50), txt=Color3.fromRGB(255,255,255), dim=Color3.fromRGB(150,150,150), acc=Color3.fromRGB(255,0,0), accDark=Color3.fromRGB(150,0,0), check=Color3.fromRGB(255,255,255) }
+-- === PROJECT D MANGA THEME ===
+local COL = { 
+    bg=Color3.fromRGB(25,20,35), -- Dark Purple (Background)
+    panel=Color3.fromRGB(15,10,20), -- Deep Black/Purple
+    line=Color3.fromRGB(80,40,100), 
+    txt=Color3.fromRGB(255,255,255), -- White Text
+    dim=Color3.fromRGB(150,150,150), 
+    acc=Color3.fromRGB(255,120,0), -- Orange Accent
+    accDark=Color3.fromRGB(180,80,0), 
+    check=Color3.fromRGB(255,255,255) 
+}
 
 local gui = Instance.new("ScreenGui"); gui.Name="GOT"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().GOTGui=gui
-local main = Instance.new("Frame"); main.Size=UDim2.new(0,420,0,500); main.Position=UDim2.new(0,20,0,50); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
+
+local main = Instance.new("Frame"); main.Size=UDim2.new(0,450,0,520); main.Position=UDim2.new(0,20,0,50); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=2; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
-local bgGrad = Instance.new("UIGradient"); bgGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(30,30,30)), ColorSequenceKeypoint.new(1, Color3.fromRGB(5,5,5))}); bgGrad.Rotation=90; bgGrad.Parent=main
 
-local checkStrip = Instance.new("Frame"); checkStrip.Size=UDim2.new(1,0,0,10); checkStrip.BackgroundColor3=COL.bg; checkStrip.BorderSizePixel=0; checkStrip.Parent=main
-for i=0,27 do local b=Instance.new("Frame"); b.Size=UDim2.new(0,15,1,0); b.Position=UDim2.new(0,i*15,0,0); b.BackgroundColor3=(i%2==0) and COL.check or COL.bg; b.BorderSizePixel=0; b.Parent=checkStrip end
+local bgGrad = Instance.new("UIGradient")
+bgGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(45,30,60)), ColorSequenceKeypoint.new(1, Color3.fromRGB(10,5,15))})
+bgGrad.Rotation = 45
+bgGrad.Parent = main
 
-local head = Instance.new("Frame"); head.Size=UDim2.new(1,0,0,40); head.Position=UDim2.new(0,0,0,10); head.BackgroundColor3=COL.panel; head.BorderSizePixel=0; head.Parent=main
-local hl = Instance.new("Frame"); hl.Size=UDim2.new(1,0,0,2); hl.Position=UDim2.new(0,0,1,0); hl.BackgroundColor3=COL.acc; hl.BorderSizePixel=0; hl.Parent=head
-local wm = Instance.new("TextLabel"); wm.Size=UDim2.new(1,-20,1,0); wm.Position=UDim2.new(0,12,0,0); wm.BackgroundTransparency=1; wm.Text="PROJECT D // SAFE WALK"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.RobotoMono; wm.TextSize=14; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
-local xBtn = Instance.new("TextButton"); xBtn.Size=UDim2.new(0,30,1,0); xBtn.Position=UDim2.new(1,-30,0,0); xBtn.BackgroundTransparency=1; xBtn.Text="×"; xBtn.TextColor3=COL.acc; xBtn.Font=Enum.Font.RobotoMono; xBtn.TextSize=22; xBtn.Parent=head
+-- HEADER (Image Slot)
+local head = Instance.new("Frame"); head.Size=UDim2.new(1,0,0,80); head.Position=UDim2.new(0,0,0,0); head.BackgroundColor3=COL.panel; head.BorderSizePixel=0; head.ClipsDescendants=true; head.Parent=main
 
-local tabBar = Instance.new("Frame"); tabBar.Size=UDim2.new(1,0,0,30); tabBar.Position=UDim2.new(0,0,0,50); tabBar.BackgroundColor3=COL.panel; tabBar.BorderSizePixel=0; tabBar.Parent=main
+local headerImg = Instance.new("ImageLabel")
+headerImg.Size = UDim2.new(1,0,1,0)
+headerImg.Position = UDim2.new(0,0,0,0)
+headerImg.BackgroundTransparency = 1
+-- GANTI "YOUR_IMAGE_ID_HERE" DENGAN ASSET ID FOTO AE86 LU
+headerImg.Image = "rbxassetid://YOUR_IMAGE_ID_HERE" 
+headerImg.ScaleType = Enum.ScaleType.Crop
+headerImg.Parent = head
+
+-- Dark gradient overlay so text is readable over the image
+local imgOverlay = Instance.new("Frame")
+imgOverlay.Size = UDim2.new(1,0,1,0)
+imgOverlay.BackgroundColor3 = Color3.fromRGB(0,0,0)
+imgOverlay.BackgroundTransparency = 0.4
+imgOverlay.BorderSizePixel = 0
+imgOverlay.Parent = head
+
+local overlayGrad = Instance.new("UIGradient")
+overlayGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(45,30,60))})
+overlayGrad.Rotation = 90
+overlayGrad.Parent = imgOverlay
+
+local wm = Instance.new("TextLabel"); wm.Size=UDim2.new(1,-20,0,40); wm.Position=UDim2.new(0,12,0,20); wm.BackgroundTransparency=1; 
+wm.Text="GRAYS ON TOP"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.GothamBlack; wm.TextSize=28; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
+
+local subWm = Instance.new("TextLabel"); subWm.Size=UDim2.new(1,-20,0,20); subWm.Position=UDim2.new(0,14,0,50); subWm.BackgroundTransparency=1; 
+subWm.Text="// PROJECT D EDITION"; subWm.TextColor3=COL.acc; subWm.Font=Enum.Font.GothamBold; subWm.TextSize=12; subWm.TextXAlignment=Enum.TextXAlignment.Left; subWm.Parent=head
+
+local xBtn = Instance.new("TextButton"); xBtn.Size=UDim2.new(0,30,0,30); xBtn.Position=UDim2.new(1,-40,0,10); xBtn.BackgroundTransparency=1; xBtn.Text="×"; xBtn.TextColor3=COL.txt; xBtn.Font=Enum.Font.GothamBlack; xBtn.TextSize=26; xBtn.Parent=head
+
+-- TAB BAR
+local tabBar = Instance.new("Frame"); tabBar.Size=UDim2.new(1,0,0,30); tabBar.Position=UDim2.new(0,0,0,80); tabBar.BackgroundColor3=COL.panel; tabBar.BorderSizePixel=0; tabBar.Parent=main
 local tl = Instance.new("UIListLayout"); tl.FillDirection=Enum.FillDirection.Horizontal; tl.VerticalAlignment=Enum.VerticalAlignment.Center; tl.Parent=tabBar
 local tabs, pages = {}, {}
 
 local function addTab(name, w)
-    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(0,w,1,0); btn.BackgroundColor3=COL.panel; btn.BorderSizePixel=0; btn.Text=name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.RobotoMono; btn.TextSize=10; btn.Parent=tabBar; table.insert(tabs,btn)
-    local pg=Instance.new("ScrollingFrame"); pg.Size=UDim2.new(1,0,1,-80); pg.Position=UDim2.new(0,0,0,80); pg.BackgroundTransparency=1; pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc; pg.CanvasSize=UDim2.new(0,0,0,0); pg.AutomaticCanvasSize=Enum.AutomaticSize.Y; pg.Visible=false; pg.Parent=main
+    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(0,w,1,0); btn.BackgroundColor3=COL.panel; btn.BorderSizePixel=0; btn.Text=name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=tabBar; table.insert(tabs,btn)
+    local pg=Instance.new("ScrollingFrame"); pg.Size=UDim2.new(1,0,1,-110); pg.Position=UDim2.new(0,0,0,110); pg.BackgroundTransparency=1; pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc; pg.CanvasSize=UDim2.new(0,0,0,0); pg.AutomaticCanvasSize=Enum.AutomaticSize.Y; pg.Visible=false; pg.Parent=main
     local l=Instance.new("UIListLayout"); l.Padding=UDim.new(0,6); l.Parent=pg
-    local pd=Instance.new("UIPadding"); pd.PaddingLeft=UDim.new(0,12); pd.PaddingRight=UDim.new(0,12); pd.PaddingTop=UDim.new(0,12); pd.PaddingBottom=UDim.new(0,12); pd.Parent=pg
+    local pd=Instance.new("UIPadding"); pd.PaddingLeft=UDim.new(0,14); pd.PaddingRight=UDim.new(0,14); pd.PaddingTop=UDim.new(0,14); pd.PaddingBottom=UDim.new(0,14); pd.Parent=pg
     local idx=#pages+1; table.insert(pages,pg)
     btn.MouseButton1Click:Connect(function()
         for i,p in ipairs(pages) do p.Visible=(i==idx) end
@@ -115,32 +155,37 @@ local function addTab(name, w)
 end
 
 local function addSection(p, n)
-    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,0,20); l.BackgroundTransparency=1; l.Text="// "..string.upper(n); l.TextColor3=COL.accDark; l.Font=Enum.Font.RobotoMono; l.TextSize=11; l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=p
+    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,0,24); l.BackgroundTransparency=1; l.Text="// "..string.upper(n); l.TextColor3=COL.acc; l.Font=Enum.Font.GothamBlack; l.TextSize=12; l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=p
 end
 
 local function addToggle(p,label,key)
-    local row=Instance.new("TextButton"); row.Size=UDim2.new(1,0,0,32); row.BackgroundColor3=COL.panel; row.BorderSizePixel=0; row.AutoButtonColor=false; row.Text=""; row.Parent=p
-    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=row
-    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-50,1,0); lbl.Position=UDim2.new(0,10,0,0); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.RobotoMono; lbl.TextSize=12; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=row
-    local box=Instance.new("Frame"); box.Size=UDim2.new(0,24,0,12); box.Position=UDim2.new(1,-34,0.5,-6); box.BackgroundColor3=COL.bg; box.Parent=row
+    local row=Instance.new("TextButton"); row.Size=UDim2.new(1,0,0,36); row.BackgroundColor3=COL.bg; row.BorderSizePixel=0; row.AutoButtonColor=false; row.Text=""; row.Parent=p
+    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; bs.Parent=row
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-50,1,0); lbl.Position=UDim2.new(0,10,0,0); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=13; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=row
+    
+    local box=Instance.new("Frame"); box.Size=UDim2.new(0,26,0,14); box.Position=UDim2.new(1,-36,0.5,-7); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Parent=row
     local bs2=Instance.new("UIStroke"); bs2.Color=COL.line; bs2.Thickness=1; bs2.Parent=box
-    local fill=Instance.new("Frame"); fill.Size=UDim2.new(0,16,0,4); fill.Position=UDim2.new(0.5,-8,0.5,-2); fill.BackgroundColor3=COL.acc; fill.Visible=CFG[key]; fill.Parent=box
-    row.MouseButton1Click:Connect(function() CFG[key]=not CFG[key]; fill.Visible=CFG[key]; bs.Color = CFG[key] and COL.acc or COL.line end)
+    
+    local fill=Instance.new("Frame"); fill.Size=UDim2.new(0,18,0,6); fill.Position=UDim2.new(0.5,-9,0.5,-3); fill.BackgroundColor3=COL.acc; fill.BorderSizePixel=0; fill.Visible=CFG[key]; fill.Parent=box
+    
+    row.MouseButton1Click:Connect(function() 
+        CFG[key]=not CFG[key]; fill.Visible=CFG[key]; bs.Color = CFG[key] and COL.acc or COL.line 
+    end)
 end
 
 local function addInput(p,label,key,mn,mx)
-    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,50); h.BackgroundColor3=COL.panel; h.Parent=p
-    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=h
-    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,18); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.RobotoMono; lbl.TextSize=11; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
-    local box=Instance.new("TextBox"); box.Size=UDim2.new(1,-20,0,22); box.Position=UDim2.new(0,10,0,22); box.BackgroundColor3=COL.bg; box.BorderSizePixel=0; box.Text=tostring(CFG[key]); box.TextColor3=COL.acc; box.Font=Enum.Font.RobotoMono; box.TextSize=12; box.TextXAlignment=Enum.TextXAlignment.Left; box.Parent=h
+    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,54); h.BackgroundColor3=COL.bg; h.Parent=p
+    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; bs.Parent=h
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,18); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=12; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
+    local box=Instance.new("TextBox"); box.Size=UDim2.new(1,-20,0,22); box.Position=UDim2.new(0,10,0,24); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Text=tostring(CFG[key]); box.TextColor3=COL.acc; box.Font=Enum.Font.RobotoMono; box.TextSize=13; box.TextXAlignment=Enum.TextXAlignment.Left; box.Parent=h
     local bs2=Instance.new("UIStroke"); bs2.Color=COL.line; bs2.Thickness=1; bs2.Parent=box
     box.FocusLost:Connect(function() local n=tonumber(box.Text); if n then CFG[key]=math.clamp(n,mn,mx) end; box.Text=tostring(CFG[key]); bs2.Color=COL.line end)
     box.Focused:Connect(function() bs2.Color=COL.acc end)
 end
 
 local function addButton(p,label,cb)
-    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,0,0,32); btn.BackgroundColor3=COL.panel; btn.BorderSizePixel=0; btn.Text=label; btn.TextColor3=COL.txt; btn.Font=Enum.Font.RobotoMono; btn.TextSize=12; btn.Parent=p
-    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=btn
+    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,0,0,36); btn.BackgroundColor3=COL.bg; btn.BorderSizePixel=0; btn.Text=label; btn.TextColor3=COL.txt; btn.Font=Enum.Font.GothamBold; btn.TextSize=13; btn.Parent=p
+    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; bs.Parent=btn
     btn.MouseButton1Click:Connect(function() pcall(cb) end)
 end
 
@@ -154,21 +199,22 @@ local UI = {
 }
 
 for _, tName in ipairs({"AIM","VISUAL","COMBAT","FARM","MOVE","MISC"}) do
-    local pg = addTab(tName, #tName*6+16)
+    local pg = addTab(tName, #tName*8+14)
     local d = UI[tName]
     if d.toggles then addSection(pg,"Toggles") for _,v in ipairs(d.toggles) do addToggle(pg,v[1],v[2]) end end
     if d.inputs then addSection(pg,"Settings") for _,v in ipairs(d.inputs) do addInput(pg,v[1],v[2],v[3],v[4]) end end
     if d.buttons then addSection(pg,"Actions") for _,v in ipairs(d.buttons) do addButton(pg,v[1],function() if v[2]=="hop" then TS:Teleport(game.PlaceId) elseif v[2]=="rejoin" then game:Shutdown() end end) end end
     if tName == "FARM" then
-        farmStatus = Instance.new("TextLabel"); farmStatus.Size=UDim2.new(1,0,0,24); farmStatus.BackgroundTransparency=1; farmStatus.Text=">> Idle"; farmStatus.TextColor3=COL.acc; farmStatus.Font=Enum.Font.RobotoMono; farmStatus.TextSize=12; farmStatus.TextXAlignment=Enum.TextXAlignment.Left; farmStatus.Parent=pg
+        farmStatus = Instance.new("TextLabel"); farmStatus.Size=UDim2.new(1,0,0,24); farmStatus.BackgroundTransparency=1; farmStatus.Text=">> Idle"; farmStatus.TextColor3=COL.acc; farmStatus.Font=Enum.Font.GothamBold; farmStatus.TextSize=12; farmStatus.TextXAlignment=Enum.TextXAlignment.Left; farmStatus.Parent=pg
     end
 end
 
 for i,p in ipairs(pages) do p.Visible=(i==1) end
 tabs[1].TextColor3=COL.acc; tabs[1].BackgroundColor3=COL.bg
 
-local mBtn = Instance.new("TextButton"); mBtn.Size=UDim2.new(0,60,0,60); mBtn.Position=UDim2.new(0,20,0,100); mBtn.BackgroundColor3=Color3.fromRGB(10,10,10); mBtn.BorderSizePixel=2; mBtn.BorderColor3=COL.acc; mBtn.Text="D"; mBtn.TextColor3=COL.txt; mBtn.Font=Enum.Font.RobotoMono; mBtn.TextSize=32; mBtn.ZIndex=100; mBtn.Parent=gui; getgenv().mBtn=mBtn
-local subD = Instance.new("TextLabel"); subD.Size=UDim2.new(1,0,0,10); subD.Position=UDim2.new(0,0,1,-12); subD.BackgroundTransparency=1; subD.Text="PROJECT"; subD.TextColor3=COL.acc; subD.Font=Enum.Font.RobotoMono; subD.TextSize=8; subD.Parent=mBtn
+-- FLOATING LOGO
+local mBtn = Instance.new("TextButton"); mBtn.Size=UDim2.new(0,60,0,60); mBtn.Position=UDim2.new(0,20,0,100); mBtn.BackgroundColor3=Color3.fromRGB(15,10,20); mBtn.BorderSizePixel=2; mBtn.BorderColor3=COL.acc; mBtn.Text="D"; mBtn.TextColor3=COL.txt; mBtn.Font=Enum.Font.GothamBlack; mBtn.TextSize=32; mBtn.ZIndex=100; mBtn.Parent=gui; getgenv().mBtn=mBtn
+local subD = Instance.new("TextLabel"); subD.Size=UDim2.new(1,0,0,10); subD.Position=UDim2.new(0,0,1,-12); subD.BackgroundTransparency=1; subD.Text="PROJECT"; subD.TextColor3=COL.acc; subD.Font=Enum.Font.GothamBold; subD.TextSize=8; subD.Parent=mBtn
 
 local drag,ds,sp
 mBtn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true; ds=i.Position; sp=mBtn.Position end end)
@@ -392,4 +438,4 @@ task.spawn(function()
     end
 end)
 
-print("[GRAYS ON TOP] v9.1 Safe Walk loaded.")
+print("[GRAYS ON TOP] v9.2 Project D loaded.")
