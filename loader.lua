@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v10.1 — Anti-Kick Ghost Client (Fixed)
-    No Metatable Hooks | No Teleport Hacks | Pure Safe Farm
+    GRAYS ON TOP v11.0 — Neon Bypass Edition
+    True Silent Aim | Safe Farm | Zero Image Crash
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -19,16 +19,17 @@ local VU = game:GetService("VirtualUser")
 local L = game:GetService("Lighting")
 
 local CFG = {
-    aim=false, aimfov=150,
+    aim=false, aimfov=150, aimpart="Head", wallcheck=false,
     esp=false, bright=false, fpsboost=false, nofog=false,
-    camfly=false, noclip=false, ws=16, jp=50, infjump=false,
-    autofire=false, clicker=false, cps=10, hitbox=false, killaura=false,
+    noclip=false, camfly=false, infjump=false, ws=16, jp=50,
+    autofire=false, autofix=false, clicker=false, cps=10, hitbox=false, killaura=false,
     farm=false, targetmoney=1000,
     antiafk=false,
     keyMenu=Enum.KeyCode.RightShift
 }
 
 local farmStatus = nil
+local speedVal = 0
 
 local function getHui()
     if typeof(gethui)=="function" then local ok,h=pcall(gethui); if ok and h then return h end end
@@ -48,24 +49,16 @@ local function clickDialog(txt)
     if not pg then return end
     for _,g in pairs(pg:GetDescendants()) do
         if (g:IsA("TextButton") or g:IsA("TextLabel")) and g.Text:lower():find(txt:lower()) then
-            pcall(function() 
-                if g:IsA("TextButton") then 
-                    g.MouseButton1Click:Fire() 
-                elseif g.Parent:IsA("TextButton") then 
-                    g.Parent.MouseButton1Click:Fire() 
-                end 
-            end)
+            pcall(function() if g:IsA("TextButton") then g.MouseButton1Click:Fire() elseif g.Parent:IsA("TextButton") then g.Parent.MouseButton1Click:Fire() end end)
             return
         end
     end
 end
 
--- PURE SAFE WALK
 local function walkTo(tPos)
     local c = LP.Character
     local hum = c and c:FindFirstChildOfClass("Humanoid")
     if not hum then return end
-    
     hum:MoveTo(tPos)
     local t = 0
     while t < 10 and CFG.farm do
@@ -74,7 +67,7 @@ local function walkTo(tPos)
         task.wait(0.2)
         t += 0.2
     end
-    hum:MoveTo(c.HumanoidRootPart.Position) -- Stop
+    hum:MoveTo(c.HumanoidRootPart.Position)
 end
 
 local function interactPart(p)
@@ -84,40 +77,42 @@ local function interactPart(p)
     pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.05); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
 end
 
--- === PROJECT D MANGA THEME ===
+-- === NEON CYBERPUNK UI ===
 local COL = { 
-    bg=Color3.fromRGB(25,20,35), panel=Color3.fromRGB(15,10,20), 
-    line=Color3.fromRGB(80,40,100), txt=Color3.fromRGB(255,255,255), 
-    dim=Color3.fromRGB(150,150,150), acc=Color3.fromRGB(255,120,0), 
-    accDark=Color3.fromRGB(180,80,0), check=Color3.fromRGB(255,255,255) 
+    bg=Color3.fromRGB(12,12,15), panel=Color3.fromRGB(20,20,26), 
+    line=Color3.fromRGB(45,45,55), txt=Color3.fromRGB(255,255,255), 
+    dim=Color3.fromRGB(150,150,160), acc=Color3.fromRGB(255,0,60), -- Neon Red
+    cyan=Color3.fromRGB(0,255,255)
 }
 
 local gui = Instance.new("ScreenGui"); gui.Name="GOT"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().GOTGui=gui
-local main = Instance.new("Frame"); main.Size=UDim2.new(0,450,0,520); main.Position=UDim2.new(0,20,0,50); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
-local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=2; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
+local main = Instance.new("Frame"); main.Size=UDim2.new(0,450,0,500); main.Position=UDim2.new(0,20,0,50); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
+local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1.5; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
 
-local bgGrad = Instance.new("UIGradient"); bgGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(45,30,60)), ColorSequenceKeypoint.new(1, Color3.fromRGB(10,5,15))}); bgGrad.Rotation=45; bgGrad.Parent=main
+local bgGrad = Instance.new("UIGradient"); bgGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(20,20,25)), ColorSequenceKeypoint.new(1, Color3.fromRGB(5,5,8))}); bgGrad.Rotation=90; bgGrad.Parent=main
 
-local head = Instance.new("Frame"); head.Size=UDim2.new(1,0,0,80); head.Position=UDim2.new(0,0,0,0); head.BackgroundColor3=COL.panel; head.BorderSizePixel=0; head.ClipsDescendants=true; head.Parent=main
+-- HEADER
+local head = Instance.new("Frame"); head.Size=UDim2.new(1,0,0,60); head.Position=UDim2.new(0,0,0,0); head.BackgroundColor3=COL.panel; head.BorderSizePixel=0; head.Parent=main
+local hl = Instance.new("Frame"); hl.Size=UDim2.new(1,0,0,2); hl.Position=UDim2.new(0,0,1,-2); hl.BackgroundColor3=COL.acc; hl.BorderSizePixel=0; hl.Parent=head
 
-local headerImg = Instance.new("ImageLabel"); headerImg.Size = UDim2.new(1,0,1,0); headerImg.BackgroundTransparency = 1
-headerImg.Image = "rbxassetid://YOUR_IMAGE_ID_HERE" -- GANTI DENGAN ID AE86 LU
-headerImg.ScaleType = Enum.ScaleType.Crop; headerImg.Parent = head
+local wm = Instance.new("TextLabel"); wm.Size=UDim2.new(1,-20,0,35); wm.Position=UDim2.new(0,15,0,10); wm.BackgroundTransparency=1; wm.Text="GRAYS ON TOP"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.GothamBlack; wm.TextSize=24; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
+local subWm = Instance.new("TextLabel"); subWm.Size=UDim2.new(1,-20,0,15); subWm.Position=UDim2.new(0,16,0,35); subWm.BackgroundTransparency=1; subWm.Text="// PROJECT D: REDLINE"; subWm.TextColor3=COL.acc; subWm.Font=Enum.Font.GothamBold; subWm.TextSize=11; subWm.TextXAlignment=Enum.TextXAlignment.Left; subWm.Parent=head
 
-local imgOverlay = Instance.new("Frame"); imgOverlay.Size = UDim2.new(1,0,1,0); imgOverlay.BackgroundColor3 = Color3.fromRGB(0,0,0); imgOverlay.BackgroundTransparency = 0.4; imgOverlay.BorderSizePixel = 0; imgOverlay.Parent = head
-local overlayGrad = Instance.new("UIGradient"); overlayGrad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(45,30,60))}); overlayGrad.Rotation = 90; overlayGrad.Parent = imgOverlay
+-- RPM BAR (Fake Aesthetic)
+local rpmBar = Instance.new("Frame"); rpmBar.Size=UDim2.new(0, 120, 0, 6); rpmBar.Position=UDim2.new(1, -140, 0.5, -3); rpmBar.BackgroundColor3=COL.bg; rpmBar.BorderSizePixel=0; rpmBar.Parent=head
+local rpmFill = Instance.new("Frame"); rpmFill.Size=UDim2.new(0.5, 0, 1, 0); rpmFill.BackgroundColor3=COL.cyan; rpmFill.BorderSizePixel=0; rpmFill.Parent=rpmBar
+local rpmLabel = Instance.new("TextLabel"); rpmLabel.Size=UDim2.new(0, 120, 0, 12); rpmLabel.Position=UDim2.new(1, -140, 0.5, 4); rpmLabel.BackgroundTransparency=1; rpmLabel.Text="RPM: 0"; rpmLabel.TextColor3=COL.cyan; rpmLabel.Font=Enum.Font.RobotoMono; rpmLabel.TextSize=9; rpmLabel.TextXAlignment=Enum.TextXAlignment.Left; rpmLabel.Parent=head
 
-local wm = Instance.new("TextLabel"); wm.Size=UDim2.new(1,-20,0,40); wm.Position=UDim2.new(0,12,0,20); wm.BackgroundTransparency=1; wm.Text="GRAYS ON TOP"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.GothamBlack; wm.TextSize=28; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
-local subWm = Instance.new("TextLabel"); subWm.Size=UDim2.new(1,-20,0,20); subWm.Position=UDim2.new(0,14,0,50); subWm.BackgroundTransparency=1; subWm.Text="// GHOST CLIENT"; subWm.TextColor3=COL.acc; subWm.Font=Enum.Font.GothamBold; subWm.TextSize=12; subWm.TextXAlignment=Enum.TextXAlignment.Left; subWm.Parent=head
-local xBtn = Instance.new("TextButton"); xBtn.Size=UDim2.new(0,30,0,30); xBtn.Position=UDim2.new(1,-40,0,10); xBtn.BackgroundTransparency=1; xBtn.Text="×"; xBtn.TextColor3=COL.txt; xBtn.Font=Enum.Font.GothamBlack; xBtn.TextSize=26; xBtn.Parent=head
+local xBtn = Instance.new("TextButton"); xBtn.Size=UDim2.new(0,30,0,30); xBtn.Position=UDim2.new(1,-35,0,5); xBtn.BackgroundTransparency=1; xBtn.Text="×"; xBtn.TextColor3=COL.dim; xBtn.Font=Enum.Font.GothamBlack; xBtn.TextSize=24; xBtn.Parent=head
 
-local tabBar = Instance.new("Frame"); tabBar.Size=UDim2.new(1,0,0,30); tabBar.Position=UDim2.new(0,0,0,80); tabBar.BackgroundColor3=COL.panel; tabBar.BorderSizePixel=0; tabBar.Parent=main
+-- TABS
+local tabBar = Instance.new("Frame"); tabBar.Size=UDim2.new(1,0,0,30); tabBar.Position=UDim2.new(0,0,0,60); tabBar.BackgroundColor3=COL.panel; tabBar.BorderSizePixel=0; tabBar.Parent=main
 local tl = Instance.new("UIListLayout"); tl.FillDirection=Enum.FillDirection.Horizontal; tl.VerticalAlignment=Enum.VerticalAlignment.Center; tl.Parent=tabBar
 local tabs, pages = {}, {}
 
 local function addTab(name, w)
     local btn=Instance.new("TextButton"); btn.Size=UDim2.new(0,w,1,0); btn.BackgroundColor3=COL.panel; btn.BorderSizePixel=0; btn.Text=name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=tabBar; table.insert(tabs,btn)
-    local pg=Instance.new("ScrollingFrame"); pg.Size=UDim2.new(1,0,1,-110); pg.Position=UDim2.new(0,0,0,110); pg.BackgroundTransparency=1; pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc; pg.CanvasSize=UDim2.new(0,0,0,0); pg.AutomaticCanvasSize=Enum.AutomaticSize.Y; pg.Visible=false; pg.Parent=main
+    local pg=Instance.new("ScrollingFrame"); pg.Size=UDim2.new(1,0,1,-90); pg.Position=UDim2.new(0,0,0,90); pg.BackgroundTransparency=1; pg.BorderSizePixel=0; pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc; pg.CanvasSize=UDim2.new(0,0,0,0); pg.AutomaticCanvasSize=Enum.AutomaticSize.Y; pg.Visible=false; pg.Parent=main
     local l=Instance.new("UIListLayout"); l.Padding=UDim.new(0,6); l.Parent=pg
     local pd=Instance.new("UIPadding"); pd.PaddingLeft=UDim.new(0,14); pd.PaddingRight=UDim.new(0,14); pd.PaddingTop=UDim.new(0,14); pd.PaddingBottom=UDim.new(0,14); pd.Parent=pg
     local idx=#pages+1; table.insert(pages,pg)
@@ -129,34 +124,40 @@ local function addTab(name, w)
 end
 
 local function addSection(p, n)
-    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,0,24); l.BackgroundTransparency=1; l.Text="// "..string.upper(n); l.TextColor3=COL.acc; l.Font=Enum.Font.GothamBlack; l.TextSize=12; l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=p
+    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,0,20); l.BackgroundTransparency=1; l.Text="// "..string.upper(n); l.TextColor3=COL.dim; l.Font=Enum.Font.GothamBlack; l.TextSize=10; l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=p
 end
 
 local function addToggle(p,label,key)
     local row=Instance.new("TextButton"); row.Size=UDim2.new(1,0,0,36); row.BackgroundColor3=COL.bg; row.BorderSizePixel=0; row.AutoButtonColor=false; row.Text=""; row.Parent=p
     local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; bs.Parent=row
-    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-50,1,0); lbl.Position=UDim2.new(0,10,0,0); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=13; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=row
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-50,1,0); lbl.Position=UDim2.new(0,10,0,0); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=12; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=row
+    
     local box=Instance.new("Frame"); box.Size=UDim2.new(0,26,0,14); box.Position=UDim2.new(1,-36,0.5,-7); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Parent=row
     local bs2=Instance.new("UIStroke"); bs2.Color=COL.line; bs2.Thickness=1; bs2.Parent=box
     local fill=Instance.new("Frame"); fill.Size=UDim2.new(0,18,0,6); fill.Position=UDim2.new(0.5,-9,0.5,-3); fill.BackgroundColor3=COL.acc; fill.BorderSizePixel=0; fill.Visible=CFG[key]; fill.Parent=box
-    row.MouseButton1Click:Connect(function() CFG[key]=not CFG[key]; fill.Visible=CFG[key]; bs.Color = CFG[key] and COL.acc or COL.line end)
+    
+    row.MouseButton1Click:Connect(function() 
+        CFG[key]=not CFG[key]; 
+        fill.Visible=CFG[key]; 
+        bs.Color = CFG[key] and COL.acc or COL.line 
+    end)
 end
 
 local function addInput(p,label,key,mn,mx)
-    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,54); h.BackgroundColor3=COL.bg; h.Parent=p
+    local h=Instance.new("Frame"); h.Size=UDim2.new(1,0,0,50); h.BackgroundColor3=COL.bg; h.Parent=p
     local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; bs.Parent=h
-    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,18); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=12; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
-    local box=Instance.new("TextBox"); box.Size=UDim2.new(1,-20,0,22); box.Position=UDim2.new(0,10,0,24); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Text=tostring(CFG[key]); box.TextColor3=COL.acc; box.Font=Enum.Font.RobotoMono; box.TextSize=13; box.TextXAlignment=Enum.TextXAlignment.Left; box.Parent=h
+    local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,-10,0,16); lbl.Position=UDim2.new(0,10,0,4); lbl.BackgroundTransparency=1; lbl.Text=label; lbl.TextColor3=COL.txt; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=11; lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=h
+    local box=Instance.new("TextBox"); box.Size=UDim2.new(1,-20,0,20); box.Position=UDim2.new(0,10,0,22); box.BackgroundColor3=COL.panel; box.BorderSizePixel=0; box.Text=tostring(CFG[key]); box.TextColor3=COL.acc; box.Font=Enum.Font.RobotoMono; box.TextSize=12; box.TextXAlignment=Enum.TextXAlignment.Left; box.Parent=h
     local bs2=Instance.new("UIStroke"); bs2.Color=COL.line; bs2.Thickness=1; bs2.Parent=box
     box.FocusLost:Connect(function() local n=tonumber(box.Text); if n then CFG[key]=math.clamp(n,mn,mx) end; box.Text=tostring(CFG[key]); bs2.Color=COL.line end)
     box.Focused:Connect(function() bs2.Color=COL.acc end)
 end
 
 local UI = {
-    COMBAT = { toggles = { {"Camera Aim (Safe)","aim"}, {"Auto Fire","autofire"}, {"Auto Clicker","clicker"}, {"Hitbox Expander","hitbox"}, {"Kill Aura","killaura"} }, inputs = { {"FOV Radius","aimfov",50,400}, {"CPS","cps",1,30} } },
+    COMBAT = { toggles = { {"Silent Aim","aim"}, {"Wall Check","wallcheck"}, {"Auto Fire","autofire"}, {"Auto Fix Jam","autofix"}, {"Auto Clicker","clicker"}, {"Hitbox Expander","hitbox"}, {"Kill Aura","killaura"} }, inputs = { {"FOV","aimfov",50,400}, {"CPS","cps",1,30} } },
     VISUAL = { toggles = { {"ESP Players","esp"}, {"Fullbright","bright"}, {"FPS Boost","fpsboost"}, {"No Fog","nofog"} } },
     FARM = { toggles = { {"Auto Job (Walk)","farm"} }, inputs = { {"Target Money","targetmoney",100,50000} } },
-    MOVE = { toggles = { {"Cam Fly","camfly"}, {"Noclip (Risky)","noclip"}, {"Infinite Jump","infjump"} }, inputs = { {"WalkSpeed","ws",16,100}, {"JumpPower","jp",50,500} } },
+    MOVE = { toggles = { {"Cam Fly","camfly"}, {"Noclip","noclip"}, {"Infinite Jump","infjump"} }, inputs = { {"WalkSpeed","ws",16,100}, {"JumpPower","jp",50,500} } },
     MISC = { toggles = { {"Anti-AFK","antiafk"} }, buttons = { {"Server Hop","hop"} } }
 }
 
@@ -167,13 +168,14 @@ for _, tName in ipairs({"COMBAT","VISUAL","FARM","MOVE","MISC"}) do
     if d.inputs then addSection(pg,"Settings") for _,v in ipairs(d.inputs) do addInput(pg,v[1],v[2],v[3],v[4]) end end
     if d.buttons then addSection(pg,"Actions") for _,v in ipairs(d.buttons) do local b=Instance.new("TextButton"); b.Size=UDim2.new(1,0,0,36); b.BackgroundColor3=COL.bg; b.Text=v[1]; b.TextColor3=COL.txt; b.Font=Enum.Font.GothamBold; b.Parent=pg; b.MouseButton1Click:Connect(function() if v[2]=="hop" then TS:Teleport(game.PlaceId) end end) end end
     if tName == "FARM" then
-        farmStatus = Instance.new("TextLabel"); farmStatus.Size=UDim2.new(1,0,0,24); farmStatus.BackgroundTransparency=1; farmStatus.Text=">> Idle"; farmStatus.TextColor3=COL.acc; farmStatus.Font=Enum.Font.GothamBold; farmStatus.TextSize=12; farmStatus.TextXAlignment=Enum.TextXAlignment.Left; farmStatus.Parent=pg
+        farmStatus = Instance.new("TextLabel"); farmStatus.Size=UDim2.new(1,0,0,24); farmStatus.BackgroundTransparency=1; farmStatus.Text=">> Idle"; farmStatus.TextColor3=COL.cyan; farmStatus.Font=Enum.Font.RobotoMono; farmStatus.TextSize=11; farmStatus.TextXAlignment=Enum.TextXAlignment.Left; farmStatus.Parent=pg
     end
 end
 for i,p in ipairs(pages) do p.Visible=(i==1) end
 tabs[1].TextColor3=COL.acc; tabs[1].BackgroundColor3=COL.bg
 
-local mBtn = Instance.new("TextButton"); mBtn.Size=UDim2.new(0,60,0,60); mBtn.Position=UDim2.new(0,20,0,100); mBtn.BackgroundColor3=Color3.fromRGB(15,10,20); mBtn.BorderSizePixel=2; mBtn.BorderColor3=COL.acc; mBtn.Text="D"; mBtn.TextColor3=COL.txt; mBtn.Font=Enum.Font.GothamBlack; mBtn.TextSize=32; mBtn.ZIndex=100; mBtn.Parent=gui
+-- LOGO MENGAMBANG
+local mBtn = Instance.new("TextButton"); mBtn.Size=UDim2.new(0,60,0,60); mBtn.Position=UDim2.new(0,20,0,100); mBtn.BackgroundColor3=COL.bg; mBtn.BorderSizePixel=2; mBtn.BorderColor3=COL.acc; mBtn.Text="D"; mBtn.TextColor3=COL.txt; mBtn.Font=Enum.Font.GothamBlack; mBtn.TextSize=32; mBtn.ZIndex=100; mBtn.Parent=gui
 local drag,ds,sp
 mBtn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true; ds=i.Position; sp=mBtn.Position end end)
 UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseMovement) then local d=i.Position-ds; mBtn.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end end)
@@ -187,29 +189,61 @@ head.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Mouse
 UIS.InputChanged:Connect(function(i) if dragM and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-dsM; main.Position=UDim2.new(spM.X.Scale,spM.X.Offset+d.X,spM.Y.Scale,spM.Y.Offset+d.Y) end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragM=false end end)
 
--- SAFE CAMERA AIM (No Metatable)
+-- RPM VISUALIZER
 RS.RenderStepped:Connect(function()
-    if CFG.aim then
-        local best, bd = nil, math.huge
-        local sc=Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)
-        for _,p in ipairs(P:GetPlayers()) do if p~=LP then
-            local c=p.Character
-            local part=c and c:FindFirstChild("Head")
-            local hum=c and c:FindFirstChildOfClass("Humanoid")
-            if part and hum and hum.Health>0 then
-                local sp2, on = CAM:WorldToViewportPoint(part.Position)
-                if on then
-                    local d=(Vector2.new(sp2.X,sp2.Y)-sc).Magnitude
-                    if d<CFG.aimfov and d<bd then bd=d; best=part end
-                end
-            end
-        end
-        if best then
-            CAM.CFrame = CAM.CFrame:Lerp(CFrame.new(CAM.CFrame.Position, best.Position), 0.2)
-        end
+    if main.Visible then
+        speedVal = (speedVal + math.random(10, 50)) % 100
+        rpmFill.Size = UDim2.new(speedVal/100, 0, 1, 0)
+        rpmLabel.Text = string.format("RPM: %d", math.floor(speedVal * 80))
     end
 end)
 
+-- ENGINE: SILENT AIM (True Hook)
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if CFG.aim and method == "Raycast" and self == WS then
+        local args = {...}
+        local origin = args[1]
+        local direction = args[2]
+        local bestPart, bestDist = nil, CFG.aimfov
+        
+        for _, p in ipairs(P:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local part = p.Character:FindFirstChild(CFG.aimpart)
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if part and hum and hum.Health > 0 then
+                    local screenPos, onScreen = CAM:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(CAM.ViewportSize.X/2, CAM.ViewportSize.Y/2)).Magnitude
+                        if dist < bestDist then
+                            if CFG.wallcheck then
+                                local rp = RaycastParams.new()
+                                rp.FilterDescendantsInstances = {LP.Character, p.Character}
+                                rp.FilterType = Enum.RaycastFilterType.Exclude
+                                local res = WS:Raycast(origin, part.Position - origin, rp)
+                                if not res or not res.Instance then bestDist = dist; bestPart = part end
+                            else
+                                bestDist = dist; bestPart = part
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        if bestPart then
+            local newDir = (bestPart.Position - origin).Unit * (direction.Magnitude or 1000)
+            return oldNamecall(self, origin, newDir, ...)
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
+
+-- ENGINE: COMBAT & VISUALS
 RS.Heartbeat:Connect(function()
     if CFG.killaura and LP.Character then
         local tool = LP.Character:FindFirstChildWhichIsA("Tool")
@@ -226,13 +260,14 @@ end)
 
 local esp = {}
 task.spawn(function() while true do task.wait(1)
-    if CFG.esp then for _,p in ipairs(P:GetPlayers()) do if p~=LP and p.Character and not esp[p] then local h=Instance.new("Highlight"); h.FillColor=COL.acc; h.OutlineColor=COL.check; h.Parent=p.Character; esp[p]=h end end
+    if CFG.esp then for _,p in ipairs(P:GetPlayers()) do if p~=LP and p.Character and not esp[p] then local h=Instance.new("Highlight"); h.FillColor=COL.acc; h.OutlineColor=COL.cyan; h.Parent=p.Character; esp[p]=h end end
     else for p,h in pairs(esp) do if h then h:Destroy() end; esp[p]=nil end end
     if CFG.bright then L.Brightness=3 L.ClockTime=14 else L.Brightness=1 end
     if CFG.nofog then L.FogEnd=1e6 else L.FogEnd=1000 end
     if CFG.fpsboost then L.GlobalShadows=false else L.GlobalShadows=true end
 end end)
 
+-- ENGINE: MOVEMENT & CLICKER
 RS.Stepped:Connect(function()
     local c=LP.Character; if not c then return end
     local h=c:FindFirstChild("HumanoidRootPart"); local hum=c:FindFirstChildOfClass("Humanoid")
@@ -241,52 +276,19 @@ RS.Stepped:Connect(function()
 end)
 
 UIS.JumpRequest:Connect(function() if CFG.infjump and LP.Character then local hum=LP.Character:FindFirstChildOfClass("Humanoid"); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end end end)
-
-local camConn
-task.spawn(function() local wasC = false
-    while true do task.wait(0.1)
-        if CFG.camfly and not wasC then
-            CAM.CameraSubject=nil
-            camConn=RS.RenderStepped:Connect(function()
-                local mv=Vector3.new(0,0,0)
-                if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+CAM.CFrame.LookVector end
-                if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-CAM.CFrame.LookVector end
-                if UIS:IsKeyDown(Enum.KeyCode.A) then mv=mv-CAM.CFrame.RightVector end
-                if UIS:IsKeyDown(Enum.KeyCode.D) then mv=mv+CAM.CFrame.RightVector end
-                if UIS:IsKeyDown(Enum.KeyCode.Space) then mv=mv+Vector3.new(0,1,0) end
-                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then mv=mv-Vector3.new(0,1,0) end
-                if mv.Magnitude>0 then CAM.CFrame=CAM.CFrame+(mv.Unit*CFG.ws*(1/60)) end
-            end)
-        elseif not CFG.camfly and wasC then
-            if camConn then camConn:Disconnect() end; local hum=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid"); if hum then CAM.CameraSubject=hum end
-        end
-        wasC = CFG.camfly
-    end
-end)
-
 LP.Idled:Connect(function() if CFG.antiafk then VU:CaptureController(); VU:ClickButton2(Vector2.new()) end end)
 task.spawn(function() while true do task.wait(1/math.max(1,CFG.cps))
     if CFG.clicker then pcall(function() VIM:SendMouseButtonEvent(0,0,0,true,game,0); VIM:SendMouseButtonEvent(0,0,0,false,game,0) end) end
 end end)
 
-task.spawn(function() while true do task.wait(0.1)
-    local c=LP.Character; local tool=c and c:FindFirstChildWhichIsA("Tool")
-    if tool then
-        if CFG.autofire then pcall(function() VIM:SendMouseButtonEvent(0,0,0,true,game,0); VIM:SendMouseButtonEvent(0,0,0,false,game,0) end); if tool.Activate then pcall(function() tool:Activate() end) end end
-    end
-end end)
-
--- SAFE FARM ENGINE (Fixed Syntax)
+-- ENGINE: FARM
 task.spawn(function()
     while task.wait(1) do
         if CFG.farm then
             local success, err = pcall(function()
                 local c=LP.Character
                 local hrp=c and c:FindFirstChild("HumanoidRootPart")
-                if not hrp then 
-                    farmStatus.Text = ">> No Char" 
-                    return 
-                end
+                if not hrp then farmStatus.Text = ">> No Char" return end
                 
                 local m=getMoney()
                 local t=tonumber(CFG.targetmoney) or 1000
@@ -301,9 +303,7 @@ task.spawn(function()
                         task.wait(2)
                         CFG.farm=false
                         farmStatus.Text=">> Done." 
-                    else 
-                        farmStatus.Text=">> No NPC" 
-                    end
+                    else farmStatus.Text=">> No NPC" end
                 else
                     local has=c:FindFirstChildWhichIsA("Tool")
                     local tgtName=has and {"truck","deliver","trailer","mule"} or {"crate","pickup","box"}
@@ -336,22 +336,16 @@ task.spawn(function()
                             task.wait(0.5)
                             clickDialog("looking for work")
                             task.wait(1.5)
-                        else 
-                            farmStatus.Text=">> No NPC" 
-                        end
+                        else farmStatus.Text=">> No NPC" end
                     end
                 end
             end)
-            if not success then 
-                farmStatus.Text = ">> Err: " .. tostring(err) 
-            end
+            if not success then farmStatus.Text = ">> Err: " .. tostring(err) end
         else
-            if farmStatus and farmStatus.Text ~= ">> Idle" then 
-                farmStatus.Text = ">> Idle" 
-            end
+            if farmStatus and farmStatus.Text ~= ">> Idle" then farmStatus.Text = ">> Idle" end
             task.wait(1)
         end
     end
 end)
 
-print("[GRAYS ON TOP] v10.1 Ghost Client loaded.")
+print("[GRAYS ON TOP] v11.0 Neon loaded.")
