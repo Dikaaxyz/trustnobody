@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v62.7 — Geometric ESP (Circle, Triangle, Tracer Laser)
+    v62.8 — 60s ESP Refresh (Zero Stutter)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -47,7 +47,7 @@ local function getHiddenFolder()
 end
 
 -- ==========================================
--- GUI (SCROLLING ENABLED, ALL TABS)
+-- GUI
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -350,7 +350,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ESP ENGINE (Highlight + Circle/Tracer)
+-- ESP ENGINE (60s Refresh Cycle)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -384,32 +384,21 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local carrier = getHiddenFolder()
     
     local hl = Instance.new("Highlight")
-    hl.FillColor = color
-    hl.OutlineColor = color
-    hl.FillTransparency = 0.5
-    hl.OutlineTransparency = 0
+    hl.FillColor = color; hl.OutlineColor = color
+    hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee = adorneeObj
-    hl.Parent = carrier
+    hl.Adornee = adorneeObj; hl.Parent = carrier
 
     local bg = Instance.new("BillboardGui")
-    bg.Name = "Spook_ESP"
-    bg.Adornee = hrp
-    bg.Size = UDim2.new(0, 150, 0, 45)
-    bg.StudsOffset = Vector3.new(0, 3.2, 0)
-    bg.AlwaysOnTop = true
-    bg.Parent = carrier
+    bg.Name = "Spook_ESP"; bg.Adornee = hrp
+    bg.Size = UDim2.new(0, 150, 0, 45); bg.StudsOffset = Vector3.new(0, 3.2, 0)
+    bg.AlwaysOnTop = true; bg.Parent = carrier
 
     local function label(y, sz, col, font)
         local l = Instance.new("TextLabel")
-        l.Size = UDim2.new(1, 0, 0, sz)
-        l.Position = UDim2.new(0, 0, 0, y)
-        l.BackgroundTransparency = 1
-        l.TextColor3 = col
-        l.TextStrokeTransparency = 0
-        l.Font = font
-        l.TextSize = sz
-        l.Parent = bg
+        l.Size = UDim2.new(1, 0, 0, sz); l.Position = UDim2.new(0, 0, 0, y)
+        l.BackgroundTransparency = 1; l.TextColor3 = col
+        l.TextStrokeTransparency = 0; l.Font = font; l.TextSize = sz; l.Parent = bg
         return l
     end
 
@@ -417,17 +406,12 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     nameLbl.Text = nameStr
 
     local hpBg = Instance.new("Frame")
-    hpBg.Size = UDim2.new(0.6, 0, 0, 4)
-    hpBg.Position = UDim2.new(0.2, 0, 0, 16)
-    hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    hpBg.BorderSizePixel = 0
-    hpBg.Parent = bg
+    hpBg.Size = UDim2.new(0.6, 0, 0, 4); hpBg.Position = UDim2.new(0.2, 0, 0, 16)
+    hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40); hpBg.BorderSizePixel = 0; hpBg.Parent = bg
 
     local hpFill = Instance.new("Frame")
-    hpFill.Size = UDim2.new(1, 0, 1, 0)
-    hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    hpFill.BorderSizePixel = 0
-    hpFill.Parent = hpBg
+    hpFill.Size = UDim2.new(1, 0, 1, 0); hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    hpFill.BorderSizePixel = 0; hpFill.Parent = hpBg
 
     local itemLbl = label(22, 12, Color3.fromRGB(0, 255, 255), Enum.Font.GothamBold)
     local distLbl = label(34, 12, Color3.fromRGB(200, 200, 200), Enum.Font.Gotham)
@@ -447,6 +431,37 @@ local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg, lines = lines }
 end
 
+-- 60 SECOND SCANNER
+task.spawn(function()
+    while true do
+        task.wait(60) -- Interval lu, Chef
+        if MasterEnabled and CFG.esp then
+            pcall(function()
+                local myChar = LP.Character
+                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP then
+                        local char = p.Character
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        
+                        if hrp and hum and hum.Health > 0 then
+                            destroyEspEntry(p)
+                            local killer = isKillerSafe(p)
+                            local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
+                            buildEspEntry(p, char, hrp, color, p.Name)
+                        else
+                            destroyEspEntry(p)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- FAST UPDATER (Positions & text only)
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -456,124 +471,87 @@ task.spawn(function()
                 local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 local cam = WS.CurrentCamera
                 
-                for _, p in ipairs(P:GetPlayers()) do
-                    if p ~= LP then
-                        local char = p.Character
-                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                        local hum = char and char:FindFirstChildOfClass("Humanoid")
-                        local head = char and char:FindFirstChild("Head")
+                for p, d in pairs(espData) do
+                    local char = p.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    local head = char and char:FindFirstChild("Head")
+                    
+                    if hrp and hum and hum.Health > 0 and head and d.hl and d.bg then
+                        local killer = isKillerSafe(p)
+                        local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
                         
-                        local d = espData[p]
-                        
-                        if hrp and hum and hum.Health > 0 and head then
-                            if not d or not d.hl or not d.hl.Parent or not d.bg or not d.bg.Parent then
-                                destroyEspEntry(p)
-                                buildEspEntry(p, char, hrp, Color3.new(1,1,1), p.Name)
-                                d = espData[p]
-                            end
-                            
-                            local killer = isKillerSafe(p)
-                            local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-                            
-                            -- Threat Detection for Yellow Flash
-                            if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 then
-                                local animator = hum:FindFirstChildOfClass("Animator")
-                                if animator then
-                                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                                        local n = track.Name:lower()
-                                        if track.WeightCurrent > 0.1 and not (n:find("idle") or n:find("walk") or n:find("run") or n:find("fall")) then
-                                            color = Color3.fromRGB(255, 255, 0); break
-                                        end
+                        -- Threat Detection (Yellow)
+                        if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 then
+                            local animator = hum:FindFirstChildOfClass("Animator")
+                            if animator then
+                                for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                    local n = track.Name:lower()
+                                    if track.WeightCurrent > 0.1 and not (n:find("idle") or n:find("walk") or n:find("run") or n:find("fall")) then
+                                        color = Color3.fromRGB(255, 255, 0); break
                                     end
                                 end
                             end
-                            
-                            if d.lastColor ~= color then
-                                d.hl.FillColor = color
-                                d.hl.OutlineColor = color
-                                d.name.TextColor3 = color
-                                d.lastColor = color
-                            end
-                            
-                            d.hl.Adornee = char
-                            
-                            local itemName = (not killer and CFG.esp_item) and getSurvivorItem(p) or nil
-                            if itemName then
-                                d.item.Text = "[" .. itemName .. "]"
-                                d.item.Visible = true
-                            else
-                                d.item.Visible = false
-                            end
-                            
-                            if CFG.esp_health then
-                                local hPct = hum.Health / hum.MaxHealth
-                                d.hpBg.Visible = true
-                                d.hp.Size = UDim2.new(hPct, 0, 1, 0)
-                                d.hp.BackgroundColor3 = hPct > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-                            else
-                                d.hpBg.Visible = false
-                            end
-                            
-                            local dist = 0
-                            if myHrp then
-                                dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
-                                d.dist.Text = "[" .. dist .. "m]"
-                                d.dist.Visible = CFG.esp_dist
-                            else
-                                d.dist.Visible = false
-                            end
-                            
-                            -- DRAWING API ENGINE
-                            if HAS_DRAWING and d.lines then
-                                local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                                local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
-                                
-                                if onScreenHead and onScreenFoot then
-                                    local height = math.abs(headPos.Y - footPos.Y)
-                                    local width = height * 0.6
-                                    local cx = math.min(headPos.X, footPos.X) + (width/2)
-                                    local cy = math.min(headPos.Y, footPos.Y)
-                                    
-                                    -- Circle Under Feet
-                                    d.lines.circle.Color = color
-                                    d.lines.circle.Visible = true
-                                    d.lines.circle.Position = Vector2.new(footPos.X, footPos.Y)
-                                    d.lines.circle.Radius = width / 1.5
-                                    
-                                    -- Triangle Above Head (Killer only)
-                                    d.lines.triangle.Visible = killer
-                                    if killer then
-                                        d.lines.triangle.Color = color
-                                        local p1 = Vector2.new(cx, cy - 15)
-                                        local p2 = Vector2.new(cx - 8, cy - 30)
-                                        local p3 = Vector2.new(cx + 8, cy - 30)
-                                        d.lines.triangle.PointA = p1
-                                        d.lines.triangle.PointB = p2
-                                        d.lines.triangle.PointC = p3
-                                    end
-                                    
-                                    -- Laser Tracer (Killer only)
-                                    d.lines.tracer.Visible = killer
-                                    if killer then
-                                        d.lines.tracer.Color = color
-                                        d.lines.tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
-                                        d.lines.tracer.To = Vector2.new(headPos.X, headPos.Y)
-                                    end
-                                else
-                                    d.lines.circle.Visible = false
-                                    d.lines.triangle.Visible = false
-                                    d.lines.tracer.Visible = false
-                                end
-                            end
-                            
-                        else
-                            destroyEspEntry(p)
                         end
+                        
+                        if d.lastColor ~= color then
+                            d.hl.FillColor = color; d.hl.OutlineColor = color
+                            d.name.TextColor3 = color; d.lastColor = color
+                        end
+                        d.hl.Adornee = char
+                        
+                        local itemName = (not killer and CFG.esp_item) and getSurvivorItem(p) or nil
+                        if itemName then d.item.Text = "["..itemName.."]"; d.item.Visible = true else d.item.Visible = false end
+                        
+                        if CFG.esp_health then
+                            local hPct = hum.Health / hum.MaxHealth
+                            d.hpBg.Visible = true; d.hp.Size = UDim2.new(hPct,0,1,0)
+                            d.hp.BackgroundColor3 = hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+                        else d.hpBg.Visible = false end
+                        
+                        if myHrp then
+                            local dist = math.floor((hrp.Position - myHrp.Position).Magnitude)
+                            d.dist.Text = "["..dist.."m]"; d.dist.Visible = CFG.esp_dist
+                        else d.dist.Visible = false end
+                        
+                        if HAS_DRAWING and d.lines then
+                            local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                            local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+                            
+                            if onScreenHead and onScreenFoot then
+                                local height = math.abs(headPos.Y - footPos.Y)
+                                local width = height * 0.6
+                                local cx = math.min(headPos.X, footPos.X) + (width/2)
+                                local cy = math.min(headPos.Y, footPos.Y)
+                                
+                                d.lines.circle.Color = color; d.lines.circle.Visible = true
+                                d.lines.circle.Position = Vector2.new(footPos.X, footPos.Y)
+                                d.lines.circle.Radius = width / 1.5
+                                
+                                d.lines.triangle.Visible = killer
+                                if killer then
+                                    d.lines.triangle.Color = color
+                                    d.lines.triangle.PointA = Vector2.new(cx, cy - 15)
+                                    d.lines.triangle.PointB = Vector2.new(cx - 8, cy - 30)
+                                    d.lines.triangle.PointC = Vector2.new(cx + 8, cy - 30)
+                                end
+                                
+                                d.lines.tracer.Visible = killer
+                                if killer then
+                                    d.lines.tracer.Color = color
+                                    d.lines.tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+                                    d.lines.tracer.To = Vector2.new(headPos.X, headPos.Y)
+                                end
+                            else
+                                d.lines.circle.Visible = false; d.lines.triangle.Visible = false; d.lines.tracer.Visible = false
+                            end
+                        end
+                    else
+                        -- Clean up dead/missing entities
+                        destroyEspEntry(p)
                     end
                 end
             end)
-        else
-            for k in pairs(espData) do destroyEspEntry(k) end
         end
     end
 end)
@@ -860,4 +838,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v62.7 loaded — Geometric Visuals Active")
+print("[SpookingD] v62.8 loaded — 60s Scan Active")
