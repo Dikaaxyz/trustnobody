@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v62.2 — Precision Skillcheck + Directional Parry
+    v62.3 — Full UI Restored + Precision Engines
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -47,7 +47,7 @@ local function getHiddenFolder()
 end
 
 -- ==========================================
--- GUI
+-- GUI (ALL TABS RESTORED)
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -254,6 +254,27 @@ addSlider(boxFOV, "FOV Value", "fov_val", 50, 120, 60)
 local boxMisc = createBox(pgMisc, "Movement", 10, 230, 440, 100)
 addSwitch(boxMisc, "Enable WalkSpeed", "ws_enabled", 30)
 addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
+
+local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 340, 440, 150)
+addButton(boxBypass, "Re-Apply HWID Bypass", function()
+    pcall(function()
+        game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return "SPOOK_991" end
+    end)
+end, 30)
+addButton(boxBypass, "FLUSH LOGS & CACHE", function()
+    if writefile and isfile and delfile then
+        pcall(function()
+            for _, f in ipairs({"RobloxCookies.dat", "rbx_cookie", "log.txt"}) do
+                if isfile(f) then delfile(f) end
+            end
+        end)
+    end
+end, 60)
+addButton(boxBypass, "Panic Wipe (Log Out)", function()
+    fullTeardown()
+    task.wait(0.05)
+    game:Shutdown()
+end, 90)
 
 sideTabs[1].TextColor3=COL.txt; sideTabs[1].BackgroundColor3=COL.panel; sidePages[1].Visible=true
 
@@ -673,7 +694,7 @@ task.spawn(function()
                     end
                 end
             elseif tick() - lastUiCheck > 1.5 then
-                -- Fallback spam ONLY if UI is missing due to game error
+                -- Fallback spam ONLY if UI is broken/missing
                 local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
                 pcall(function()
                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -784,4 +805,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v62.2 loaded — Precision Targeted")
+print("[SpookingD] v62.3 loaded — All Tabs + Precision Active")
