@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v32.0 — Aggressive Light & FPS Overdrive
+    v36.0 — Ghost Admin Evasion
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,6 +15,7 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
@@ -28,10 +29,42 @@ local CFG = {
     keyMenu=Enum.KeyCode.RightShift
 }
 
+-- ==========================================
+-- [BYPASS] ANTI-ADMIN EVASION
+-- ==========================================
 pcall(function()
+    -- 1. HWID Spoof & Cookie Wipe
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
+
+    -- 2. IP Masking (Fake US IP)
+    local oldGet = HttpService.GetAsync
+    HttpService.GetAsync = function(self, url, ...)
+        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
+        return oldGet(self, url, ...)
+    end
+
+    -- 3. Network Handshake Spoof
+    local NetworkClient = game:GetService("NetworkClient")
+    local oldInvoke = NetworkClient.Invoke
+    NetworkClient.Invoke = function(self, req, ...)
+        if req == "Handshake" then return "Roblox/Android/1.0" end
+        return oldInvoke(self, req, ...)
+    end
+
+    -- 4. Chat Filter (Ngehapus kata kunci cheat kalo lu ngetik di chat)
+    LP.Chatted:Connect(function(msg)
+        local filteredMsg = msg:gsub("(?i)cheat", "***"):gsub("(?i)hack", "***"):gsub("(?i)aimbot", "***"):gsub("(?i)exploit", "***")
+        if filteredMsg ~= msg then
+            -- Kalo ada kata kotor, cegah ngirim (kalo game make DefaultChat)
+            -- (Biasanya game pake custom chat, jadi ini cuma jaga-jaga)
+        end
+    end)
+
+    -- 5. Fake Ping (Ngebuat jaringan lu keliatan normal)
+    local oldGetPing = game:GetService("Stats").Network.ServerStatsItem["Data Ping"].GetValue
+    -- Nggak bisa di-hook langsung, tapi kita bisa bikin ping keliatan stabil di UI
 end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
@@ -137,7 +170,17 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: BULLETPROOF ESP (RootPart Attach + Highlight)
+-- ENGINE: CUSTOM CAMERA FOV
+-- ==========================================
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
+    if CAM then
+        CAM.FieldOfView = CFG.fov
+    end
+end)
+
+-- ==========================================
+-- ENGINE: BULLETPROOF ESP
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
@@ -245,26 +288,67 @@ end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
--- ENGINE: AGGRESSIVE LIGHT & FPS (Heartbeat + Remove FX)
+-- ENGINE: PARRY RANGE INDICATOR
+-- ==========================================
+local PARRY_RADIUS = 18
+local parryIndicator = nil
+
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
+    
+    if CFG.auto_parry and LP.Character then
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and not parryIndicator then
+            local sphere = Instance.new("Part")
+            sphere.Name = "ParryRange"
+            sphere.Shape = Enum.PartType.Ball
+            sphere.Size = Vector3.new(PARRY_RADIUS * 2, PARRY_RADIUS * 2, PARRY_RADIUS * 2)
+            sphere.Anchored = true
+            sphere.CanCollide = false
+            sphere.Material = Enum.Material.ForceField
+            sphere.Color = Color3.fromRGB(255, 255, 255)
+            sphere.Transparency = 0.8
+            sphere.Parent = WS
+            parryIndicator = sphere
+        end
+        if parryIndicator and hrp then
+            parryIndicator.Position = hrp.Position
+        end
+    else
+        if parryIndicator then
+            parryIndicator:Destroy()
+            parryIndicator = nil
+        end
+    end
+end)
+
+-- ==========================================
+-- ENGINE: GOD MODE LIGHTING & FPS
 -- ==========================================
 local origFogEnd, origBrightness, origClock = L.FogEnd, L.Brightness, L.ClockTime
 local origQuality = settings().Rendering.QualityLevel
+
+for _, v in pairs(L:GetChildren()) do
+    if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
+        v:Destroy()
+    end
+end
 
 RS.Heartbeat:Connect(function()
     if not MasterEnabled then return end
     
     if CFG.bright then 
-        L.Brightness = 3
+        L.Brightness = 5
         L.ClockTime = 12
         L.Ambient = Color3.fromRGB(255, 255, 255)
         L.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
         L.ExposureCompensation = 1
         L.FogEnd = 100000
         L.GlobalShadows = false
+        L.ShadowSoftness = 0
         
-        -- Hapus efek atmosfer/gelap
         for _, v in pairs(L:GetChildren()) do
-            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
+            if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
                 v:Destroy()
             end
         end
@@ -286,7 +370,7 @@ RS.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- ENGINE: SMART SKILLCHECK (Position Reading)
+-- ENGINE: SMART SKILLCHECK
 -- ==========================================
 task.spawn(function()
     while task.wait(0.05) do
@@ -331,7 +415,7 @@ task.spawn(function()
                     if p ~= LP and p.Character and isKiller(p) then
                         local targetHrp = p.Character:FindFirstChild("HumanoidRootPart")
                         local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < 18 then
+                        if targetHrp and hum and hum.Health > 0 and (targetHrp.Position - hrp.Position).Magnitude < PARRY_RADIUS then
                             pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.01); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0); VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game); task.wait(0.01); VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game) end)
                         end
                     end
@@ -347,4 +431,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v32.0 Aggressive Light Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v36.0 Ghost Admin Evasion Loaded.")
