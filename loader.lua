@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v30.1 — Smart Skillcheck (Position Reading)
+    v31.0 — Bulletproof ESP & Smart Skillcheck
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,12 +15,11 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
 local CFG = {
-    esp=false, esp_box=true, esp_name=true, esp_health=true, esp_dist=true,
+    esp=false, esp_name=true, esp_health=true, esp_dist=true,
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
     crosshair=false, fov=70, hitbox_expand=false,
@@ -102,7 +101,7 @@ end
 local pgVisual = addSideTab("Visuals"); local pgWorld = addSideTab("World"); local pgSurvivor = addSideTab("Survivor"); local pgKiller = addSideTab("Killer"); local pgMisc = addSideTab("Misc")
 
 local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 200)
-addSwitch(boxESP, "Enable ESP", "esp", 30); addSwitch(boxESP, "Show Box", "esp_box", 60); addSwitch(boxESP, "Show Name", "esp_name", 90); addSwitch(boxESP, "Show Health", "esp_health", 120); addSwitch(boxESP, "Show Distance", "esp_dist", 150)
+addSwitch(boxESP, "Enable ESP", "esp", 30); addSwitch(boxESP, "Show Name", "esp_name", 60); addSwitch(boxESP, "Show Health", "esp_health", 90); addSwitch(boxESP, "Show Distance", "esp_dist", 120)
 
 local boxVisual = createBox(pgVisual, "Screen", 10, 220, 440, 100)
 addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30); addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60); addSlider(boxVisual, "Camera FOV", "fov", 50, 120, 90)
@@ -138,11 +137,11 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: ESP
+-- ENGINE: BULLETPROOF ESP (RootPart Attach + Highlight)
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
-local skillHighlights = {}
+local espData = {}
 
 local function isKiller(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -159,51 +158,94 @@ local function isKiller(p)
     return false
 end
 
-task.spawn(function()
-    while true do
-        task.wait(2)
-        for _, p in ipairs(P:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("Head") then
-                for _, child in ipairs(p.Character.Head:GetChildren()) do
-                    if child.Name == "TG_ESP" then child:Destroy() end
-                end
-            end
-        end
-        if MasterEnabled and CFG.esp then
-            for _, p in ipairs(P:GetPlayers()) do
-                if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
-                    local killer = isKiller(p)
-                    local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-                    local bg = Instance.new("BillboardGui"); bg.Name = "TG_ESP"; bg.Adornee = p.Character.Head; bg.Size = UDim2.new(0, 150, 0, 50); bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true; bg.Parent = p.Character.Head
-                    local nameLbl = Instance.new("TextLabel"); nameLbl.Name = "Name"; nameLbl.Size = UDim2.new(1, 0, 0, 14); nameLbl.BackgroundTransparency = 1; nameLbl.TextColor3 = color; nameLbl.TextStrokeTransparency = 0; nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 13; nameLbl.Parent = bg
-                    local distLbl = Instance.new("TextLabel"); distLbl.Name = "Dist"; distLbl.Size = UDim2.new(1, 0, 0, 12); distLbl.Position = UDim2.new(0, 0, 0, 14); distLbl.BackgroundTransparency = 1; distLbl.TextColor3 = Color3.fromRGB(200, 200, 200); distLbl.TextStrokeTransparency = 0; distLbl.Font = Enum.Font.Gotham; distLbl.TextSize = 11; distLbl.Parent = bg
-                    local hpBg = Instance.new("Frame"); hpBg.Name = "HpBg"; hpBg.Size = UDim2.new(0.6, 0, 0, 4); hpBg.Position = UDim2.new(0.2, 0, 0, 28); hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40); hpBg.BorderSizePixel = 0; hpBg.Parent = bg
-                    local hpFill = Instance.new("Frame"); hpFill.Name = "HpFill"; hpFill.Size = UDim2.new(1, 0, 1, 0); hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0); hpFill.BorderSizePixel = 0; hpFill.Parent = hpBg
-                end
-            end
-        end
-    end
-end)
-
 RS.RenderStepped:Connect(function()
-    if not MasterEnabled or not CFG.esp then return end
+    if not MasterEnabled then return end
+    crosshair.Visible = CFG.crosshair
+
+    -- 1. Loop Player
     for _, p in ipairs(P:GetPlayers()) do
-        if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
-            local bg = p.Character.Head:FindFirstChild("TG_ESP")
-            if bg then
-                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                if hrp and hum then
-                    local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
-                    local hPercent = hum.Health / hum.MaxHealth
-                    bg.Name.Text = p.Name; bg.Name.Visible = CFG.esp_name
-                    bg.Dist.Text = "[" .. dist .. "m]"; bg.Dist.Visible = CFG.esp_dist
-                    bg.HpBg.Visible = CFG.esp_health; bg.HpBg.HpFill.Size = UDim2.new(hPercent, 0, 1, 0); bg.HpBg.HpFill.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-                end
+        if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+            local hrp = p.Character.HumanoidRootPart
+            local hum = p.Character.Humanoid
+            local killer = isKiller(p)
+            local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+
+            if not espData[p] then
+                -- Bikin Kotak (Highlight)
+                local hl = Instance.new("Highlight")
+                hl.FillColor = color
+                hl.OutlineColor = color
+                hl.FillTransparency = 0.7
+                hl.Parent = p.Character
+
+                -- Bikin Teks (Billboard di RootPart)
+                local bg = Instance.new("BillboardGui")
+                bg.Name = "TG_ESP"
+                bg.Adornee = hrp
+                bg.Size = UDim2.new(0, 150, 0, 50)
+                bg.StudsOffset = Vector3.new(0, 3, 0)
+                bg.AlwaysOnTop = true
+                bg.Parent = hrp
+                
+                local nameLbl = Instance.new("TextLabel")
+                nameLbl.Size = UDim2.new(1, 0, 0, 14)
+                nameLbl.BackgroundTransparency = 1
+                nameLbl.TextColor3 = color
+                nameLbl.TextStrokeTransparency = 0
+                nameLbl.Font = Enum.Font.GothamBold
+                nameLbl.TextSize = 13
+                nameLbl.Parent = bg
+                
+                local distLbl = Instance.new("TextLabel")
+                distLbl.Size = UDim2.new(1, 0, 0, 12)
+                distLbl.Position = UDim2.new(0, 0, 0, 14)
+                distLbl.BackgroundTransparency = 1
+                distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                distLbl.TextStrokeTransparency = 0
+                distLbl.Font = Enum.Font.Gotham
+                distLbl.TextSize = 11
+                distLbl.Parent = bg
+
+                local hpBg = Instance.new("Frame")
+                hpBg.Size = UDim2.new(0.6, 0, 0, 4)
+                hpBg.Position = UDim2.new(0.2, 0, 0, 28)
+                hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                hpBg.BorderSizePixel = 0
+                hpBg.Parent = bg
+
+                local hpFill = Instance.new("Frame")
+                hpFill.Size = UDim2.new(1, 0, 1, 0)
+                hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                hpFill.BorderSizePixel = 0
+                hpFill.Parent = hpBg
+                
+                espData[p] = {hl = hl, bg = bg, name = nameLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
+            end
+
+            local data = espData[p]
+            local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+            local hPercent = hum.Health / hum.MaxHealth
+
+            data.hl.Enabled = CFG.esp
+            data.bg.Enabled = CFG.esp
+            data.name.Text = p.Name
+            data.name.TextColor3 = color
+            data.name.Visible = CFG.esp_name
+            data.dist.Text = "[" .. dist .. "m]"
+            data.dist.Visible = CFG.esp_dist
+            data.hpBg.Visible = CFG.esp_health
+            data.hp.Size = UDim2.new(hPercent, 0, 1, 0)
+            data.hp.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        else
+            if espData[p] then
+                if espData[p].hl then espData[p].hl:Destroy() end
+                if espData[p].bg then espData[p].bg:Destroy() end
+                espData[p] = nil
             end
         end
     end
 end)
+P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
 -- ==========================================
 -- ENGINE: SMART SKILLCHECK (Position Reading)
@@ -267,4 +309,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v30.1 Smart Skillcheck Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v31.0 Bulletproof Loaded.")
