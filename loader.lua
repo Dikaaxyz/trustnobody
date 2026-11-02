@@ -1,6 +1,6 @@
 --[[
-    Tumblr Girls - Script Made By SpookingD
-    v43.0 — Zero Lag, Smart Skillcheck, Soft Light
+    SpookingD - Violence District
+    v47.0 — Featherweight & Max Bypass
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,6 +15,7 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
@@ -34,23 +35,53 @@ local VD_ITEMS = {
     "WaxBound Candle", "Holy Water", "Riot Shield"
 }
 
+-- ==========================================
+-- [1] MAXIMUM BYPASS & ANTI-FLAG
+-- ==========================================
 pcall(function()
-    getgenv().SpoofedHWID = tostring(math.random(100000,999999))
+    -- 1. Anti-Metatable Signature
+    local mt = getrawmetatable(game)
+    local registry = debug.getregistry()
+    for i = 1, 100 do
+        if registry[i] == mt then table.remove(registry, i) break end
+    end
+
+    -- 2. Handshake Spoof
+    local NetworkClient = game:GetService("NetworkClient")
+    local oldInvoke = NetworkClient.Invoke
+    NetworkClient.Invoke = function(self, req, ...)
+        if req == "Handshake" then return "Roblox/Android/1.0" end
+        return oldInvoke(self, req, ...)
+    end
+
+    -- 3. IP Mask
+    local oldGet = HttpService.GetAsync
+    HttpService.GetAsync = function(self, url, ...)
+        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
+        return oldGet(self, url, ...)
+    end
+
+    -- 4. HWID Spoof
+    getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
+
+    -- 5. Cache Wipe
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
 end)
 
+-- ==========================================
+-- [2] FEATHERWEIGHT UI
+-- ==========================================
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
 
 local COL = { bg=Color3.fromRGB(15, 15, 15), panel=Color3.fromRGB(25, 25, 25), sidebar=Color3.fromRGB(10, 10, 10), line=Color3.fromRGB(50, 50, 50), txt=Color3.fromRGB(255, 255, 255), dim=Color3.fromRGB(130, 130, 130), acc=Color3.fromRGB(255, 0, 60), off=Color3.fromRGB(60, 60, 60) }
 
-local gui = Instance.new("ScreenGui"); gui.Name="TumblrGirls"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
+local gui = Instance.new("ScreenGui"); gui.Name="SpookingD"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().TGui=gui
 local main = Instance.new("Frame"); main.Size=UDim2.new(0, 600, 0, 420); main.Position=UDim2.new(0.5, -300, 0.5, -210); main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
 
 local sidebar = Instance.new("Frame"); sidebar.Size=UDim2.new(0, 130, 1, 0); sidebar.BackgroundColor3=COL.sidebar; sidebar.BorderSizePixel=0; sidebar.Parent=main
-local logo = Instance.new("TextLabel"); logo.Size=UDim2.new(1, 0, 0, 50); logo.BackgroundTransparency=1; logo.Text="TUMBLR"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack; logo.TextSize=24; logo.Parent=sidebar
-local subLogo = Instance.new("TextLabel"); subLogo.Size=UDim2.new(1, 0, 0, 10); subLogo.Position=UDim2.new(0,0,0,40); subLogo.BackgroundTransparency=1; subLogo.Text="GIRLS"; subLogo.TextColor3=COL.txt; subLogo.Font=Enum.Font.GothamBold; subLogo.TextSize=10; subLogo.Parent=sidebar
+local logo = Instance.new("TextLabel"); logo.Size=UDim2.new(1, 0, 0, 50); logo.BackgroundTransparency=1; logo.Text="SpookingD"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack; logo.TextSize=22; logo.Parent=sidebar
 
 local masterBtn = Instance.new("TextButton"); masterBtn.Size = UDim2.new(1, -20, 0, 30); masterBtn.Position = UDim2.new(0, 10, 0, 55); masterBtn.BackgroundColor3 = COL.panel; masterBtn.BorderSizePixel = 0; masterBtn.Text = "ENABLE SCRIPT"; masterBtn.TextColor3 = COL.dim; masterBtn.Font = Enum.Font.GothamBold; masterBtn.TextSize = 10; masterBtn.Parent = sidebar
 local masterStroke = Instance.new("UIStroke"); masterStroke.Color = COL.line; masterStroke.Thickness = 1; masterStroke.Parent = masterBtn
@@ -131,13 +162,23 @@ addSlider(boxFOV, "FOV Value", "fov_val", 50, 120, 60)
 local boxMisc = createBox(pgMisc, "Movement", 10, 230, 440, 100)
 addSwitch(boxMisc, "Enable WalkSpeed", "ws_enabled", 30); addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
 
-local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 340, 440, 120)
+local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 340, 440, 150)
 addButton(boxBypass, "Re-Apply HWID Bypass", function() getgenv().SpoofedHWID = tostring(math.random(100000,999999)); pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end); if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end end, 30)
-addButton(boxBypass, "Panic Wipe (Log Out)", function() if writefile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end; game:Shutdown() end, 60)
+addButton(boxBypass, "FLUSH LOGS & CACHE", function() 
+    if writefile and isfile and delfile then 
+        pcall(function() 
+            if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end 
+            if isfile("rbx_cookie") then delfile("rbx_cookie") end
+            if isfile("log.txt") then delfile("log.txt") end
+        end) 
+        print("[SpookingD] Logs & Cache Flushed.")
+    end
+end, 60)
+addButton(boxBypass, "Panic Wipe (Log Out)", function() if writefile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end; game:Shutdown() end, 90)
 
 sideTabs[1].TextColor3 = COL.txt; sideTabs[1].BackgroundColor3 = COL.panel; sidePages[1].Visible = true
 local closeBtn = Instance.new("TextButton"); closeBtn.Size=UDim2.new(0, 20, 0, 20); closeBtn.Position=UDim2.new(1, -25, 0, 5); closeBtn.BackgroundTransparency=1; closeBtn.Text="×"; closeBtn.TextColor3=COL.txt; closeBtn.Font=Enum.Font.GothamBold; closeBtn.TextSize=16; closeBtn.Parent=main
-local openBtn = Instance.new("TextButton"); openBtn.Size=UDim2.new(0, 40, 0, 40); openBtn.Position=UDim2.new(0, 20, 0, 100); openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc; openBtn.Text="T"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack; openBtn.TextSize=22; openBtn.Parent=gui; openBtn.Visible = false
+local openBtn = Instance.new("TextButton"); openBtn.Size=UDim2.new(0, 40, 0, 40); openBtn.Position=UDim2.new(0, 20, 0, 100); openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc; openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack; openBtn.TextSize=22; openBtn.Parent=gui; openBtn.Visible = false
 closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visible = true end)
 openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
 UIS.InputBegan:Connect(function(i, pr) if pr then return end; if i.KeyCode == CFG.keyMenu then main.Visible = not main.Visible; openBtn.Visible = not main.Visible end end)
@@ -147,10 +188,9 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: ESP (Zero Lag)
+-- ENGINE: ESP ANTI-BOLONG
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
-local hitboxParts = {}
 local espData = {}
 
 local function isKiller(p)
@@ -172,104 +212,114 @@ local function getSurvivorItem(p)
     return nil
 end
 
-RS.RenderStepped:Connect(function()
-    if not MasterEnabled then return end
-    crosshair.Visible = CFG.crosshair
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if MasterEnabled and CFG.esp then
+            for _, p in ipairs(P:GetPlayers()) do
+                if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+                    local hrp = p.Character.HumanoidRootPart
+                    local hum = p.Character.Humanoid
+                    local killer = isKiller(p)
+                    local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+                    local itemName = nil
+                    if not killer and CFG.esp_item then itemName = getSurvivorItem(p) end
 
-    for _, p in ipairs(P:GetPlayers()) do
-        if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-            local hrp = p.Character.HumanoidRootPart
-            local hum = p.Character.Humanoid
-            local killer = isKiller(p)
-            local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
-            
-            local itemName = nil
-            if not killer and CFG.esp_item then itemName = getSurvivorItem(p) end
+                    if not espData[p] or not espData[p].bg or not espData[p].bg.Parent then
+                        if espData[p] and espData[p].hl then espData[p].hl:Destroy() end
+                        if espData[p] and espData[p].bg then espData[p].bg:Destroy() end
 
-            if not espData[p] then
-                local hl = Instance.new("Highlight")
-                hl.FillColor = color
-                hl.OutlineColor = color
-                hl.FillTransparency = 0.7
-                hl.Parent = p.Character
+                        local hl = Instance.new("Highlight")
+                        hl.FillColor = color
+                        hl.OutlineColor = color
+                        hl.FillTransparency = 0.7
+                        hl.Parent = p.Character
 
-                local bg = Instance.new("BillboardGui")
-                bg.Name = "TG_ESP"
-                bg.Adornee = hrp
-                bg.Size = UDim2.new(0, 150, 0, 65)
-                bg.StudsOffset = Vector3.new(0, 3, 0)
-                bg.AlwaysOnTop = true
-                bg.Parent = hrp
-                
-                local nameLbl = Instance.new("TextLabel")
-                nameLbl.Size = UDim2.new(1, 0, 0, 14)
-                nameLbl.BackgroundTransparency = 1
-                nameLbl.TextColor3 = color
-                nameLbl.TextStrokeTransparency = 0
-                nameLbl.Font = Enum.Font.GothamBold
-                nameLbl.TextSize = 13
-                nameLbl.Parent = bg
-                
-                local itemLbl = Instance.new("TextLabel")
-                itemLbl.Size = UDim2.new(1, 0, 0, 12)
-                itemLbl.Position = UDim2.new(0, 0, 0, 14)
-                itemLbl.BackgroundTransparency = 1
-                itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
-                itemLbl.TextStrokeTransparency = 0
-                itemLbl.Font = Enum.Font.GothamBold
-                itemLbl.TextSize = 11
-                itemLbl.Parent = bg
+                        local bg = Instance.new("BillboardGui")
+                        bg.Name = "Spook_ESP"
+                        bg.Adornee = hrp
+                        bg.Size = UDim2.new(0, 150, 0, 65)
+                        bg.StudsOffset = Vector3.new(0, 3, 0)
+                        bg.AlwaysOnTop = true
+                        bg.Parent = hrp
+                        
+                        local nameLbl = Instance.new("TextLabel")
+                        nameLbl.Size = UDim2.new(1, 0, 0, 14)
+                        nameLbl.BackgroundTransparency = 1
+                        nameLbl.TextColor3 = color
+                        nameLbl.TextStrokeTransparency = 0
+                        nameLbl.Font = Enum.Font.GothamBold
+                        nameLbl.TextSize = 13
+                        nameLbl.Parent = bg
+                        
+                        local itemLbl = Instance.new("TextLabel")
+                        itemLbl.Size = UDim2.new(1, 0, 0, 12)
+                        itemLbl.Position = UDim2.new(0, 0, 0, 14)
+                        itemLbl.BackgroundTransparency = 1
+                        itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
+                        itemLbl.TextStrokeTransparency = 0
+                        itemLbl.Font = Enum.Font.GothamBold
+                        itemLbl.TextSize = 11
+                        itemLbl.Parent = bg
 
-                local distLbl = Instance.new("TextLabel")
-                distLbl.Size = UDim2.new(1, 0, 0, 12)
-                distLbl.Position = UDim2.new(0, 0, 0, 26)
-                distLbl.BackgroundTransparency = 1
-                distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-                distLbl.TextStrokeTransparency = 0
-                distLbl.Font = Enum.Font.Gotham
-                distLbl.TextSize = 11
-                distLbl.Parent = bg
+                        local distLbl = Instance.new("TextLabel")
+                        distLbl.Size = UDim2.new(1, 0, 0, 12)
+                        distLbl.Position = UDim2.new(0, 0, 0, 26)
+                        distLbl.BackgroundTransparency = 1
+                        distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                        distLbl.TextStrokeTransparency = 0
+                        distLbl.Font = Enum.Font.Gotham
+                        distLbl.TextSize = 11
+                        distLbl.Parent = bg
 
-                local hpBg = Instance.new("Frame")
-                hpBg.Size = UDim2.new(0.6, 0, 0, 4)
-                hpBg.Position = UDim2.new(0.2, 0, 0, 42)
-                hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                hpBg.BorderSizePixel = 0
-                hpBg.Parent = bg
+                        local hpBg = Instance.new("Frame")
+                        hpBg.Size = UDim2.new(0.6, 0, 0, 4)
+                        hpBg.Position = UDim2.new(0.2, 0, 0, 42)
+                        hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                        hpBg.BorderSizePixel = 0
+                        hpBg.Parent = bg
 
-                local hpFill = Instance.new("Frame")
-                hpFill.Size = UDim2.new(1, 0, 1, 0)
-                hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                hpFill.BorderSizePixel = 0
-                hpFill.Parent = hpBg
-                
-                espData[p] = {hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
+                        local hpFill = Instance.new("Frame")
+                        hpFill.Size = UDim2.new(1, 0, 1, 0)
+                        hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                        hpFill.BorderSizePixel = 0
+                        hpFill.Parent = hpBg
+                        
+                        espData[p] = {hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
+                    end
+
+                    local data = espData[p]
+                    local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+                    local hPercent = hum.Health / hum.MaxHealth
+
+                    data.hl.Enabled = CFG.esp
+                    data.hl.FillColor = color
+                    data.hl.OutlineColor = color
+                    data.bg.Enabled = CFG.esp
+                    data.name.Text = p.Name
+                    data.name.TextColor3 = color
+                    data.name.Visible = CFG.esp_name
+                    
+                    data.item.Text = itemName and ("[" .. itemName .. "]") or ""
+                    data.item.Visible = CFG.esp_item and (itemName ~= nil)
+                    
+                    data.dist.Text = "[" .. dist .. "m]"
+                    data.dist.Visible = CFG.esp_dist
+                    data.hpBg.Visible = CFG.esp_health
+                    data.hp.Size = UDim2.new(hPercent, 0, 1, 0)
+                    data.hp.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                else
+                    if espData[p] then
+                        if espData[p].hl then espData[p].hl:Destroy() end
+                        if espData[p].bg then espData[p].bg:Destroy() end
+                        espData[p] = nil
+                    end
+                end
             end
-
-            local data = espData[p]
-            local dist = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
-            local hPercent = hum.Health / hum.MaxHealth
-
-            data.hl.Enabled = CFG.esp
-            data.hl.FillColor = color
-            data.hl.OutlineColor = color
-            data.bg.Enabled = CFG.esp
-            data.name.Text = p.Name
-            data.name.TextColor3 = color
-            data.name.Visible = CFG.esp_name
-            
-            data.item.Text = itemName and ("[" .. itemName .. "]") or ""
-            data.item.Visible = CFG.esp_item and (itemName ~= nil)
-            
-            data.dist.Text = "[" .. dist .. "m]"
-            data.dist.Visible = CFG.esp_dist
-            data.hpBg.Visible = CFG.esp_health
-            data.hp.Size = UDim2.new(hPercent, 0, 1, 0)
-            data.hp.BackgroundColor3 = hPercent > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
         else
-            if espData[p] then
-                if espData[p].hl then espData[p].hl:Destroy() end
-                if espData[p].bg then espData[p].bg:Destroy() end
+            for p, data in pairs(espData) do
+                if data.hl then data.hl:Destroy() end
+                if data.bg then data.bg:Destroy() end
                 espData[p] = nil
             end
         end
@@ -349,10 +399,10 @@ RS.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- ENGINE: SMART SKILLCHECK
+-- ENGINE: PERFECT SKILLCHECK (Timing)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.02) do
         if not MasterEnabled then continue end
         if CFG.auto_gen or CFG.auto_skillcheck then
             local isHoldingMouse = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or UIS:IsKeyDown(Enum.KeyCode.E)
@@ -363,13 +413,15 @@ task.spawn(function()
                     local pg = LP:FindFirstChild("PlayerGui")
                     if pg then
                         for _, g in pairs(pg:GetDescendants()) do
-                            -- Scan UI yang ada hubungannya sama progress bar / timing
-                            if (g:IsA("ImageLabel") or g:IsA("Frame") or g:IsA("TextLabel")) and (g.Name:lower():find("bar") or g.Name:lower():find("line") or g.Name:lower():find("progress") or g.Text:lower():find("perbaikan")) then
-                                pcall(function() 
-                                    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                    task.wait(0.01)
-                                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                end)
+                            if g:IsA("ImageLabel") and (g.Name:lower():find("indicator") or g.Name:lower():find("arrow") or g.Name:lower():find("needle")) then
+                                local posX = g.Position.X.Scale
+                                if posX > 0.4 and posX < 0.6 then
+                                    pcall(function() 
+                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                        task.wait(0.01)
+                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                    end)
+                                end
                             end
                         end
                     end
@@ -408,4 +460,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v43.0 Zero Lag Loaded.")
+print("[SpookingD] Script Loaded — v47.0 Featherweight")
