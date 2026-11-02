@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v40.0 — Final Stealth & Full Map Scanner
+    v42.0 — Survivor Item ESP (Full VD List)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,13 +15,11 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
-local PARRY_RADIUS = 18
 
 local CFG = {
-    esp=false, esp_name=true, esp_health=true, esp_dist=true,
+    esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
     crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
@@ -30,29 +28,17 @@ local CFG = {
     keyMenu=Enum.KeyCode.RightShift
 }
 
--- ==========================================
--- [1] 99% BYPASS (Network & Identity)
--- ==========================================
+-- DAFTAR ITEM SURVIVOR VD
+local VD_ITEMS = {
+    "Parrying Dagger", "Flashlight", "Bandage", "Adrenaline Shot", 
+    "Motion Tracker", "Shadow Clone", "Gate", "Twist of Fate", 
+    "WaxBound Candle", "Holy Water", "Riot Shield"
+}
+
 pcall(function()
-    -- HWID Spoof & Cookie Wipe
-    getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "GHOST"
+    getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
-    
-    -- IP Masking
-    local oldGet = HttpService.GetAsync
-    HttpService.GetAsync = function(self, url, ...)
-        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
-        return oldGet(self, url, ...)
-    end
-
-    -- Handshake Spoof (Android)
-    local NetworkClient = game:GetService("NetworkClient")
-    local oldInvoke = NetworkClient.Invoke
-    NetworkClient.Invoke = function(self, req, ...)
-        if req == "Handshake" then return "Roblox/Android/1.0" end
-        return oldInvoke(self, req, ...)
-    end
 end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
@@ -121,10 +107,10 @@ end
 
 local pgVisual = addSideTab("Visuals"); local pgWorld = addSideTab("World"); local pgSurvivor = addSideTab("Survivor"); local pgKiller = addSideTab("Killer"); local pgMisc = addSideTab("Misc")
 
-local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 200)
-addSwitch(boxESP, "Enable ESP", "esp", 30); addSwitch(boxESP, "Show Name", "esp_name", 60); addSwitch(boxESP, "Show Health", "esp_health", 90); addSwitch(boxESP, "Show Distance", "esp_dist", 120)
+local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 220)
+addSwitch(boxESP, "Enable ESP", "esp", 30); addSwitch(boxESP, "Show Name", "esp_name", 60); addSwitch(boxESP, "Show Health", "esp_health", 90); addSwitch(boxESP, "Show Distance", "esp_dist", 120); addSwitch(boxESP, "Show Item", "esp_item", 150)
 
-local boxVisual = createBox(pgVisual, "Screen", 10, 220, 440, 100)
+local boxVisual = createBox(pgVisual, "Screen", 10, 240, 440, 100)
 addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30); addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60)
 
 local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 160)
@@ -162,7 +148,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: FULL MAP SCANNER
+-- ENGINE: FULL MAP SCANNER + ITEM ESP
 -- ==========================================
 local crosshair = Instance.new("Frame"); crosshair.Size = UDim2.new(0, 4, 0, 4); crosshair.Position = UDim2.new(0.5, -2, 0.5, -2); crosshair.BackgroundColor3 = COL.acc; crosshair.BorderSizePixel = 0; crosshair.Visible = false; crosshair.Parent = gui
 local hitboxParts = {}
@@ -173,12 +159,21 @@ local function isKiller(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
     local ls = p:FindFirstChild("leaderstats")
     if ls then for _, v in pairs(ls:GetChildren()) do if v.Name:lower():find("role") and tostring(v.Value):lower():find("killer") then return true end end end
-    local char = p.Character
-    if char then
-        local tool = char:FindFirstChildWhichIsA("Tool")
-        if tool then return true end
-    end
     return false
+end
+
+local function getSurvivorItem(p)
+    local char = p.Character
+    if not char then return nil end
+    local tool = char:FindFirstChildWhichIsA("Tool")
+    if tool then
+        for _, itemName in ipairs(VD_ITEMS) do
+            if tool.Name:lower():find(itemName:lower()) then
+                return itemName
+            end
+        end
+    end
+    return nil
 end
 
 RS.RenderStepped:Connect(function()
@@ -191,6 +186,12 @@ RS.RenderStepped:Connect(function()
             local hum = p.Character.Humanoid
             local killer = isKiller(p)
             local color = killer and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+            
+            -- Deteksi Item Survivor
+            local itemName = nil
+            if not killer and CFG.esp_item then
+                itemName = getSurvivorItem(p)
+            end
 
             if not espData[p] then
                 local hl = Instance.new("Highlight")
@@ -202,7 +203,7 @@ RS.RenderStepped:Connect(function()
                 local bg = Instance.new("BillboardGui")
                 bg.Name = "TG_ESP"
                 bg.Adornee = hrp
-                bg.Size = UDim2.new(0, 150, 0, 50)
+                bg.Size = UDim2.new(0, 150, 0, 65)
                 bg.StudsOffset = Vector3.new(0, 3, 0)
                 bg.AlwaysOnTop = true
                 bg.Parent = hrp
@@ -216,9 +217,19 @@ RS.RenderStepped:Connect(function()
                 nameLbl.TextSize = 13
                 nameLbl.Parent = bg
                 
+                local itemLbl = Instance.new("TextLabel")
+                itemLbl.Size = UDim2.new(1, 0, 0, 12)
+                itemLbl.Position = UDim2.new(0, 0, 0, 14)
+                itemLbl.BackgroundTransparency = 1
+                itemLbl.TextColor3 = Color3.fromRGB(0, 255, 255) -- Cyan
+                itemLbl.TextStrokeTransparency = 0
+                itemLbl.Font = Enum.Font.GothamBold
+                itemLbl.TextSize = 11
+                itemLbl.Parent = bg
+
                 local distLbl = Instance.new("TextLabel")
                 distLbl.Size = UDim2.new(1, 0, 0, 12)
-                distLbl.Position = UDim2.new(0, 0, 0, 14)
+                distLbl.Position = UDim2.new(0, 0, 0, 26)
                 distLbl.BackgroundTransparency = 1
                 distLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
                 distLbl.TextStrokeTransparency = 0
@@ -228,7 +239,7 @@ RS.RenderStepped:Connect(function()
 
                 local hpBg = Instance.new("Frame")
                 hpBg.Size = UDim2.new(0.6, 0, 0, 4)
-                hpBg.Position = UDim2.new(0.2, 0, 0, 28)
+                hpBg.Position = UDim2.new(0.2, 0, 0, 42)
                 hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
                 hpBg.BorderSizePixel = 0
                 hpBg.Parent = bg
@@ -239,7 +250,7 @@ RS.RenderStepped:Connect(function()
                 hpFill.BorderSizePixel = 0
                 hpFill.Parent = hpBg
                 
-                espData[p] = {hl = hl, bg = bg, name = nameLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
+                espData[p] = {hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg}
             end
 
             local data = espData[p]
@@ -253,6 +264,10 @@ RS.RenderStepped:Connect(function()
             data.name.Text = p.Name
             data.name.TextColor3 = color
             data.name.Visible = CFG.esp_name
+            
+            data.item.Text = itemName and ("[" .. itemName .. "]") or ""
+            data.item.Visible = CFG.esp_item and (itemName ~= nil)
+            
             data.dist.Text = "[" .. dist .. "m]"
             data.dist.Visible = CFG.esp_dist
             data.hpBg.Visible = CFG.esp_health
@@ -269,19 +284,35 @@ RS.RenderStepped:Connect(function()
 end)
 P.PlayerRemoving:Connect(function(p) if espData[p] then if espData[p].hl then espData[p].hl:Destroy() end; if espData[p].bg then espData[p].bg:Destroy() end; espData[p] = nil end end)
 
+-- DEEP MAP SCANNER (GENERATOR, ITEM, EXIT)
 task.spawn(function()
-    while task.wait(1) do
-        for obj, h in pairs(worldESP) do if h then h:Destroy() end; worldESP[obj] = nil end
-        if MasterEnabled and (CFG.gen_esp or CFG.item_esp or CFG.exit_esp) then
+    while task.wait(1.5) do
+        for obj, h in pairs(worldESP) do 
+            if h then h:Destroy() end 
+            worldESP[obj] = nil 
+        end
+
+        if MasterEnabled then
             for _, v in ipairs(WS:GetDescendants()) do
-                if v:IsA("BasePart") and not v:IsDescendantOf(LP.Character) then
+                if (v:IsA("Model") or v:IsA("BasePart") or v:IsA("MeshPart")) and not v:IsDescendantOf(LP.Character) then
                     local n = v.Name:lower()
                     local doESP = false
                     local color = Color3.fromRGB(255, 255, 0)
 
-                    if CFG.gen_esp and (n:find("gen") or n:find("fuse") or n:find("generator")) then doESP = true; color = Color3.fromRGB(255, 255, 0) end
-                    if CFG.item_esp and (n:find("dagger") or n:find("flash") or n:find("bandage") or n:find("medkit") or n:find("pistol")) then doESP = true; color = Color3.fromRGB(0, 255, 0) end
-                    if CFG.exit_esp and (n:find("exit") or n:find("spike") or n:find("hook") or n:find("gate")) then doESP = true; color = Color3.fromRGB(0, 150, 255) end
+                    if CFG.gen_esp and (n:find("gen") or n:find("fuse") or n:find("generator")) then
+                        doESP = true
+                        color = Color3.fromRGB(255, 255, 0)
+                    end
+                    
+                    if CFG.item_esp and (n:find("dagger") or n:find("flash") or n:find("bandage") or n:find("medkit") or n:find("pistol") or n:find("candle") or n:find("water") or n:find("shield")) then
+                        doESP = true
+                        color = Color3.fromRGB(0, 255, 0)
+                    end
+                    
+                    if CFG.exit_esp and (n:find("exit") or n:find("spike") or n:find("hook") or n:find("gate")) then
+                        doESP = true
+                        color = Color3.fromRGB(0, 150, 255)
+                    end
 
                     if doESP then
                         local h = Instance.new("Highlight")
@@ -297,11 +328,12 @@ task.spawn(function()
     end
 end)
 
+-- KILLER SKILL ESP
 task.spawn(function()
     while task.wait(2) do
         if MasterEnabled and CFG.killer_esp then
             for _, v in ipairs(WS:GetDescendants()) do
-                if v:IsA("BasePart") and not v:IsDescendantOf(LP.Character) then
+                if (v:IsA("Model") or v:IsA("BasePart")) and not v:IsDescendantOf(LP.Character) then
                     local n = v.Name:lower()
                     if n:find("spear") or n:find("chain") or n:find("projectile") or n:find("hitbox") or n:find("slash") then
                         local h = Instance.new("Highlight")
@@ -423,4 +455,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v40.0 Stealth Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v42.0 Item ESP Loaded.")
