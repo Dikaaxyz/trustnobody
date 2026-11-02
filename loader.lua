@@ -645,4 +645,115 @@ task.spawn(function()
             pcall(function()
                 VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,true,game,1)
                 task.wait(w)
-                VIM:SendMouse
+                VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,false,game,1)
+            end)
+            task.wait(CFG.parry_cooldown+jittered(0,0.06))
+            parryBusy=false
+            break
+        end
+    end
+end)
+
+-- ==========================================
+-- FOV — set on change
+-- ==========================================
+local lastFovSet=nil
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then return end
+    if CAM and CFG.fov_enabled then
+        local target=CFG.fov_val
+        if lastFovSet~=target then CAM.FieldOfView=target; lastFovSet=target end
+    elseif lastFovSet and CAM then
+        CAM.FieldOfView=70; lastFovSet=nil
+    end
+end)
+
+-- ==========================================
+-- LIGHTING — fullbright state machine
+-- ==========================================
+local LIGHT_ORIG = {
+    Brightness=L.Brightness, ClockTime=L.ClockTime,
+    Ambient=L.Ambient, OutdoorAmbient=L.OutdoorAmbient,
+    ExposureCompensation=L.ExposureCompensation, FogEnd=L.FogEnd,
+    GlobalShadows=L.GlobalShadows, ShadowSoftness=L.ShadowSoftness,
+    EnvironmentDiffuseScale=L.EnvironmentDiffuseScale,
+    EnvironmentSpecularScale=L.EnvironmentSpecularScale,
+    QualityLevel=settings().Rendering.QualityLevel,
+}
+local atmosBackup={}
+local lightMode="orig"
+
+local function destroyAtmos()
+    atmosBackup={}
+    for _,v in ipairs(L:GetChildren()) do
+        if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect")
+           or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
+            atmosBackup[v]=v.Parent; v.Parent=nil
+        end
+    end
+end
+
+local function restoreAtmos()
+    for inst,parent in pairs(atmosBackup) do
+        if inst and inst.Parent==nil and parent then inst.Parent=parent end
+    end
+    atmosBackup={}
+end
+
+local function applyBright()
+    if lightMode=="bright" then return end
+    if lightMode=="orig" then destroyAtmos() end
+    lightMode="bright"
+    L.Brightness=2; L.ClockTime=12
+    L.Ambient=Color3.fromRGB(180,180,180); L.OutdoorAmbient=Color3.fromRGB(200,200,200)
+    L.ExposureCompensation=0.2; L.FogEnd=100000
+    L.GlobalShadows=false; L.ShadowSoftness=0
+    L.EnvironmentDiffuseScale=0; L.EnvironmentSpecularScale=0
+end
+
+local function applyOrig()
+    if lightMode=="orig" then return end
+    restoreAtmos(); lightMode="orig"
+    L.Brightness=LIGHT_ORIG.Brightness; L.ClockTime=LIGHT_ORIG.ClockTime
+    L.Ambient=LIGHT_ORIG.Ambient; L.OutdoorAmbient=LIGHT_ORIG.OutdoorAmbient
+    L.ExposureCompensation=LIGHT_ORIG.ExposureCompensation; L.FogEnd=LIGHT_ORIG.FogEnd
+    L.GlobalShadows=LIGHT_ORIG.GlobalShadows; L.ShadowSoftness=LIGHT_ORIG.ShadowSoftness
+    L.EnvironmentDiffuseScale=LIGHT_ORIG.EnvironmentDiffuseScale
+    L.EnvironmentSpecularScale=LIGHT_ORIG.EnvironmentSpecularScale
+    settings().Rendering.QualityLevel=LIGHT_ORIG.QualityLevel
+end
+
+local function applyFps()
+    if lightMode=="fps" then return end
+    lightMode="fps"
+    settings().Rendering.QualityLevel=1
+    L.EnvironmentDiffuseScale=0; L.EnvironmentSpecularScale=0
+end
+
+RS.RenderStepped:Connect(function()
+    if not MasterEnabled then
+        if lightMode~="orig" then applyOrig() end
+        return
+    end
+    if CFG.bright then applyBright()
+    elseif CFG.fpsboost then applyFps()
+    else applyOrig() end
+end)
+
+-- ==========================================
+-- WALKSPEED — lerp + clamp
+-- ==========================================
+local WS_MAX_SAFE=22
+local lastAppliedWs=nil
+RS.Stepped:Connect(function(_,dt)
+    if not MasterEnabled then return end
+    local c=LP.Character; if not c then return end
+    local hum=c:FindFirstChildOfClass("Humanoid"); if not hum then return end
+    local target=CFG.ws_enabled and math.clamp(CFG.ws_speed,16,WS_MAX_SAFE) or 16
+    if lastAppliedWs and math.abs(hum.WalkSpeed-target)<0.05 then return end
+    local step=math.min(dt*30,math.abs(target-hum.WalkSpeed))*(target>hum.WalkSpeed and 1 or -1)
+    hum.WalkSpeed=hum.WalkSpeed+step
+    lastAppliedWs=hum.WalkSpeed
+end)
+
+print("[SpookingD] v60.5 loaded")
