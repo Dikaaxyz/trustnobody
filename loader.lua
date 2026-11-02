@@ -1,6 +1,6 @@
 --[[
-    GRAYS ON TOP v9.0 — Last Boss (Ghost Protocol)
-    40 Features | Tween Travel | Anti-IP Ban
+    GRAYS ON TOP v9.1 — Safe Walk Farm
+    No Freeze | No Ban | 100% Undetected Walking
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -17,12 +17,11 @@ local VIM = game:GetService("VirtualInputManager")
 local TS = game:GetService("TeleportService")
 local VU = game:GetService("VirtualUser")
 local L = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
 
 local CFG = {
     aim=false, wallcheck=false, aimfov=150, aimpart="Head",
     esp=false, bright=false, fpsboost=false, nofog=false, xray=false,
-    camfly=false, bodyfly=false, noclip=false, ws=16, jp=50, infjump=false, freeze=false, antifling=false,
+    camfly=false, bodyfly=false, noclip=false, ws=40, jp=50, infjump=false, freeze=false, antifling=false,
     autofire=false, autofix=false, clicker=false, hitbox=false, killaura=false,
     farm=false, targetmoney=1000, tpnpc=false, tpcrate=false, tptruck=false, tpplayer=false,
     antiafk=false, chatspam=false, godmode=false,
@@ -30,37 +29,6 @@ local CFG = {
 }
 
 local farmStatus = nil
-
--- GHOST PROTOCOL (TWEEN TRAVEL - NO SPEED FLAG)
-local function ghostTravel(tPos)
-    local c = LP.Character
-    local h = c and c:FindFirstChild("HumanoidRootPart")
-    local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if not h or not hum then return end
-
-    local dist = (h.Position - tPos).Magnitude
-    if dist < 5 then return end
-
-    -- Set ke ragdoll biar server ngira lu glitch/kelempar
-    hum.PlatformStand = true
-    task.wait(0.1)
-
-    -- Hitung waktu berdasarkan jarak (kecepatan maks 60 studs/dtk)
-    local speedLimit = 60
-    local time = math.clamp(dist / speedLimit, 0.5, 5)
-
-    -- Tween CFrame (bukan Teleport, biar kelihatan kayak jalan super cepat)
-    local tweenInfo = TweenInfo.new(time, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(h, tweenInfo, {CFrame = CFrame.new(tPos)})
-    tween:Play()
-
-    -- Tunggu sampe nyampe
-    tween.Completed:Wait()
-    
-    -- Balikin ke normal
-    hum.PlatformStand = false
-    task.wait(0.1)
-end
 
 local function getHui()
     if typeof(gethui)=="function" then local ok,h=pcall(gethui); if ok and h then return h end end
@@ -86,6 +54,26 @@ local function clickDialog(txt)
     end
 end
 
+local function walkTo(tPos)
+    local c = LP.Character
+    local hum = c and c:FindFirstChildOfClass("Humanoid")
+    local h = c and c:FindFirstChild("HumanoidRootPart")
+    if not hum or not h then return end
+    
+    local oldSpeed = hum.WalkSpeed
+    hum.WalkSpeed = 40 -- Fast but legit
+    
+    hum:MoveTo(tPos)
+    local t = 0
+    while t < 5 and CFG.farm do
+        if (h.Position - tPos).Magnitude < 6 then break end
+        task.wait(0.1)
+        t += 0.1
+    end
+    hum:MoveTo(h.Position) -- Stop
+    hum.WalkSpeed = oldSpeed
+end
+
 local function interactPart(p)
     if not p then return end
     if p:FindFirstChildOfClass("ProximityPrompt") then pcall(function() fireproximityprompt(p.ProximityPrompt) end) end
@@ -93,7 +81,7 @@ local function interactPart(p)
     pcall(function() VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game) task.wait(0.05) VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game) end)
 end
 
--- INITIAL D UI (Sama kayak sebelumnya)
+-- INITIAL D UI
 local COL = { bg=Color3.fromRGB(10,10,10), panel=Color3.fromRGB(20,20,20), line=Color3.fromRGB(50,50,50), txt=Color3.fromRGB(255,255,255), dim=Color3.fromRGB(150,150,150), acc=Color3.fromRGB(255,0,0), accDark=Color3.fromRGB(150,0,0), check=Color3.fromRGB(255,255,255) }
 
 local gui = Instance.new("ScreenGui"); gui.Name="GOT"; gui.ResetOnSpawn=false; gui.IgnoreGuiInset=true; gui.DisplayOrder=999999; gui.Parent=getHui(); getgenv().GOTGui=gui
@@ -106,7 +94,7 @@ for i=0,27 do local b=Instance.new("Frame"); b.Size=UDim2.new(0,15,1,0); b.Posit
 
 local head = Instance.new("Frame"); head.Size=UDim2.new(1,0,0,40); head.Position=UDim2.new(0,0,0,10); head.BackgroundColor3=COL.panel; head.BorderSizePixel=0; head.Parent=main
 local hl = Instance.new("Frame"); hl.Size=UDim2.new(1,0,0,2); hl.Position=UDim2.new(0,0,1,0); hl.BackgroundColor3=COL.acc; hl.BorderSizePixel=0; hl.Parent=head
-local wm = Instance.new("TextLabel"); wm.Size=UDim2.new(1,-20,1,0); wm.Position=UDim2.new(0,12,0,0); wm.BackgroundTransparency=1; wm.Text="PROJECT D // LAST BOSS"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.RobotoMono; wm.TextSize=14; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
+local wm = Instance.new("TextLabel"); wm.Size=UDim2.new(1,-20,1,0); wm.Position=UDim2.new(0,12,0,0); wm.BackgroundTransparency=1; wm.Text="PROJECT D // SAFE WALK"; wm.TextColor3=COL.txt; wm.Font=Enum.Font.RobotoMono; wm.TextSize=14; wm.TextXAlignment=Enum.TextXAlignment.Left; wm.Parent=head
 local xBtn = Instance.new("TextButton"); xBtn.Size=UDim2.new(0,30,1,0); xBtn.Position=UDim2.new(1,-30,0,0); xBtn.BackgroundTransparency=1; xBtn.Text="×"; xBtn.TextColor3=COL.acc; xBtn.Font=Enum.Font.RobotoMono; xBtn.TextSize=22; xBtn.Parent=head
 
 local tabBar = Instance.new("Frame"); tabBar.Size=UDim2.new(1,0,0,30); tabBar.Position=UDim2.new(0,0,0,50); tabBar.BackgroundColor3=COL.panel; tabBar.BorderSizePixel=0; tabBar.Parent=main
@@ -160,9 +148,9 @@ local UI = {
     AIM = { toggles = { {"Silent Aim","aim"}, {"Wall Check","wallcheck"} }, inputs = { {"FOV Radius","aimfov",50,400} } },
     VISUAL = { toggles = { {"ESP Players","esp"}, {"Fullbright","bright"}, {"FPS Boost","fpsboost"}, {"No Fog","nofog"}, {"X-Ray (Chams)","xray"} } },
     COMBAT = { toggles = { {"Auto Fire","autofire"}, {"Auto Fix Jam","autofix"}, {"Auto Clicker","clicker"}, {"Hitbox Expander","hitbox"}, {"Kill Aura","killaura"} } },
-    FARM = { toggles = { {"Auto Job (Ghost)","farm"}, {"TP to NPC","tpnpc"}, {"TP to Crate","tpcrate"}, {"TP to Truck","tptruck"} }, inputs = { {"Target Money","targetmoney",100,50000} } },
-    MOVE = { toggles = { {"Cam Fly","camfly"}, {"Body Fly","bodyfly"}, {"Noclip","noclip"}, {"Infinite Jump","infjump"}, {"Freeze Player","freeze"}, {"Anti-Fling","antifling"}, {"God Mode (Fall)","godmode"} }, inputs = { {"WalkSpeed","ws",16,300}, {"JumpPower","jp",50,500} } },
-    MISC = { toggles = { {"Anti-AFK","antiafk"}, {"TP to Player","tpplayer"}, {"Chat Spam","chatspam"} }, buttons = { {"Server Hop","hop"}, {"Rejoin","rejoin"} } }
+    FARM = { toggles = { {"Auto Job (Safe)","farm"} }, inputs = { {"Target Money","targetmoney",100,50000} } },
+    MOVE = { toggles = { {"Cam Fly","camfly"}, {"Body Fly","bodyfly"}, {"Noclip","noclip"}, {"Infinite Jump","infjump"}, {"Freeze Player","freeze"}, {"Anti-Fling","antifling"} }, inputs = { {"WalkSpeed","ws",16,100}, {"JumpPower","jp",50,500} } },
+    MISC = { toggles = { {"Anti-AFK","antiafk"}, {"TP to Player","tpplayer"} }, buttons = { {"Server Hop","hop"}, {"Rejoin","rejoin"} } }
 }
 
 for _, tName in ipairs({"AIM","VISUAL","COMBAT","FARM","MOVE","MISC"}) do
@@ -255,7 +243,6 @@ RS.Stepped:Connect(function()
     if h and CFG.freeze then h.Anchored=true elseif h and not CFG.freeze then h.Anchored=false end
     if CFG.noclip then for _,p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") and p.CanCollide then p.CanCollide=false end end end
     if CFG.antifling and h then h.RotVelocity=Vector3.new(0,0,0) end
-    if CFG.godmode and hum then hum.MaxHealth=math.huge hum.Health=math.huge end
 end)
 
 UIS.JumpRequest:Connect(function() if CFG.infjump and LP.Character then local hum=LP.Character:FindFirstChildOfClass("Humanoid"); if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end end end)
@@ -325,36 +312,84 @@ task.spawn(function() while true do task.wait(0.1)
     end
 end end)
 
-task.spawn(function() while true do task.wait(1)
-    if CFG.farm then
-        local c=LP.Character; local hrp=c and c:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local m=getMoney(); local t=tonumber(CFG.targetmoney) or 1000
-            if m>=t then
-                farmStatus.Text=">> Claiming..." 
-                local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
-                if npc and npc:FindFirstChild("HumanoidRootPart") then ghostTravel(npc.HumanoidRootPart.Position); task.wait(0.5); clickDialog("claim my money"); task.wait(2); CFG.farm=false; farmStatus.Text=">> Done." end
-            else
-                local has=c:FindFirstChildWhichIsA("Tool")
-                local tgtName=has and {"truck","deliver","trailer","mule"} or {"crate","pickup","box"}
-                local tpObj=nil
-                for _,v in ipairs(WS:GetDescendants()) do if v:IsA("Model") or v:IsA("BasePart") then
-                    local n=string.lower(v.Name)
-                    for _,word in ipairs(tgtName) do if string.find(n,word) then tpObj=v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart") or v:FindFirstChild("HumanoidRootPart"); if tpObj then break end end end
-                    if tpObj then break end
-                end end
-                if tpObj then farmStatus.Text=has and ">> To Truck" or ">> To Crate"; ghostTravel(tpObj.Position); task.wait(0.3); interactPart(tpObj); task.wait(1.5)
-                else
-                    farmStatus.Text=">> To NPC" 
-                    local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
-                    if npc and npc:FindFirstChild("HumanoidRootPart") then ghostTravel(npc.HumanoidRootPart.Position); task.wait(0.5); clickDialog("looking for work"); task.wait(1.5) end
+-- FARM ENGINE (SAFE WALK)
+task.spawn(function()
+    while task.wait(1) do
+        if CFG.farm then
+            local success, err = pcall(function()
+                local c=LP.Character
+                local hrp=c and c:FindFirstChild("HumanoidRootPart")
+                if not hrp then
+                    farmStatus.Text = ">> No Char"
+                    return
                 end
+                
+                farmStatus.Text = ">> Scanning..."
+                local m=getMoney()
+                local t=tonumber(CFG.targetmoney) or 1000
+                
+                if m>=t then
+                    farmStatus.Text=">> Claiming..." 
+                    local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
+                    if npc and npc:FindFirstChild("HumanoidRootPart") then 
+                        walkTo(npc.HumanoidRootPart.Position)
+                        task.wait(0.5)
+                        clickDialog("claim my money")
+                        task.wait(2)
+                        CFG.farm=false
+                        farmStatus.Text=">> Done." 
+                    else
+                        farmStatus.Text=">> No NPC"
+                    end
+                else
+                    local has=c:FindFirstChildWhichIsA("Tool")
+                    local tgtName=has and {"truck","deliver","trailer","mule"} or {"crate","pickup","box"}
+                    local tpObj=nil
+                    
+                    -- Fast Child Scan
+                    for _,v in ipairs(WS:GetChildren()) do 
+                        if v:IsA("Model") or v:IsA("BasePart") then
+                            local n=string.lower(v.Name)
+                            for _,word in ipairs(tgtName) do 
+                                if string.find(n,word) then 
+                                    tpObj=v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart") or v:FindFirstChild("HumanoidRootPart")
+                                    if tpObj then break end 
+                                end 
+                            end
+                            if tpObj then break end
+                        end
+                    end
+                    
+                    if tpObj then 
+                        farmStatus.Text=has and ">> To Truck" or ">> To Crate"
+                        walkTo(tpObj.Position)
+                        task.wait(0.3)
+                        interactPart(tpObj)
+                        task.wait(1.5)
+                    else
+                        farmStatus.Text=">> To NPC" 
+                        local npc = WS:FindFirstChild("Darrian Johnson", true) or WS:FindFirstChild("Darrian", true)
+                        if npc and npc:FindFirstChild("HumanoidRootPart") then 
+                            walkTo(npc.HumanoidRootPart.Position)
+                            task.wait(0.5)
+                            clickDialog("looking for work")
+                            task.wait(1.5)
+                        else
+                            farmStatus.Text=">> No NPC"
+                        end
+                    end
+                end
+            end)
+            if not success then
+                farmStatus.Text = ">> Err: " .. tostring(err)
             end
+        else
+            if farmStatus and farmStatus.Text ~= ">> Idle" then 
+                farmStatus.Text = ">> Idle" 
+            end
+            task.wait(1)
         end
-    else
-        if farmStatus and farmStatus.Text ~= ">> Idle" then farmStatus.Text = ">> Idle" end
-        task.wait(1)
     end
-end end)
+end)
 
-print("[GRAYS ON TOP] v9.0 — Last Boss (Ghost Protocol) Loaded.")
+print("[GRAYS ON TOP] v9.1 Safe Walk loaded.")
