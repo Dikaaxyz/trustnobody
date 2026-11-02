@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v60.8 — Bounding Box ESP + Robust Engine
+    v60.9 — FIXED: Removed `continue` syntax bombs, safe Camera loading.
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -137,7 +137,7 @@ local function getHiddenFolder()
     if hiddenFolder and hiddenFolder.Parent then return hiddenFolder end
     hiddenFolder = Instance.new("Folder")
     hiddenFolder.Name = "\0SpookCarrier"
-    hiddenFolder.Parent = CAM
+    hiddenFolder.Parent = WS.CurrentCamera or WS
     return hiddenFolder
 end
 
@@ -451,114 +451,112 @@ local function updateESP()
     local cam=WS.CurrentCamera
     
     for _,p in ipairs(P:GetPlayers()) do
-        if p == LP then continue end
-        local char=p.Character
-        local hrp=char and char:FindFirstChild("HumanoidRootPart")
-        local head=char and char:FindFirstChild("Head")
-        local hum=char and char:FindFirstChildOfClass("Humanoid")
-        
-        local d=espData[p]
-        if not (hrp and head and hum and hum.Health > 0) then
-            if d then
+        if p ~= LP then
+            local char=p.Character
+            local hrp=char and char:FindFirstChild("HumanoidRootPart")
+            local head=char and char:FindFirstChild("Head")
+            local hum=char and char:FindFirstChildOfClass("Humanoid")
+            
+            local d=espData[p]
+            if hrp and head and hum and hum.Health > 0 then
+                if not d then createESP(p); d=espData[p] end
+                
+                local killer=isKillerSafe(p)
+                local color=killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
+                local itemName=(not killer and CFG.esp_item) and getSurvivorItem(p) or nil
+                
+                local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+                
+                if onScreenHead and onScreenFoot then
+                    local height=math.abs(headPos.Y - footPos.Y)
+                    local width=height * 0.6
+                    local x=math.min(headPos.X, footPos.X) - width/2
+                    local y=math.min(headPos.Y, footPos.Y)
+                    
+                    if HAS_DRAWING then
+                        d.box.Color=color; d.box.Visible=true
+                        d.box.Position=Vector2.new(x,y)
+                        d.box.Size=Vector2.new(width,height)
+                        
+                        d.head.Color=color; d.head.Visible=CFG.esp_name
+                        d.head.Position=Vector2.new(headPos.X, headPos.Y)
+                        
+                        d.name.Text=p.Name; d.name.Color=color; d.name.Visible=CFG.esp_name
+                        d.name.Position=Vector2.new(headPos.X, y - 16)
+                        
+                        if itemName then
+                            d.item.Text="["..itemName.."]"; d.item.Color=Color3.fromRGB(0,255,255); d.item.Visible=true
+                            d.item.Position=Vector2.new(headPos.X, y + height + 2)
+                        else
+                            d.item.Visible=false
+                        end
+                        
+                        if myHrp then
+                            local dist=math.floor((hrp.Position - myHrp.Position).Magnitude)
+                            d.dist.Text="["..dist.."m]"; d.dist.Color=Color3.fromRGB(200,200,200); d.dist.Visible=CFG.esp_dist
+                            d.dist.Position=Vector2.new(headPos.X, y + height + 14)
+                        else
+                            d.dist.Visible=false
+                        end
+                        
+                        local hPct=hum.Health / hum.MaxHealth
+                        local hpY=y + height + 4
+                        d.hpBg.Color=Color3.fromRGB(40,40,40); d.hpBg.Visible=CFG.esp_health
+                        d.hpBg.Position=Vector2.new(x, hpY)
+                        d.hpBg.Size=Vector2.new(width, 4)
+                        
+                        d.hpFill.Color=hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+                        d.hpFill.Visible=CFG.esp_health
+                        d.hpFill.Position=Vector2.new(x, hpY)
+                        d.hpFill.Size=Vector2.new(width * hPct, 4)
+                    else
+                        d.box.Position=UDim2.fromOffset(x, y)
+                        d.box.Size=UDim2.fromOffset(width, height)
+                        d.box.UIStroke.Color=color; d.box.Visible=true
+                        
+                        d.head.Position=UDim2.fromOffset(headPos.X - 3, headPos.Y - 3)
+                        d.head.Size=UDim2.fromOffset(6, 6); d.head.BackgroundColor3=color; d.head.Visible=CFG.esp_name
+                        
+                        d.name.Text=p.Name; d.name.TextColor3=color; d.name.Visible=CFG.esp_name
+                        d.name.Position=UDim2.fromOffset(headPos.X - 75, y - 18)
+                        
+                        if itemName then
+                            d.item.Text="["..itemName.."]"; d.item.TextColor3=Color3.fromRGB(0,255,255); d.item.Visible=true
+                            d.item.Position=UDim2.fromOffset(headPos.X - 75, y + height + 2)
+                        else
+                            d.item.Visible=false
+                        end
+                        
+                        if myHrp then
+                            local dist=math.floor((hrp.Position - myHrp.Position).Magnitude)
+                            d.dist.Text="["..dist.."m]"; d.dist.TextColor3=Color3.fromRGB(200,200,200); d.dist.Visible=CFG.esp_dist
+                            d.dist.Position=UDim2.fromOffset(headPos.X - 75, y + height + 14)
+                        else
+                            d.dist.Visible=false
+                        end
+                        
+                        local hPct=hum.Health / hum.MaxHealth
+                        local hpY=y + height + 4
+                        d.hpBg.Position=UDim2.fromOffset(x, hpY)
+                        d.hpBg.Size=UDim2.fromOffset(width, 4); d.hpBg.Visible=CFG.esp_health
+                        
+                        d.hpFill.BackgroundColor3=hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+                        d.hpFill.Size=UDim2.new(hPct, 0, 1, 0); d.hpFill.Visible=CFG.esp_health
+                    end
+                else
+                    if HAS_DRAWING then
+                        for _,obj in pairs(d) do obj.Visible = false end
+                    else
+                        for _,obj in pairs(d) do if obj:IsA("Frame") or obj:IsA("TextLabel") then obj.Visible = false end end
+                    end
+                end
+            elseif d then
                 if HAS_DRAWING then
                     for _,obj in pairs(d) do obj.Visible = false end
                 else
                     for _,obj in pairs(d) do if obj:IsA("Frame") or obj:IsA("TextLabel") then obj.Visible = false end end
                 end
-            end
-            continue
-        end
-        
-        if not d then createESP(p); d=espData[p] end
-        
-        local killer=isKillerSafe(p)
-        local color=killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
-        local itemName=(not killer and CFG.esp_item) and getSurvivorItem(p) or nil
-        
-        local headPos, onScreenHead = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-        local footPos, onScreenFoot = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
-        
-        if onScreenHead and onScreenFoot then
-            local height=math.abs(headPos.Y - footPos.Y)
-            local width=height * 0.6
-            local x=math.min(headPos.X, footPos.X) - width/2
-            local y=math.min(headPos.Y, footPos.Y)
-            
-            if HAS_DRAWING then
-                d.box.Color=color; d.box.Visible=true
-                d.box.Position=Vector2.new(x,y)
-                d.box.Size=Vector2.new(width,height)
-                
-                d.head.Color=color; d.head.Visible=CFG.esp_name
-                d.head.Position=Vector2.new(headPos.X, headPos.Y)
-                
-                d.name.Text=p.Name; d.name.Color=color; d.name.Visible=CFG.esp_name
-                d.name.Position=Vector2.new(headPos.X, y - 16)
-                
-                if itemName then
-                    d.item.Text="["..itemName.."]"; d.item.Color=Color3.fromRGB(0,255,255); d.item.Visible=true
-                    d.item.Position=Vector2.new(headPos.X, y + height + 2)
-                else
-                    d.item.Visible=false
-                end
-                
-                if myHrp then
-                    local dist=math.floor((hrp.Position - myHrp.Position).Magnitude)
-                    d.dist.Text="["..dist.."m]"; d.dist.Color=Color3.fromRGB(200,200,200); d.dist.Visible=CFG.esp_dist
-                    d.dist.Position=Vector2.new(headPos.X, y + height + 14)
-                else
-                    d.dist.Visible=false
-                end
-                
-                local hPct=hum.Health / hum.MaxHealth
-                local hpY=y + height + 4
-                d.hpBg.Color=Color3.fromRGB(40,40,40); d.hpBg.Visible=CFG.esp_health
-                d.hpBg.Position=Vector2.new(x, hpY)
-                d.hpBg.Size=Vector2.new(width, 4)
-                
-                d.hpFill.Color=hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-                d.hpFill.Visible=CFG.esp_health
-                d.hpFill.Position=Vector2.new(x, hpY)
-                d.hpFill.Size=Vector2.new(width * hPct, 4)
-            else
-                d.box.Position=UDim2.fromOffset(x, y)
-                d.box.Size=UDim2.fromOffset(width, height)
-                d.box.UIStroke.Color=color; d.box.Visible=true
-                
-                d.head.Position=UDim2.fromOffset(headPos.X - 3, headPos.Y - 3)
-                d.head.Size=UDim2.fromOffset(6, 6); d.head.BackgroundColor3=color; d.head.Visible=CFG.esp_name
-                
-                d.name.Text=p.Name; d.name.TextColor3=color; d.name.Visible=CFG.esp_name
-                d.name.Position=UDim2.fromOffset(headPos.X - 75, y - 18)
-                
-                if itemName then
-                    d.item.Text="["..itemName.."]"; d.item.TextColor3=Color3.fromRGB(0,255,255); d.item.Visible=true
-                    d.item.Position=UDim2.fromOffset(headPos.X - 75, y + height + 2)
-                else
-                    d.item.Visible=false
-                end
-                
-                if myHrp then
-                    local dist=math.floor((hrp.Position - myHrp.Position).Magnitude)
-                    d.dist.Text="["..dist.."m]"; d.dist.TextColor3=Color3.fromRGB(200,200,200); d.dist.Visible=CFG.esp_dist
-                    d.dist.Position=UDim2.fromOffset(headPos.X - 75, y + height + 14)
-                else
-                    d.dist.Visible=false
-                end
-                
-                local hPct=hum.Health / hum.MaxHealth
-                local hpY=y + height + 4
-                d.hpBg.Position=UDim2.fromOffset(x, hpY)
-                d.hpBg.Size=UDim2.fromOffset(width, 4); d.hpBg.Visible=CFG.esp_health
-                
-                d.hpFill.BackgroundColor3=hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-                d.hpFill.Size=UDim2.new(hPct, 0, 1, 0); d.hpFill.Visible=CFG.esp_health
-            end
-        else
-            if HAS_DRAWING then
-                for _,obj in pairs(d) do obj.Visible = false end
-            else
-                for _,obj in pairs(d) do if obj:IsA("Frame") or obj:IsA("TextLabel") then obj.Visible = false end end
             end
         end
     end
@@ -567,11 +565,11 @@ end
 task.spawn(function()
     while true do
         task.wait(0.05) -- 20fps update
-        if not (MasterEnabled and CFG.esp) then
+        if MasterEnabled and CFG.esp then
+            pcall(updateESP)
+        else
             for p in pairs(espData) do destroyEspEntry(p) end
-            continue
         end
-        pcall(updateESP)
     end
 end)
 
@@ -652,25 +650,22 @@ end
 task.spawn(function()
     while true do
         task.wait(SKILL.scanInterval)
-        if not (MasterEnabled and CFG.auto_skillcheck) then firedThisCheck={}; continue end
-        if not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then firedThisCheck={}; continue end
-        if not canSendInput() or tick()-lastFireAt < SKILL.cooldown then continue end
-        
-        local root, needle, zone = findSkillcheckRoot()
-        if root and needle and zone then
-            if firedThisCheck[needle] then continue end
-            local nAng = angleOf(needle, root); local zAng = angleOf(zone, root)
-            if angDist(nAng, zAng) <= SKILL.zoneTolerance then
-                firedThisCheck[needle] = true; lastFireAt = tick()
-                local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
-                pcall(function()
-                    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                    task.wait(w)
-                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                end)
-            end
-        else
-            if tick() - lastUiCheck > 1.5 then
+        if MasterEnabled and CFG.auto_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and canSendInput() and (tick()-lastFireAt >= SKILL.cooldown) then
+            local root, needle, zone = findSkillcheckRoot()
+            if root and needle and zone then
+                if not firedThisCheck[needle] then
+                    local nAng = angleOf(needle, root); local zAng = angleOf(zone, root)
+                    if angDist(nAng, zAng) <= SKILL.zoneTolerance then
+                        firedThisCheck[needle] = true; lastFireAt = tick()
+                        local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
+                        pcall(function()
+                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                            task.wait(w)
+                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                    end
+                end
+            elseif tick() - lastUiCheck > 1.5 then
                 local w = jittered(SKILL.pressWidthLo, SKILL.pressWidthHi)
                 pcall(function()
                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -679,6 +674,8 @@ task.spawn(function()
                 end)
                 lastUiCheck = tick()
             end
+        else
+            firedThisCheck = {}
         end
     end
 end)
@@ -709,37 +706,38 @@ end
 task.spawn(function()
     while true do
         task.wait(0.05)
-        if not (MasterEnabled and CFG.auto_parry) then continue end
-        if parryBusy or not canSendInput() then continue end
-        local myChar=LP.Character
-        local myHrp=myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myHrp then continue end
-        for _,p in ipairs(P:GetPlayers()) do
-            if p==LP then continue end
-            local char=p.Character
-            if not char or not isKillerSafe(p) then continue end
-            local tHrp=char:FindFirstChild("HumanoidRootPart")
-            local hum=char:FindFirstChildOfClass("Humanoid")
-            if not (tHrp and hum and hum.Health>0) then continue end
-            if (tHrp.Position-myHrp.Position).Magnitude>=PARRY_RADIUS then continue end
-            if not killerIsAttacking(char,tHrp,myHrp) then continue end
-            
-            parryBusy=true
-            local w=jittered(0.008,0.020)
-            pcall(function()
-                VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,true,game,1)
-                task.wait(w)
-                VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,false,game,1)
-            end)
-            task.wait(CFG.parry_cooldown+jittered(0,0.06))
-            parryBusy=false
-            break
+        if MasterEnabled and CFG.auto_parry and not parryBusy and canSendInput() then
+            local myChar=LP.Character
+            local myHrp=myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if myHrp then
+                for _,p in ipairs(P:GetPlayers()) do
+                    if p ~= LP then
+                        local char=p.Character
+                        if char and isKillerSafe(p) then
+                            local tHrp=char:FindFirstChild("HumanoidRootPart")
+                            local hum=char:FindFirstChildOfClass("Humanoid")
+                            if tHrp and hum and hum.Health > 0 and (tHrp.Position-myHrp.Position).Magnitude < PARRY_RADIUS and killerIsAttacking(char,tHrp,myHrp) then
+                                parryBusy=true
+                                local w=jittered(0.008,0.020)
+                                pcall(function()
+                                    VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,true,game,1)
+                                    task.wait(w)
+                                    VIM:SendMouseButtonEvent(0,0,PARRY_MOUSE_BUTTON,false,game,1)
+                                end)
+                                task.wait(CFG.parry_cooldown+jittered(0,0.06))
+                                parryBusy=false
+                                break
+                            end
+                        end
+                    end
+                end
+            end
         end
     end
 end)
 
 -- ==========================================
--- FOV & LIGHTING & WALKSPEED (unchanged from v60.5)
+-- FOV & LIGHTING & WALKSPEED
 -- ==========================================
 local lastFovSet=nil
 RS.RenderStepped:Connect(function()
@@ -834,4 +832,4 @@ RS.Stepped:Connect(function(_,dt)
     lastAppliedWs=hum.WalkSpeed
 end)
 
-print("[SpookingD] v60.8 loaded — Engine live")
+print("[SpookingD] v60.9 loaded — Engine live")
