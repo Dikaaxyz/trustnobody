@@ -1,6 +1,6 @@
 --[[
     Tumblr Girls - Script Made By SpookingD
-    v36.0 — Ghost Admin Evasion
+    v37.0 — Fixed Env, FPS & FOV Switch
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,7 +15,6 @@ local L = game:GetService("Lighting")
 local LP = P.LocalPlayer
 local CAM = WS.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
 
 local MasterEnabled = false
 
@@ -23,48 +22,16 @@ local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true,
     gen_esp=false, killer_esp=false, item_esp=false, exit_esp=false,
     bright=false, fpsboost=false,
-    crosshair=false, fov=70, hitbox_expand=false,
+    crosshair=false, fov_enabled=false, fov_val=70, hitbox_expand=false,
     auto_gen=false, auto_parry=false, auto_skillcheck=false,
     look_lock=false, ws_enabled=false, ws_speed=16,
     keyMenu=Enum.KeyCode.RightShift
 }
 
--- ==========================================
--- [BYPASS] ANTI-ADMIN EVASION
--- ==========================================
 pcall(function()
-    -- 1. HWID Spoof & Cookie Wipe
     getgenv().SpoofedHWID = tostring(math.random(100000,999999))
     game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
     if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end
-
-    -- 2. IP Masking (Fake US IP)
-    local oldGet = HttpService.GetAsync
-    HttpService.GetAsync = function(self, url, ...)
-        if url:find("ip") or url:find("geo") then return '{"ip":"104.28.210.1","country":"US"}' end
-        return oldGet(self, url, ...)
-    end
-
-    -- 3. Network Handshake Spoof
-    local NetworkClient = game:GetService("NetworkClient")
-    local oldInvoke = NetworkClient.Invoke
-    NetworkClient.Invoke = function(self, req, ...)
-        if req == "Handshake" then return "Roblox/Android/1.0" end
-        return oldInvoke(self, req, ...)
-    end
-
-    -- 4. Chat Filter (Ngehapus kata kunci cheat kalo lu ngetik di chat)
-    LP.Chatted:Connect(function(msg)
-        local filteredMsg = msg:gsub("(?i)cheat", "***"):gsub("(?i)hack", "***"):gsub("(?i)aimbot", "***"):gsub("(?i)exploit", "***")
-        if filteredMsg ~= msg then
-            -- Kalo ada kata kotor, cegah ngirim (kalo game make DefaultChat)
-            -- (Biasanya game pake custom chat, jadi ini cuma jaga-jaga)
-        end
-    end)
-
-    -- 5. Fake Ping (Ngebuat jaringan lu keliatan normal)
-    local oldGetPing = game:GetService("Stats").Network.ServerStatsItem["Data Ping"].GetValue
-    -- Nggak bisa di-hook langsung, tapi kita bisa bikin ping keliatan stabil di UI
 end)
 
 local function getHui() if typeof(gethui) == "function" then local ok, h = pcall(gethui) if ok and h then return h end end return CG end
@@ -137,13 +104,10 @@ local boxESP = createBox(pgVisual, "Player ESP", 10, 10, 440, 200)
 addSwitch(boxESP, "Enable ESP", "esp", 30); addSwitch(boxESP, "Show Name", "esp_name", 60); addSwitch(boxESP, "Show Health", "esp_health", 90); addSwitch(boxESP, "Show Distance", "esp_dist", 120)
 
 local boxVisual = createBox(pgVisual, "Screen", 10, 220, 440, 100)
-addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30); addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60); addSlider(boxVisual, "Camera FOV", "fov", 50, 120, 90)
+addSwitch(boxVisual, "Custom Crosshair", "crosshair", 30); addSwitch(boxVisual, "Hitbox Visualizer", "hitbox_expand", 60)
 
 local boxWorld = createBox(pgWorld, "World ESP", 10, 10, 440, 160)
 addSwitch(boxWorld, "Generator ESP", "gen_esp", 30); addSwitch(boxWorld, "Killer Skill ESP", "killer_esp", 60); addSwitch(boxWorld, "Item ESP", "item_esp", 90); addSwitch(boxWorld, "Exit / Spike ESP", "exit_esp", 120)
-
-local boxEnv = createBox(pgWorld, "Environment", 10, 180, 440, 100)
-addSwitch(boxEnv, "TRUE Fullbright", "bright", 30); addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
 
 local boxSafe = createBox(pgSurvivor, "Survivor Utility", 10, 10, 440, 160)
 addSwitch(boxSafe, "Auto Generator (Hold LMB)", "auto_gen", 30); addSwitch(boxSafe, "Auto Parry (God-Tier)", "auto_parry", 60); addSwitch(boxSafe, "Auto Skillcheck (LMB)", "auto_skillcheck", 90)
@@ -151,10 +115,18 @@ addSwitch(boxSafe, "Auto Generator (Hold LMB)", "auto_gen", 30); addSwitch(boxSa
 local boxKiller = createBox(pgKiller, "Killer Utility", 10, 10, 440, 80)
 addSwitch(boxKiller, "Look Lock (Aim Assist)", "look_lock", 30)
 
-local boxMisc = createBox(pgMisc, "Movement", 10, 10, 440, 100)
+-- Pindahin FOV & Env ke MISC
+local boxEnv = createBox(pgMisc, "Environment", 10, 10, 440, 100)
+addSwitch(boxEnv, "TRUE Fullbright", "bright", 30); addSwitch(boxEnv, "FPS Booster", "fpsboost", 60)
+
+local boxFOV = createBox(pgMisc, "Camera FOV", 10, 120, 440, 100)
+addSwitch(boxFOV, "Enable Custom FOV", "fov_enabled", 30)
+addSlider(boxFOV, "FOV Value", "fov_val", 50, 120, 60)
+
+local boxMisc = createBox(pgMisc, "Movement", 10, 230, 440, 100)
 addSwitch(boxMisc, "Enable WalkSpeed", "ws_enabled", 30); addSlider(boxMisc, "WalkSpeed (Safe)", "ws_speed", 16, 28, 60)
 
-local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 120, 440, 120)
+local boxBypass = createBox(pgMisc, "SpookingD Bypass", 10, 340, 440, 120)
 addButton(boxBypass, "Re-Apply HWID Bypass", function() getgenv().SpoofedHWID = tostring(math.random(100000,999999)); pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end); if writefile and isfile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end end, 30)
 addButton(boxBypass, "Panic Wipe (Log Out)", function() if writefile and delfile then pcall(function() if isfile("RobloxCookies.dat") then delfile("RobloxCookies.dat") end end) end; game:Shutdown() end, 60)
 
@@ -170,12 +142,16 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserIn
 UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 
 -- ==========================================
--- ENGINE: CUSTOM CAMERA FOV
+-- ENGINE: CUSTOM CAMERA FOV (DENGAN SWITCH)
 -- ==========================================
 RS.RenderStepped:Connect(function()
     if not MasterEnabled then return end
     if CAM then
-        CAM.FieldOfView = CFG.fov
+        if CFG.fov_enabled then
+            CAM.FieldOfView = CFG.fov_val
+        else
+            CAM.FieldOfView = 70 -- Balik ke default kalo switch OFF
+        end
     end
 end)
 
@@ -431,4 +407,4 @@ RS.Stepped:Connect(function()
     if c then local hum = c:FindFirstChildOfClass("Humanoid"); if hum then if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed else hum.WalkSpeed = 16 end end end
 end)
 
-print("[Tumblr Girls] Script Made By SpookingD — v36.0 Ghost Admin Evasion Loaded.")
+print("[Tumblr Girls] Script Made By SpookingD — v37.0 Custom FOV Switch Loaded.")
