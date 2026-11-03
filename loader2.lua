@@ -1,5 +1,5 @@
--- EggMaster V8 — Stable Anti-Crash (No Tween, Safe Teleport)
--- Fitur: ESP, Auto Grab, Instant Grab, Safe Loop.
+-- EggMaster V9 — Crash Fix & Safe Execute
+-- Aman di Xeno, aman pas loading screen.
 
 pcall(function()
     for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do
@@ -64,10 +64,13 @@ local function update_esp()
         for _, c in pairs(esp_cache) do if c.gui then c.gui.Enabled = false end end
         return
     end
-    local my_hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    
+    -- Cek karakter dulu (Anti Crash)
+    local char = LP.Character
+    if not char then return end
+    local my_hrp = char:FindFirstChild("HumanoidRootPart")
     if not my_hrp then return end
     
-    -- Pakai GetChildren biar gak lag/crash
     if CONFIG.esp_eggs then
         for _, obj in ipairs(Workspace:GetChildren()) do
             if obj:IsA("Model") or obj:IsA("BasePart") then
@@ -98,14 +101,15 @@ local is_stealing = false
 
 local function auto_steal()
     if not CONFIG.auto_steal then return end
+    if is_stealing then return end
+    
+    -- Cek karakter dulu (Anti Crash)
     local char = LP.Character
-    local my_hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not char then return end
+    local my_hrp = char:FindFirstChild("HumanoidRootPart")
     if not my_hrp then return end
 
-    if is_stealing then return end
-
     local nearest, nd = nil, math.huge
-    -- Pakai GetChildren buat nyari telur terdekat
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") or obj:IsA("BasePart") then
             local n = obj.Name:lower()
@@ -121,31 +125,35 @@ local function auto_steal()
         if nd > CONFIG.grab_dist then
             is_stealing = true
             pcall(function()
-                -- Teleport instan (gak pake Tween, biar gak crash)
                 my_hrp.CFrame = CFrame.new(nearest + Vector3.new(0, 3, 0))
             end)
             task.wait(0.1)
             
-            -- Ambil telur
-            local prompt = nearest:FindFirstChildOfClass("ProximityPrompt")
-            if prompt and fireproximityprompt then pcall(fireproximityprompt, prompt) end
-            
-            local bp = LP:FindFirstChild("Backpack")
-            if bp then
-                for _, tool in ipairs(bp:GetChildren()) do
-                    if tool:IsA("Tool") and tool.Name:lower():find("grab") then
-                        pcall(function() tool.Parent = char task.wait(0.1) tool:Activate() end)
-                        break
+            pcall(function()
+                local prompt = nearest:FindFirstChildOfClass("ProximityPrompt")
+                if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+                
+                local bp = LP:FindFirstChild("Backpack")
+                if bp then
+                    for _, tool in ipairs(bp:GetChildren()) do
+                        if tool:IsA("Tool") and tool.Name:lower():find("grab") then
+                            tool.Parent = char 
+                            task.wait(0.1) 
+                            tool:Activate()
+                            break
+                        end
                     end
                 end
-            end
+            end)
             is_stealing = false
         end
     end
 end
 
 local function apply_speed()
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then hum.WalkSpeed = CONFIG.speed_enabled and CONFIG.speed_value or 16 end
 end
 
@@ -167,7 +175,7 @@ local mainStroke = Instance.new("UIStroke") mainStroke.Color = COLORS.stroke mai
 local header = Instance.new("Frame") header.Size = UDim2.new(1, 0, 0, 40) header.BackgroundColor3 = COLORS.sidebar header.BorderSizePixel = 0 header.Parent = main
 local headerCorner = Instance.new("UICorner") headerCorner.CornerRadius = UDim.new(0, 8) headerCorner.Parent = header
 local headerFix = Instance.new("Frame") headerFix.Size = UDim2.new(1, 0, 0, 10) headerFix.Position = UDim2.new(0, 0, 1, -10) headerFix.BackgroundColor3 = COLORS.sidebar headerFix.BorderSizePixel = 0 headerFix.Parent = header
-local title = Instance.new("TextLabel") title.Size = UDim2.new(1, 0, 1, 0) title.BackgroundTransparency = 1 title.Text = "EGGMASTER V8" title.TextColor3 = COLORS.accent title.Font = FONT_BOLD title.TextSize = 14 title.Parent = header
+local title = Instance.new("TextLabel") title.Size = UDim2.new(1, 0, 1, 0) title.BackgroundTransparency = 1 title.Text = "EGGMASTER V9" title.TextColor3 = COLORS.accent title.Font = FONT_BOLD title.TextSize = 14 title.Parent = header
 
 local dragging, dragStart, startPos
 header.InputBegan:Connect(function(input)
@@ -257,4 +265,4 @@ RunService.RenderStepped:Connect(function()
     pcall(auto_steal)
 end)
 
-print("[EggMaster] V8 Loaded — Stable & Anti Crash.")
+print("[EggMaster] V9 Loaded — Safe Execute.")
