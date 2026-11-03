@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v7000.0 — The Aesthetic Update (Ultimate Parry, Skillcheck, Repair)
+    v8000.0 — The Real Fix (Executor Native)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -22,80 +22,68 @@ local mouseUnlockKey = Enum.KeyCode.RightControl
 local HAS_DRAWING = pcall(function() return Drawing.new("Circle") end)
 
 -- ==========================================
--- GHOST BYPASS (Trace Nuke + Hook + Humanizer)
+-- EXECUTOR NATIVE INPUTS (Bypass VIM Block)
 -- ==========================================
-local Ghost = {}
-function Ghost.Init()
-    -- 1. HWID & Trace Nuke
-    pcall(function()
-        if writefile and readfile and isfile then
-            local f = "vd_ghost.dat"
-            local v = tostring(math.random(10000000, 99999999)) .. "_GHOST"
-            writefile(f, v)
-            getgenv().GhostHWID = v
-            for _, file in ipairs({"RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt"}) do
-                if isfile(file) then delfile(file) end
-            end
-        end
-    end)
-
-    -- 2. Analytics Bypass
-    pcall(function()
-        local svc = game:GetService("RbxAnalyticsService")
-        svc.GetHardwareIdentifier = function() return getgenv().GhostHWID or "UNKNOWN" end
-        if svc.GetSessionId then svc.GetSessionId = function() return tostring(math.random(100000000, 999999999)) end end
-    end)
-
-    -- 3. Input Humanizer (Anti-Bot)
-    getgenv().LastInput = tick()
-    local oldVIM = VIM
-    VIM = setmetatable({}, {
-        __index = function(_, k)
-            return function(self, ...)
-                local args = {...}
-                task.wait(math.random(8, 20) / 1000) -- Random delay 8-20ms
-                return oldVIM[k](oldVIM, table.unpack(args))
-            end
-        end
-    })
+local function RightClick()
+    if type(mouse2click) == "function" then
+        mouse2click()
+    else
+        VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
+    end
 end
-Ghost.Init()
+
+local function PressSpace()
+    if type(keypress) == "function" then
+        keypress(0x20)
+    else
+        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+        task.wait(0.05)
+        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+    end
+end
+
+-- ==========================================
+-- GHOST BYPASS
+-- ==========================================
+pcall(function()
+    local f = "vd_ghost_v8.dat"
+    local v = tostring(math.random(10000000, 99999999)) .. "_G"
+    if writefile and isfile then writefile(f, v) end
+    getgenv().GhostHWID = v
+    local svc = game:GetService("RbxAnalyticsService")
+    svc.GetHardwareIdentifier = function() return getgenv().GhostHWID end
+end)
 
 -- ==========================================
 -- CONFIG
 -- ==========================================
 local CFG = {
-    -- Smart Parry
-    smart_parry=false, safe_parry=true, timing_mode="Reaction", parry_input="RightClick", facing_tol=0.5, show_smart_range=false, smart_range=15,
-    -- Classic Parry
-    classic_parry=false, aggressive_timing=false, show_classic_range=false, classic_range=15, classic_facing_tol=0.5,
-    -- Auto Skillcheck
-    auto_skillcheck=false, hit_zone="Perfect", hit_method="Space", hit_offset=0,
-    -- Repair Boost
-    repair_boost=false, repair_mult=2,
-    -- Misc
+    smart_parry=false, safe_parry=true, show_smart_range=false, smart_range=15, facing_tol=0.3,
+    classic_parry=false, show_classic_range=false, classic_range=15,
+    auto_skillcheck=false, hit_method="Space",
     esp=false, anti_afk=false,
-    
     keyMenu=Enum.KeyCode.RightShift
 }
 
 local espData = {}
 local hiddenFolder = Instance.new("Folder")
-hiddenFolder.Name = "GhostCarrier"
+hiddenFolder.Name = "GodCarrier"
 hiddenFolder.Parent = CAM
 
 -- ==========================================
--- AESTHETIC UI (Glassmorphism & Tween)
+-- UI
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,17), panel=Color3.fromRGB(25,25,30), 
     sidebar=Color3.fromRGB(10,10,12), txt=Color3.fromRGB(255,255,255), 
-    dim=Color3.fromRGB(150,150,160), acc=Color3.fromRGB(0, 170, 255), 
+    dim=Color3.fromRGB(150,150,160), acc=Color3.fromRGB(255, 50, 50), 
     red=Color3.fromRGB(255,60,60), off=Color3.fromRGB(40,40,45)
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="SG_Aesthetic"
+gui.Name="SG_RealFix"
 gui.ResetOnSpawn=false
 gui.DisplayOrder=999999
 gui.Parent=LP:WaitForChild("PlayerGui")
@@ -104,7 +92,7 @@ getgenv().TGui=gui
 local main = Instance.new("Frame")
 main.Size=UDim2.new(0,600,0,400); main.Position=UDim2.new(0.5,-300,0.5,-200)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
-local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 12); mc.Parent = main
+local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 8); mc.Parent = main
 local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1; ms.Transparency=0.5; ms.Parent=main
 
 local topBar = Instance.new("Frame")
@@ -112,15 +100,13 @@ topBar.Size=UDim2.new(1,0,0,40); topBar.BackgroundColor3=COL.bg; topBar.BorderSi
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,15,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD"; logo.TextColor3=COL.txt; logo.Font=Enum.Font.GothamBold
+logo.Text="SPOOKINGD FIX"; logo.TextColor3=COL.txt; logo.Font=Enum.Font.GothamBold
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size=UDim2.new(0,30,1,0); closeBtn.Position=UDim2.new(1,-35,0,0)
 closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.dim
 closeBtn.Font=Enum.Font.GothamBold; closeBtn.TextSize=14; closeBtn.Parent=topBar
-closeBtn.MouseEnter:Connect(function() closeBtn.TextColor3 = COL.red end)
-closeBtn.MouseLeave:Connect(function() closeBtn.TextColor3 = COL.dim end)
 
 local openBtn = Instance.new("TextButton")
 openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
@@ -135,7 +121,7 @@ openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visibl
 local sidebar = Instance.new("Frame")
 sidebar.Size=UDim2.new(0,130,1,-40); sidebar.Position=UDim2.new(0,0,0,40)
 sidebar.BackgroundColor3=COL.sidebar; sidebar.BorderSizePixel=0; sidebar.Parent=main
-local sbc = Instance.new("UICorner"); sbc.CornerRadius = UDim.new(0, 12); sbc.Parent = sidebar
+local sbc = Instance.new("UICorner"); sbc.CornerRadius = UDim.new(0, 8); sbc.Parent = sidebar
 
 local sideTabs, sidePages = {}, {}
 local function addTab(name)
@@ -214,75 +200,19 @@ local function addSlider(parent,label,key,min,max,yOffset)
     end)
 end
 
-local function addDropdown(parent,label,key,options,yOffset)
-    local frame=Instance.new("Frame")
-    frame.Size=UDim2.new(1,-10,0,30); frame.Position=UDim2.new(0,5,0,yOffset)
-    frame.BackgroundTransparency=1; frame.Parent=parent
-    local txt=Instance.new("TextLabel")
-    txt.Size=UDim2.new(1,-80,1,0); txt.BackgroundTransparency=1
-    txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham
-    txt.TextSize=12; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=frame
-    
-    local btn=Instance.new("TextButton")
-    btn.Size=UDim2.new(0,80,0,22); btn.Position=UDim2.new(1,-80,0.5,-11)
-    btn.BackgroundColor3=COL.bg; btn.BorderSizePixel=1; btn.BorderColor3=COL.off
-    btn.Text=tostring(CFG[key]); btn.TextColor3=COL.acc
-    btn.Font=Enum.Font.GothamBold; btn.TextSize=11; btn.Parent=frame
-    
-    local list = Instance.new("Frame")
-    list.Size=UDim2.new(0,80,0,0); list.Position=UDim2.new(1,-80,1,5)
-    list.BackgroundColor3=COL.bg; list.BorderSizePixel=1; list.BorderColor3=COL.off
-    list.Visible=false; list.ZIndex=10; list.Parent=frame
-    
-    for i, opt in ipairs(options) do
-        if opt == CFG[key] then btn.Text = opt end
-        local optBtn = Instance.new("TextButton")
-        optBtn.Size=UDim2.new(1,0,0,22); optBtn.Position=UDim2.new(0,0,0,(i-1)*22)
-        optBtn.BackgroundTransparency=1; optBtn.Text=opt; optBtn.TextColor3=COL.txt
-        optBtn.Font=Enum.Font.Gotham; optBtn.TextSize=11; optBtn.ZIndex=10; optBtn.Parent=list
-        optBtn.MouseButton1Click:Connect(function()
-            CFG[key] = opt
-            btn.Text = opt
-            list.Visible = false
-            list.Size = UDim2.new(0,80,0,0)
-        end)
-    end
-    
-    btn.MouseButton1Click:Connect(function()
-        list.Visible = not list.Visible
-        list.Size = UDim2.new(0,80,0,#options*22)
-    end)
-end
-
-local scSmart = addTab("Smart Parry")
-local scClassic = addTab("Classic Parry")
-local scSkill = addTab("Auto Skill")
+local scParry = addTab("Parry")
+local scSkill = addTab("Skillcheck")
 local scMisc = addTab("Misc")
 
--- SMART PARRY
-addSwitch(scSmart, "Smart Auto Parry", "smart_parry", 10)
-addSwitch(scSmart, "Safe Parry", "safe_parry", 40)
-addDropdown(scSmart, "Timing Mode", "timing_mode", {"Reaction", "Predictive", "Aggressive"}, 70)
-addDropdown(scSmart, "Parry Input", "parry_input", {"RightClick", "Keybind"}, 110)
-addSlider(scSmart, "Facing Tolerance", "facing_tol", 0, 1, 150)
-addSwitch(scSmart, "Show Parry Range", "show_smart_range", 180)
-addSlider(scSmart, "Parry Range", "smart_range", 5, 30, 210)
+addSwitch(scParry, "Smart Auto Parry", "smart_parry", 10)
+addSwitch(scParry, "Safe Parry", "safe_parry", 40)
+addSwitch(scParry, "Show Smart Range", "show_smart_range", 70)
+addSlider(scParry, "Smart Range", "smart_range", 5, 30, 100)
+addSwitch(scParry, "Classic Auto Parry", "classic_parry", 140)
+addSwitch(scParry, "Show Classic Range", "show_classic_range", 170)
+addSlider(scParry, "Classic Range", "classic_range", 5, 30, 200)
 
--- CLASSIC PARRY
-addSwitch(scClassic, "Classic Auto Parry", "classic_parry", 10)
-addSwitch(scClassic, "Aggressive Timing", "aggressive_timing", 40)
-addSwitch(scClassic, "Show Parry Range", "show_classic_range", 70)
-addSlider(scClassic, "Parry Range", "classic_range", 5, 30, 100)
-addSlider(scClassic, "Facing Tolerance", "classic_facing_tol", 0, 1, 130)
-
--- AUTO SKILLCHECK
 addSwitch(scSkill, "Auto Hit Skill Checks", "auto_skillcheck", 10)
-addDropdown(scSkill, "Hit Zone", "hit_zone", {"Perfect", "Good", "Any"}, 40)
-addDropdown(scSkill, "Hit Method", "hit_method", {"Space", "Click", "Both"}, 80)
-addSlider(scSkill, "Hit Timing Offset", "hit_offset", -50, 50, 120)
-addSwitch(scSkill, "Repair Boost", "repair_boost", 150)
-
--- MISC
 addSwitch(scMisc, "Enable ESP", "esp", 10)
 addSwitch(scMisc, "Anti-AFK", "anti_afk", 40)
 
@@ -316,7 +246,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ENGINES (Fully Safe)
+-- ENGINES
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -329,13 +259,10 @@ local function isKillerSafe(p)
     return false
 end
 
--- DRAWING API FOR RANGE
 local smartCircle, classicCircle
 if HAS_DRAWING then
-    smartCircle = Drawing.new("Circle")
-    smartCircle.Thickness = 1.5; smartCircle.Filled = false; smartCircle.Color = Color3.fromRGB(0, 255, 255)
-    classicCircle = Drawing.new("Circle")
-    classicCircle.Thickness = 1.5; classicCircle.Filled = false; classicCircle.Color = Color3.fromRGB(255, 0, 0)
+    smartCircle = Drawing.new("Circle"); smartCircle.Thickness = 1.5; smartCircle.Filled = false; smartCircle.Color = Color3.fromRGB(0, 255, 255)
+    classicCircle = Drawing.new("Circle"); classicCircle.Thickness = 1.5; classicCircle.Filled = false; classicCircle.Color = Color3.fromRGB(255, 0, 0)
 end
 
 RS.RenderStepped:Connect(function()
@@ -355,7 +282,6 @@ RS.RenderStepped:Connect(function()
                 smartCircle.Radius = (edge - footPos).Magnitude
             else smartCircle.Visible = false end
         else smartCircle.Visible = false end
-        
         if CFG.show_classic_range and CFG.classic_parry then
             local edge, onScreenEdge = cam:WorldToViewportPoint(myHrp.Position - Vector3.new(0, 3, 0) + Vector3.new(CFG.classic_range, 0, 0))
             if onScreenEdge then
@@ -370,7 +296,7 @@ RS.RenderStepped:Connect(function()
     end
 end)
 
--- SMART PARRY LOGIC
+-- SMART PARRY (Detect Attack)
 local smartBusy = false
 task.spawn(function()
     while true do
@@ -384,13 +310,11 @@ task.spawn(function()
                         local char = p.Character
                         local tHrp = char and char:FindFirstChild("HumanoidRootPart")
                         local hum = char and char:FindFirstChildOfClass("Humanoid")
-                        
                         if tHrp and hum and hum.Health > 0 then
                             local dist = (tHrp.Position - myHrp.Position).Magnitude
                             if dist < CFG.smart_range then
                                 local dir = (myHrp.Position - tHrp.Position).Unit
                                 local facingUs = tHrp.CFrame.LookVector:Dot(dir) > CFG.facing_tol
-                                
                                 local attacking = true
                                 if CFG.safe_parry then
                                     attacking = false
@@ -404,20 +328,9 @@ task.spawn(function()
                                         end
                                     end
                                 end
-                                
                                 if facingUs and attacking then
                                     smartBusy = true
-                                    pcall(function()
-                                        if CFG.parry_input == "RightClick" then
-                                            VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
-                                            task.wait(0.05)
-                                            VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
-                                        else
-                                            VIM:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-                                            task.wait(0.05)
-                                            VIM:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
-                                        end
-                                    end)
+                                    RightClick()
                                     task.wait(0.3)
                                     smartBusy = false
                                     break
@@ -431,11 +344,11 @@ task.spawn(function()
     end
 end)
 
--- CLASSIC PARRY LOGIC
+-- CLASSIC PARRY (Spam Click)
 local classicBusy = false
 task.spawn(function()
     while true do
-        task.wait(0.05)
+        task.wait(0.1)
         if CFG.classic_parry and not classicBusy then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -446,11 +359,7 @@ task.spawn(function()
                         local tHrp = char and char:FindFirstChild("HumanoidRootPart")
                         if tHrp and (tHrp.Position - myHrp.Position).Magnitude < CFG.classic_range then
                             classicBusy = true
-                            pcall(function()
-                                VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
-                                task.wait(0.05)
-                                VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
-                            end)
+                            RightClick()
                             task.wait(0.3)
                             classicBusy = false
                             break
@@ -462,91 +371,58 @@ task.spawn(function()
     end
 end)
 
--- AUTO SKILLCHECK (Math Geometry)
+-- AUTO SKILLCHECK (Broad Scanner)
 task.spawn(function()
     while true do
-        task.wait(0.005)
+        task.wait(0.01)
         if CFG.auto_skillcheck then
             local pg = LP:FindFirstChild("PlayerGui")
             if pg then
+                -- Scan all rotating UI elements
+                local rotatingUI = {}
                 for _, obj in ipairs(pg:GetDescendants()) do
                     if obj:IsA("ImageLabel") or obj:IsA("Frame") then
-                        local n = obj.Name:lower()
-                        local isNeedle = n:find("needle") or n:find("line") or n:find("indicator") or n:find("marker")
-                        local isZone = n:find("white") or n:find("zone") or n:find("target") or n:find("perfect")
+                        if obj.Rotation > 0 and obj.Rotation < 360 and obj.Visible and obj.AbsoluteSize.X > 10 then
+                            table.insert(rotatingUI, obj)
+                        end
+                    end
+                end
+                
+                -- If we find a rotating UI (the needle), check if there's a zone
+                for _, needle in ipairs(rotatingUI) do
+                    local parent = needle.Parent
+                    local zone = nil
+                    for _, child in ipairs(parent:GetChildren()) do
+                        if child ~= needle and (child:IsA("Frame") or child:IsA("ImageLabel")) and child.Visible then
+                            -- Zone is usually a stationary small block inside the circle
+                            if child.AbsoluteSize.X < needle.AbsoluteSize.X and child.AbsoluteSize.X > 10 then
+                                zone = child
+                                break
+                            end
+                        end
+                    end
+                    
+                    if zone then
+                        local centerX, centerY = parent.AbsolutePosition.X + parent.AbsoluteSize.X/2, parent.AbsolutePosition.Y + parent.AbsoluteSize.Y/2
+                        local needleAngle = math.rad(needle.Rotation)
+                        local radius = needle.AbsoluteSize.Y / 2
+                        local needleEndX = centerX + math.cos(needleAngle) * radius
+                        local needleEndY = centerY + math.sin(needleAngle) * radius
                         
-                        if isNeedle or isZone then
-                            local parent = obj.Parent
-                            local needleObj, zoneObj = nil, nil
-                            
-                            for _, child in ipairs(parent:GetChildren()) do
-                                local cn = child.Name:lower()
-                                if cn:find("needle") or cn:find("line") or cn:find("indicator") or cn:find("marker") then
-                                    needleObj = child
-                                elseif cn:find("white") or cn:find("zone") or cn:find("target") or cn:find("perfect") then
-                                    zoneObj = child
-                                end
-                            end
-                            
-                            if needleObj and zoneObj then
-                                local centerX, centerY = parent.AbsolutePosition.X + parent.AbsoluteSize.X/2, parent.AbsolutePosition.Y + parent.AbsoluteSize.Y/2
-                                local needleAngle = math.rad(needleObj.Rotation)
-                                local radius = needleObj.AbsoluteSize.Y / 2
-                                local needleEndX = centerX + math.cos(needleAngle) * radius
-                                local needleEndY = centerY + math.sin(needleAngle) * radius
-                                
-                                local zoneX = zoneObj.AbsolutePosition.X + zoneObj.AbsoluteSize.X/2
-                                local zoneY = zoneObj.AbsolutePosition.Y + zoneObj.AbsoluteSize.Y/2
-                                
-                                local dist = math.sqrt((needleEndX - zoneX)^2 + (needleEndY - zoneY)^2)
-                                local targetDist = dist + CFG.hit_offset
-                                
-                                if targetDist < 25 then
-                                    local method = CFG.hit_method
-                                    pcall(function()
-                                        if method == "Space" or method == "Both" then
-                                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                            task.wait(0.05)
-                                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                        end
-                                        if method == "Click" or method == "Both" then
-                                            VIM:SendMouseButtonEvent(0, 0, 1, true, game, 1)
-                                            task.wait(0.05)
-                                            VIM:SendMouseButtonEvent(0, 0, 1, false, game, 1)
-                                        end
-                                    end)
-                                    task.wait(0.2)
-                                    break
-                                end
-                            end
+                        local zoneX = zone.AbsolutePosition.X + zone.AbsoluteSize.X/2
+                        local zoneY = zone.AbsolutePosition.Y + zone.AbsoluteSize.Y/2
+                        
+                        -- Check distance between needle tip and zone center
+                        local dist = math.sqrt((needleEndX - zoneX)^2 + (needleEndY - zoneY)^2)
+                        
+                        if dist < 20 then -- Tolerance
+                            PressSpace()
+                            task.wait(0.2)
+                            break
                         end
                     end
                 end
             end
-        end
-    end
-end)
-
--- REPAIR BOOST
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if CFG.repair_boost then
-            pcall(function()
-                local char = LP.Character
-                if char then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        for _, v in ipairs(WS:GetDescendants()) do
-                            if v:IsA("ProximityPrompt") and v.ObjectText:lower():find("generator") then
-                                if (v.Parent.Position - char.HumanoidRootPart.Position).Magnitude < 10 then
-                                    fireproximityprompt(v)
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
         end
     end
 end)
@@ -590,13 +466,11 @@ task.spawn(function()
     while true do
         task.wait(60)
         if CFG.anti_afk then
-            pcall(function()
-                VIM:SendKeyEvent(true, Enum.KeyCode.A, false, game)
-                task.wait(0.1)
-                VIM:SendKeyEvent(false, Enum.KeyCode.A, false, game)
-            end)
+            if type(keypress) == "function" then keypress(0x41) else VIM:SendKeyEvent(true, Enum.KeyCode.A, false, game) end
+            task.wait(0.1)
+            if type(keyrelease) == "function" then keyrelease(0x41) else VIM:SendKeyEvent(false, Enum.KeyCode.A, false, game) end
         end
     end
 end)
 
-print("[SpookingD] v7000.0 loaded — Aesthetic & Perfection Active")
+print("[SpookingD] v8000.0 loaded — Executor Native Active")
