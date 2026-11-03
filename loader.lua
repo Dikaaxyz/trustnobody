@@ -1,4 +1,4 @@
--- SpookenD V10 — Violence District (Spacebar Skill Check + Auto Parry)
+-- SpookenD V11 — Violence District (Highlight ESP + Auto Parry + Skill Check)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
@@ -9,7 +9,6 @@ end)
 
 local CONFIG = {
     esp_enabled=false, esp_killer=false, esp_survivor=false, esp_generator=false,
-    esp_max_dist=250, 
     color_killer={255,50,50}, color_survivor={50,180,255}, color_generator={255,200,40},
     auto_parry=false, parry_dist=15,
     silent_aim=false, kill_aura=false, auto_skill_check=false,
@@ -42,125 +41,142 @@ local function get_role(plr)
         if n:find("killer") then return "Killer" end
         if n:find("survivor") then return "Survivor" end
     end
+    local ls = plr:FindFirstChild("leaderstats")
+    if ls then
+        for _, v in pairs(ls:GetChildren()) do
+            if v.Name:lower():find("role") and tostring(v.Value):lower():find("killer") then return "Killer" end
+            if v.Name:lower():find("role") and tostring(v.Value):lower():find("survivor") then return "Survivor" end
+        end
+    end
     return nil
 end
 
 -- ============================================================
--- ESP FALLBACK (BillboardGui)
+-- ESP (Highlight + BillboardGui Method - From Reference)
 -- ============================================================
-local esp_cache = {}
-local esp_accum = 0
+local espFolder = Instance.new("Folder")
+espFolder.Name = "SpookenD_ESP_Carrier"
+espFolder.Parent = Camera
 
-local function create_esp_billboard(plr, color)
-    local char = plr.Character
-    if not char then return nil end
-    local head = char:FindFirstChild("Head")
-    if not head then return nil end
+local espData = {}
 
-    local bg = Instance.new("BillboardGui")
-    bg.Name = "SpookenD_ESP"
-    bg.AlwaysOnTop = true
-    bg.Size = UDim2.new(0, 200, 0, 50)
-    bg.StudsOffset = Vector3.new(0, 2.5, 0)
-    bg.Parent = head
-
-    local text = Instance.new("TextLabel")
-    text.Size = UDim2.new(1, 0, 1, 0)
-    text.BackgroundTransparency = 1
-    text.TextColor3 = rgb(color)
-    text.TextStrokeTransparency = 0
-    text.Font = Enum.Font.GothamBold
-    text.TextSize = 14
-    text.Text = ""
-    text.Parent = bg
-    
-    return { gui = bg, text = text }
-end
-
-local function update_esp(dt)
-    esp_accum = esp_accum + dt
-    if esp_accum < 1/30 then return end
-    esp_accum = 0
-
-    if not CONFIG.esp_enabled then
-        for _, c in pairs(esp_cache) do 
-            if c.gui then c.gui.Enabled = false end
-        end
-        return 
-    end
-
-    local mc = LP.Character
-    local mh = mc and mc:FindFirstChild("HumanoidRootPart")
-    if not mh then return end
-    local mp = mh.Position
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
-            local role = get_role(plr)
-            local want = (role == "Killer" and CONFIG.esp_killer) or (role == "Survivor" and CONFIG.esp_survivor)
-            local char = plr.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            
-            if want and hrp then
-                local d = dist(mp, hrp.Position)
-                if d <= CONFIG.esp_max_dist then
-                    local color = role == "Killer" and CONFIG.color_killer or CONFIG.color_survivor
-                    if not esp_cache[plr] or not esp_cache[plr].gui or not esp_cache[plr].gui.Parent then
-                        esp_cache[plr] = create_esp_billboard(plr, color)
-                    end
-                    local c = esp_cache[plr]
-                    if c and c.gui and c.text then
-                        c.gui.Enabled = true
-                        c.text.Text = string.format("%s [%s] %dm", plr.Name, role, math.floor(d))
-                    end
-                else
-                    if esp_cache[plr] and esp_cache[plr].gui then esp_cache[plr].gui.Enabled = false end
-                end
-            else
-                if esp_cache[plr] and esp_cache[plr].gui then esp_cache[plr].gui.Enabled = false end
-            end
-        end
-    end
-
-    -- GENERATOR ESP
-    if CONFIG.esp_generator then
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if (obj:IsA("Model") or obj:IsA("BasePart")) and (obj.Name:lower():find("generator") or obj.Name:lower():find("gen")) then
-                local pos = obj:IsA("Model") and obj:GetPivot().Position or obj.Position
-                local d = dist(mp, pos)
-                if d <= CONFIG.esp_max_dist then
-                    if not esp_cache[obj] then
-                        local bg = Instance.new("BillboardGui")
-                        bg.Name = "SpookenD_GenESP"
-                        bg.AlwaysOnTop = true
-                        bg.Size = UDim2.new(0, 100, 0, 30)
-                        bg.StudsOffset = Vector3.new(0, 2, 0)
-                        bg.Parent = obj
-                        local text = Instance.new("TextLabel")
-                        text.Size = UDim2.new(1, 0, 1, 0)
-                        text.BackgroundTransparency = 1
-                        text.TextColor3 = rgb(CONFIG.color_generator)
-                        text.TextStrokeTransparency = 0
-                        text.Font = Enum.Font.GothamBold
-                        text.TextSize = 12
-                        text.Parent = bg
-                        esp_cache[obj] = { gui = bg, text = text }
-                    end
-                    local c = esp_cache[obj]
-                    if c and c.gui and c.text then
-                        c.gui.Enabled = true
-                        c.text.Text = string.format("[Gen] %dm", math.floor(d))
-                    end
-                else
-                    if esp_cache[obj] and esp_cache[obj].gui then esp_cache[obj].gui.Enabled = false end
-                end
-            end
-        end
+local function clean_esp(plr)
+    if espData[plr] then
+        if espData[plr].hl then pcall(function() espData[plr].hl:Destroy() end) end
+        if espData[plr].bg then pcall(function() espData[plr].bg:Destroy() end) end
+        espData[plr] = nil
     end
 end
 
+task.spawn(function()
+    while true do
+        task.wait(1) -- Anti-stutter refresh
+        if CONFIG.esp_enabled then
+            pcall(function()
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LP then
+                        local char = p.Character
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        local role = get_role(p)
+                        
+                        local want = (role == "Killer" and CONFIG.esp_killer) or (role == "Survivor" and CONFIG.esp_survivor)
+                        
+                        if hrp and hum and hum.Health > 0 and want then
+                            local d = espData[p]
+                            if not d or not d.hl or not d.hl.Parent then
+                                clean_esp(p)
+                                local hl = Instance.new("Highlight")
+                                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                hl.Adornee = char
+                                hl.Parent = espFolder
+                                
+                                local bg = Instance.new("BillboardGui")
+                                bg.Adornee = hrp
+                                bg.Size = UDim2.new(0, 150, 0, 40)
+                                bg.StudsOffset = Vector3.new(0, 3, 0)
+                                bg.AlwaysOnTop = true
+                                bg.Parent = espFolder
+                                
+                                local nameLabel = Instance.new("TextLabel")
+                                nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                                nameLabel.BackgroundTransparency = 1
+                                nameLabel.TextStrokeTransparency = 0
+                                nameLabel.Font = Enum.Font.GothamBold
+                                nameLabel.TextSize = 13
+                                nameLabel.Parent = bg
+                                
+                                local distLabel = Instance.new("TextLabel")
+                                distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                                distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                                distLabel.BackgroundTransparency = 1
+                                distLabel.TextStrokeTransparency = 0
+                                distLabel.Font = Enum.Font.Gotham
+                                distLabel.TextSize = 11
+                                distLabel.Parent = bg
+                                
+                                espData[p] = { hl = hl, bg = bg, name = nameLabel, dist = distLabel }
+                                d = espData[p]
+                            end
+                            
+                            local color = role == "Killer" and rgb(CONFIG.color_killer) or rgb(CONFIG.color_survivor)
+                            d.hl.FillColor = color
+                            d.hl.OutlineColor = color
+                            
+                            d.name.Text = p.Name
+                            d.name.TextColor3 = color
+                            
+                            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                                local distVal = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+                                d.dist.Text = "[" .. distVal .. "m]"
+                                d.dist.TextColor3 = Color3.fromRGB(200, 200, 200)
+                            end
+                        else
+                            clean_esp(p)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- Generator ESP (Loop terpisah, ringan)
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if CONFIG.esp_enabled and CONFIG.esp_generator then
+            pcall(function()
+                for _, obj in ipairs(Workspace:GetChildren()) do
+                    if (obj:IsA("Model") or obj:IsA("BasePart")) and (obj.Name:lower():find("generator") or obj.Name:lower():find("gen")) then
+                        if not obj:FindFirstChild("SpookenD_GenESP") then
+                            local bg = Instance.new("BillboardGui")
+                            bg.Name = "SpookenD_GenESP"
+                            bg.AlwaysOnTop = true
+                            bg.Size = UDim2.new(0, 100, 0, 30)
+                            bg.StudsOffset = Vector3.new(0, 2, 0)
+                            bg.Parent = obj
+                            local text = Instance.new("TextLabel")
+                            text.Size = UDim2.new(1, 0, 1, 0)
+                            text.BackgroundTransparency = 1
+                            text.TextColor3 = rgb(CONFIG.color_generator)
+                            text.TextStrokeTransparency = 0
+                            text.Font = Enum.Font.GothamBold
+                            text.TextSize = 12
+                            text.Text = "[Generator]"
+                            text.Parent = bg
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(clean_esp)
+
 -- ============================================================
--- AUTO PARRY
+-- AUTO PARRY & SKILL CHECK
 -- ============================================================
 local cached_parry_remotes = {}
 local last_parry_time = 0
@@ -199,7 +215,6 @@ local function update_auto_parry(dt)
             for _, remote in ipairs(cached_parry_remotes) do
                 pcall(function() remote:FireServer() end)
             end
-            -- Tool activate (kalau lu megang pedang/parry tool)
             local char = LP.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
             if tool then pcall(function() tool:Activate() end) end
@@ -207,10 +222,6 @@ local function update_auto_parry(dt)
     end
 end
 
--- ============================================================
--- AUTO SKILL CHECK (Spacebar Emulator)
--- ============================================================
--- Konsep: Pas UI Skill check muncul, kirim input Spacebar.
 local function get_hidden_gui()
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
@@ -228,14 +239,11 @@ end
 local skill_cooldown = 0
 local function update_skill_check(dt)
     if not CONFIG.auto_skill_check then return end
-    
-    -- Kasih delay 0.2 detik biar gak spam
     skill_cooldown = skill_cooldown + dt
     if skill_cooldown < 0.2 then return end
     
     if get_hidden_gui() then
         skill_cooldown = 0
-        -- Emulasi tekan Spacebar
         if keypress then
             pcall(function() keypress(0x20) end)
         elseif VirtualUser then
@@ -245,7 +253,6 @@ local function update_skill_check(dt)
                 vu:KeyPress(Enum.KeyCode.Space)
             end)
         end
-        -- Fallback kalau itu ternyata TextButton
         local pg = LP:FindFirstChild("PlayerGui")
         if pg then
             for _, gui in ipairs(pg:GetDescendants()) do
@@ -261,7 +268,7 @@ local function update_skill_check(dt)
 end
 
 -- ============================================================
--- FITUR LAIN
+-- FITUR LAIN (Fullbright, Anti Lag, dll)
 -- ============================================================
 local function apply_fullbright_medium()
     if CONFIG.fullbright_medium then
@@ -288,7 +295,7 @@ local function update_auto(dt)
 end
 
 -- ============================================================
--- UI & FLOATING LOGO
+-- UI (Sama kayak V10)
 -- ============================================================
 local COLORS = {
     bg = Color3.fromRGB(22,22,28), sidebar = Color3.fromRGB(16,16,22),
@@ -470,10 +477,9 @@ switch_tab("Main")
 apply_misc()
 
 RunService.RenderStepped:Connect(function(dt)
-    pcall(update_esp, dt)
     pcall(update_auto_parry, dt)
     pcall(update_skill_check, dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V10 Loaded — Skill Check Spacebar Fixed.")
+print("[SpookenD] V11 Loaded — Highlight ESP & QTE Fixed.")
