@@ -1,20 +1,31 @@
--- SpookenD V5 — Violence District (ESP Fix + Floating Logo)
+-- SpookenD V6 — Violence District (Drawing Fix, Lag Fix, Default Off)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
     for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do
         if g.Name:find("SpookenD") or g.Name:find("VD_UI") then g:Destroy() end
     end
-    if getgenv().SpookenD_DRAWINGS then
-        for _, d in ipairs(getgenv().SpookenD_DRAWINGS) do
-            pcall(function() d:Remove() end)
-        end
-    end
 end)
 
+-- ============================================================
+-- FIX DRAWING SUPPORT
+-- ============================================================
+local Drawing = Drawing or getgenv().Drawing or (syn and syn.drawing) or (fluxus and fluxus.drawing)
+local function new_d(class, props)
+    if not Drawing then return nil end 
+    local ok, d = pcall(Drawing.new, class)
+    if not ok then return nil end
+    for k, v in pairs(props or {}) do pcall(function() d[k] = v end) end
+    table.insert(getgenv().SpookenD_DRAWINGS or {}, d)
+    return d
+end
+
+-- ============================================================
+-- CONFIG (SEMUA DEFAULT OFF BIAR GAK CRASH)
+-- ============================================================
 local CONFIG = {
-    esp_enabled=true, esp_killer=true, esp_survivor=true, esp_generator=true,
-    esp_max_dist=300, -- Jarak render maksimal
+    esp_enabled=false, esp_killer=true, esp_survivor=true, esp_generator=true,
+    esp_max_dist=250, 
     color_killer={255,50,50}, color_survivor={50,180,255}, color_generator={255,200,40},
     auto_parry=false, silent_aim=false, kill_aura=false, auto_skill_check=false,
     auto_generator=false, auto_heal=false, auto_unhook=false, auto_escape=false,
@@ -32,20 +43,12 @@ local Workspace=game:GetService("Workspace")
 local CoreGui=game:GetService("CoreGui")
 local LP=Players.LocalPlayer
 local Camera=Workspace.CurrentCamera
-local Drawing=Drawing or (syn and syn.drawing)
 local is_mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 getgenv().SpookenD_CONNS = getgenv().SpookenD_CONNS or {}
 getgenv().SpookenD_DRAWINGS = getgenv().SpookenD_DRAWINGS or {}
 
 local function rgb(c) return Color3.fromRGB(c[1],c[2],c[3]) end
-local function new_d(c,p) 
-    if not Drawing then return nil end 
-    local d=Drawing.new(c) 
-    for k,v in pairs(p) do d[k]=v end 
-    table.insert(getgenv().SpookenD_DRAWINGS, d) 
-    return d 
-end
 local function dist(a,b) return (a-b).Magnitude end
 
 local function get_role(plr)
@@ -66,21 +69,20 @@ local function get_role(plr)
 end
 
 -- ============================================================
--- ESP (Fix Update Loop, No Throttle Bug)
+-- ESP LOGIC (Fix Error IsA & Drawing Nil)
 -- ============================================================
 local esp_cache = {}
 local esp_accum = 0
 
 local function update_esp(dt)
     esp_accum = esp_accum + dt
-    -- Render 30 FPS aja biar gak berat, tapi pake logic yang bener
     if esp_accum < 1/30 then return end
     esp_accum = 0
 
     if not CONFIG.esp_enabled then
         for _, c in pairs(esp_cache) do 
-            if c.text then c.text.Visible = false end
-            if c.tracer then c.tracer.Visible = false end
+            pcall(function() if c.text then c.text.Visible = false end end)
+            pcall(function() if c.tracer then c.tracer.Visible = false end end)
         end
         return 
     end
@@ -111,10 +113,9 @@ local function update_esp(dt)
                         }
                     end
                     local c = esp_cache[plr]
-                    -- Pake WorldToViewportPoint langsung, lebih stabil
                     local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
                     
-                    if onScreen then
+                    if onScreen and c.text and c.tracer then
                         c.text.Position = Vector2.new(screenPos.X, screenPos.Y - 20)
                         c.text.Text = string.format("%s [%s] %dm", plr.Name, role, math.floor(d))
                         c.text.Visible = true
@@ -122,32 +123,55 @@ local function update_esp(dt)
                         c.tracer.To = Vector2.new(screenPos.X, screenPos.Y)
                         c.tracer.Visible = true
                     else
-                        c.text.Visible = false
-                        c.tracer.Visible = false
+                        if c.text then c.text.Visible = false end
+                        if c.tracer then c.tracer.Visible = false end
                     end
                 else
                     if esp_cache[plr] then 
-                        esp_cache[plr].text.Visible = false 
-                        esp_cache[plr].tracer.Visible = false 
+                        pcall(function() esp_cache[plr].text.Visible = false end)
+                        pcall(function() esp_cache[plr].tracer.Visible = false end)
                     end
                 end
             else
                 if esp_cache[plr] then 
-                    esp_cache[plr].text.Visible = false 
-                    esp_cache[plr].tracer.Visible = false 
+                    pcall(function() esp_cache[plr].text.Visible = false end)
+                    pcall(function() esp_cache[plr].tracer.Visible = false end)
                 end
             end
         end
     end
 
-    -- GENERATOR ESP
+    -- OBJECT ESP (FIX: Cek IsA dulu sebelum GetPivot)
     if CONFIG.esp_generator then
         for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:IsA("Model") or obj:IsA("BasePart") then
-                local name = obj.Name:lower()
-                if name:find("generator") or name:find("gen") then
-                    local pos = obj:IsA("Model") and obj:GetPivot().Position or obj.Position
-                    local d = dist(mp, pos)
+            if obj:IsA("Model") then
+                if obj.Name:lower():find("generator") or obj.Name:lower():find("gen") then
+                    local ok, pivot = pcall(function() return obj:GetPivot().Position end)
+                    if ok and pivot then
+                        local d = dist(mp, pivot)
+                        if d <= CONFIG.esp_max_dist then
+                            if not esp_cache[obj] then
+                                esp_cache[obj] = {
+                                    text = new_d("Text", {Size=13, Center=true, Outline=true, Visible=false, Color=rgb(CONFIG.color_generator)})
+                                }
+                            end
+                            local c = esp_cache[obj]
+                            local screenPos, onScreen = Camera:WorldToViewportPoint(pivot)
+                            if onScreen and c.text then
+                                c.text.Position = Vector2.new(screenPos.X, screenPos.Y - 10)
+                                c.text.Text = string.format("[Gen] %dm", math.floor(d))
+                                c.text.Visible = true
+                            else
+                                if c.text then c.text.Visible = false end
+                            end
+                        else
+                            if esp_cache[obj] and esp_cache[obj].text then esp_cache[obj].text.Visible = false end
+                        end
+                    end
+                end
+            elseif obj:IsA("BasePart") then
+                 if obj.Name:lower():find("generator") or obj.Name:lower():find("gen") then
+                    local d = dist(mp, obj.Position)
                     if d <= CONFIG.esp_max_dist then
                         if not esp_cache[obj] then
                             esp_cache[obj] = {
@@ -155,16 +179,16 @@ local function update_esp(dt)
                             }
                         end
                         local c = esp_cache[obj]
-                        local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
-                        if onScreen then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(obj.Position)
+                        if onScreen and c.text then
                             c.text.Position = Vector2.new(screenPos.X, screenPos.Y - 10)
-                            c.text.Text = string.format("[Generator] %dm", math.floor(d))
+                            c.text.Text = string.format("[Gen] %dm", math.floor(d))
                             c.text.Visible = true
                         else
-                            c.text.Visible = false
+                            if c.text then c.text.Visible = false end
                         end
                     else
-                        if esp_cache[obj] then esp_cache[obj].text.Visible = false end
+                        if esp_cache[obj] and esp_cache[obj].text then esp_cache[obj].text.Visible = false end
                     end
                 end
             end
@@ -172,28 +196,21 @@ local function update_esp(dt)
     end
 end
 
--- ============================================================
 -- FITUR LAIN
--- ============================================================
 local function apply_fullbright_medium()
     if CONFIG.fullbright_medium then
         pcall(function()
-            Lighting.Ambient = Color3.fromRGB(150,150,150)
-            Lighting.OutdoorAmbient = Color3.fromRGB(150,150,150)
-            Lighting.Brightness = 2
+            Lighting.Ambient=Color3.fromRGB(150,150,150)
+            Lighting.OutdoorAmbient=Color3.fromRGB(150,150,150)
+            Lighting.Brightness=2
         end)
     end
 end
-
 local function apply_fps_boost()
     if not CONFIG.fps_boost then return end
-    pcall(function()
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    end)
+    pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end)
 end
-
 local function apply_misc() apply_fullbright_medium() end
-if CONFIG.fps_boost then apply_fps_boost() end
 
 local function update_auto(dt)
     if CONFIG.auto_heal then
@@ -218,7 +235,7 @@ local function update_auto(dt)
 end
 
 -- ============================================================
--- UI & FLOATING LOGO
+-- UI & FLOATING LOGO (MIRIP FOTO)
 -- ============================================================
 local COLORS = {
     bg = Color3.fromRGB(22,22,28), sidebar = Color3.fromRGB(16,16,22),
@@ -288,22 +305,11 @@ floatingLogo.MouseButton1Click:Connect(function()
 end)
 
 -- HEADER
-local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0, 48)
-header.BackgroundColor3 = COLORS.sidebar
-header.BorderSizePixel = 0
-header.Parent = main
+local header = Instance.new("Frame") header.Size = UDim2.new(1, 0, 0, 48) header.BackgroundColor3 = COLORS.sidebar header.BorderSizePixel = 0 header.Parent = main
 local headerCorner = Instance.new("UICorner") headerCorner.CornerRadius = UDim.new(0, 8) headerCorner.Parent = header
 local headerFix = Instance.new("Frame") headerFix.Size = UDim2.new(1, 0, 0, 10) headerFix.Position = UDim2.new(0, 0, 1, -10) headerFix.BackgroundColor3 = COLORS.sidebar headerFix.BorderSizePixel = 0 headerFix.Parent = header
 
-local icon = Instance.new("ImageLabel")
-icon.Size = UDim2.new(0, 20, 0, 20)
-icon.Position = UDim2.new(0, 16, 0.5, -10)
-icon.BackgroundTransparency = 1
-icon.Image = "rbxassetid://7733960981"
-icon.ImageColor3 = COLORS.accent
-icon.Parent = header
-
+local icon = Instance.new("ImageLabel") icon.Size = UDim2.new(0, 20, 0, 20) icon.Position = UDim2.new(0, 16, 0.5, -10) icon.BackgroundTransparency = 1 icon.Image = "rbxassetid://7733960981" icon.ImageColor3 = COLORS.accent icon.Parent = header
 local title = Instance.new("TextLabel") title.Size = UDim2.new(0, 160, 0, 16) title.Position = UDim2.new(0, 44, 0, 10) title.BackgroundTransparency = 1 title.Text = "VIOLENCE DISTRICT" title.TextColor3 = COLORS.text title.Font = FONT_BOLD title.TextSize = 12 title.TextXAlignment = Enum.TextXAlignment.Left title.Parent = header
 local subtitle = Instance.new("TextLabel") subtitle.Size = UDim2.new(0, 200, 0, 14) subtitle.Position = UDim2.new(0, 44, 0, 24) subtitle.BackgroundTransparency = 1 subtitle.Text = "Welcome, " .. LP.Name subtitle.TextColor3 = COLORS.subtext subtitle.Font = FONT subtitle.TextSize = 10 subtitle.TextXAlignment = Enum.TextXAlignment.Left subtitle.Parent = header
 
@@ -404,4 +410,4 @@ RunService.RenderStepped:Connect(function(dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V5 Loaded — ESP Root Cause Fixed.")
+print("[SpookenD] V6 Loaded — All Bugs Fixed, Default Off.")
