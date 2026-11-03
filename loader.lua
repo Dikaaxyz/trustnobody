@@ -1,4 +1,4 @@
--- SpookenD V11 — Violence District (Highlight ESP + Auto Parry + Skill Check)
+-- SpookenD V13 — Violence District (VirtualUser Spacebar & Tool Activate Fix)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
@@ -26,6 +26,7 @@ local Lighting=game:GetService("Lighting")
 local Workspace=game:GetService("Workspace")
 local CoreGui=game:GetService("CoreGui")
 local ReplicatedStorage=game:GetService("ReplicatedStorage")
+local VirtualUser=game:GetService("VirtualUser")
 local LP=Players.LocalPlayer
 local Camera=Workspace.CurrentCamera
 local is_mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -52,12 +53,8 @@ local function get_role(plr)
 end
 
 -- ============================================================
--- ESP (Highlight + BillboardGui Method - From Reference)
+-- ESP (Native Highlight + BillboardGui)
 -- ============================================================
-local espFolder = Instance.new("Folder")
-espFolder.Name = "SpookenD_ESP_Carrier"
-espFolder.Parent = Camera
-
 local espData = {}
 
 local function clean_esp(plr)
@@ -68,115 +65,82 @@ local function clean_esp(plr)
     end
 end
 
-task.spawn(function()
-    while true do
-        task.wait(1) -- Anti-stutter refresh
-        if CONFIG.esp_enabled then
-            pcall(function()
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LP then
-                        local char = p.Character
-                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                        local hum = char and char:FindFirstChildOfClass("Humanoid")
-                        local role = get_role(p)
-                        
-                        local want = (role == "Killer" and CONFIG.esp_killer) or (role == "Survivor" and CONFIG.esp_survivor)
-                        
-                        if hrp and hum and hum.Health > 0 and want then
-                            local d = espData[p]
-                            if not d or not d.hl or not d.hl.Parent then
-                                clean_esp(p)
-                                local hl = Instance.new("Highlight")
-                                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                                hl.Adornee = char
-                                hl.Parent = espFolder
-                                
-                                local bg = Instance.new("BillboardGui")
-                                bg.Adornee = hrp
-                                bg.Size = UDim2.new(0, 150, 0, 40)
-                                bg.StudsOffset = Vector3.new(0, 3, 0)
-                                bg.AlwaysOnTop = true
-                                bg.Parent = espFolder
-                                
-                                local nameLabel = Instance.new("TextLabel")
-                                nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
-                                nameLabel.BackgroundTransparency = 1
-                                nameLabel.TextStrokeTransparency = 0
-                                nameLabel.Font = Enum.Font.GothamBold
-                                nameLabel.TextSize = 13
-                                nameLabel.Parent = bg
-                                
-                                local distLabel = Instance.new("TextLabel")
-                                distLabel.Size = UDim2.new(1, 0, 0.5, 0)
-                                distLabel.Position = UDim2.new(0, 0, 0.5, 0)
-                                distLabel.BackgroundTransparency = 1
-                                distLabel.TextStrokeTransparency = 0
-                                distLabel.Font = Enum.Font.Gotham
-                                distLabel.TextSize = 11
-                                distLabel.Parent = bg
-                                
-                                espData[p] = { hl = hl, bg = bg, name = nameLabel, dist = distLabel }
-                                d = espData[p]
-                            end
-                            
-                            local color = role == "Killer" and rgb(CONFIG.color_killer) or rgb(CONFIG.color_survivor)
-                            d.hl.FillColor = color
-                            d.hl.OutlineColor = color
-                            
-                            d.name.Text = p.Name
-                            d.name.TextColor3 = color
-                            
-                            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                                local distVal = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
-                                d.dist.Text = "[" .. distVal .. "m]"
-                                d.dist.TextColor3 = Color3.fromRGB(200, 200, 200)
-                            end
-                        else
-                            clean_esp(p)
-                        end
+local function force_esp_update()
+    if not CONFIG.esp_enabled then return end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP then
+            local char = p.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local role = get_role(p)
+            local want = (role == "Killer" and CONFIG.esp_killer) or (role == "Survivor" and CONFIG.esp_survivor)
+            
+            if hrp and want then
+                local d = espData[p]
+                if not d or not d.hl or not d.hl.Parent then
+                    clean_esp(p)
+                    local hl = Instance.new("Highlight")
+                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    hl.Adornee = char
+                    hl.Parent = char
+                    
+                    local bg = Instance.new("BillboardGui")
+                    bg.Adornee = hrp
+                    bg.Size = UDim2.new(0, 150, 0, 40)
+                    bg.StudsOffset = Vector3.new(0, 3, 0)
+                    bg.AlwaysOnTop = true
+                    bg.Parent = char
+                    
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.TextStrokeTransparency = 0
+                    nameLabel.Font = Enum.Font.GothamBold
+                    nameLabel.TextSize = 13
+                    nameLabel.Parent = bg
+                    
+                    local distLabel = Instance.new("TextLabel")
+                    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                    distLabel.BackgroundTransparency = 1
+                    distLabel.TextStrokeTransparency = 0
+                    distLabel.Font = Enum.Font.Gotham
+                    distLabel.TextSize = 11
+                    distLabel.Parent = bg
+                    
+                    espData[p] = { hl = hl, bg = bg, name = nameLabel, dist = distLabel }
+                    d = espData[p]
+                end
+                
+                if d then
+                    local color = role == "Killer" and rgb(CONFIG.color_killer) or rgb(CONFIG.color_survivor)
+                    d.hl.FillColor = color
+                    d.hl.OutlineColor = color
+                    d.name.Text = p.Name
+                    d.name.TextColor3 = color
+                    
+                    if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                        local distVal = math.floor((hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude)
+                        d.dist.Text = "[" .. distVal .. "m]"
                     end
                 end
-            end)
+            else
+                clean_esp(p)
+            end
         end
     end
-end)
+end
 
--- Generator ESP (Loop terpisah, ringan)
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if CONFIG.esp_enabled and CONFIG.esp_generator then
-            pcall(function()
-                for _, obj in ipairs(Workspace:GetChildren()) do
-                    if (obj:IsA("Model") or obj:IsA("BasePart")) and (obj.Name:lower():find("generator") or obj.Name:lower():find("gen")) then
-                        if not obj:FindFirstChild("SpookenD_GenESP") then
-                            local bg = Instance.new("BillboardGui")
-                            bg.Name = "SpookenD_GenESP"
-                            bg.AlwaysOnTop = true
-                            bg.Size = UDim2.new(0, 100, 0, 30)
-                            bg.StudsOffset = Vector3.new(0, 2, 0)
-                            bg.Parent = obj
-                            local text = Instance.new("TextLabel")
-                            text.Size = UDim2.new(1, 0, 1, 0)
-                            text.BackgroundTransparency = 1
-                            text.TextColor3 = rgb(CONFIG.color_generator)
-                            text.TextStrokeTransparency = 0
-                            text.Font = Enum.Font.GothamBold
-                            text.TextSize = 12
-                            text.Text = "[Generator]"
-                            text.Parent = bg
-                        end
-                    end
-                end
-            end)
-        end
+local accum = 0
+RunService.RenderStepped:Connect(function(dt)
+    accum = accum + dt
+    if accum > 1/30 then
+        accum = 0
+        pcall(force_esp_update)
     end
 end)
-
-Players.PlayerRemoving:Connect(clean_esp)
 
 -- ============================================================
--- AUTO PARRY & SKILL CHECK
+-- AUTO PARRY (Tool Activate + Remote Fallback)
 -- ============================================================
 local cached_parry_remotes = {}
 local last_parry_time = 0
@@ -197,16 +161,25 @@ local function update_auto_parry(dt)
         end
     end
 
-    if killer_near and tick() - last_parry_time > 0.5 then
+    if killer_near and tick() - last_parry_time > 0.3 then
         last_parry_time = tick()
+        
+        -- 1. Prioritas utama: Aktifkan tool/pedang yang lu pegang
+        local tool = mc:FindFirstChildOfClass("Tool")
+        if tool then
+            pcall(function() tool:Activate() end)
+        end
+
+        -- 2. Prioritas kedua: Tembak remote manual (kalau lu isi REMOTES.parry)
         if REMOTES.parry then
             pcall(function() REMOTES.parry:FireServer() end)
         else
+            -- 3. Fallback: Cari RemoteEvent yang namanya mirip parry/block
             if #cached_parry_remotes == 0 then
                 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                     if obj:IsA("RemoteEvent") then
                         local n = obj.Name:lower()
-                        if n:find("parry") or n:find("block") or n:find("hit") or n:find("attack") then
+                        if n:find("parry") or n:find("block") or n:find("hit") then
                             table.insert(cached_parry_remotes, obj)
                         end
                     end
@@ -215,24 +188,34 @@ local function update_auto_parry(dt)
             for _, remote in ipairs(cached_parry_remotes) do
                 pcall(function() remote:FireServer() end)
             end
-            local char = LP.Character
-            local tool = char and char:FindFirstChildOfClass("Tool")
-            if tool then pcall(function() tool:Activate() end) end
         end
     end
 end
 
-local function get_hidden_gui()
+-- ============================================================
+-- AUTO SKILL CHECK (VIRTUAL USER SPACEBAR)
+-- ============================================================
+local function is_qte_active()
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
+    
+    -- Cek apakah ada GUI QTE yang lagi muncul
     for _, gui in ipairs(pg:GetDescendants()) do
         if gui:IsA("ScreenGui") and gui.Enabled then
             local n = gui.Name:lower()
-            if n:find("skill") or n:find("timing") or n:find("qte") then
+            if n:find("skill") or n:find("timing") or n:find("qte") or n:find("minigame") then
                 return true
             end
         end
     end
+    
+    -- Cek apakah ada tulisan "Space" di layar (kayak di screenshot)
+    for _, gui in ipairs(pg:GetDescendants()) do
+        if gui:IsA("TextLabel") and gui.Visible and gui.Text:lower():find("space") then
+            return true
+        end
+    end
+    
     return false
 end
 
@@ -240,35 +223,21 @@ local skill_cooldown = 0
 local function update_skill_check(dt)
     if not CONFIG.auto_skill_check then return end
     skill_cooldown = skill_cooldown + dt
-    if skill_cooldown < 0.2 then return end
     
-    if get_hidden_gui() then
-        skill_cooldown = 0
-        if keypress then
-            pcall(function() keypress(0x20) end)
-        elseif VirtualUser then
+    if is_qte_active() then
+        if skill_cooldown > 0.1 then
+            skill_cooldown = 0
+            -- Nge-simulasiin pencetan tombol Spacebar lewat VirtualUser
             pcall(function()
-                local vu = game:GetService("VirtualUser")
-                vu:CaptureController()
-                vu:KeyPress(Enum.KeyCode.Space)
+                VirtualUser:CaptureController()
+                VirtualUser:KeyPress(Enum.KeyCode.Space)
             end)
-        end
-        local pg = LP:FindFirstChild("PlayerGui")
-        if pg then
-            for _, gui in ipairs(pg:GetDescendants()) do
-                if gui:IsA("TextButton") and gui.Visible then
-                    local n = gui.Name:lower()
-                    if n:find("space") or n:find("click") or n:find("tap") then
-                        pcall(function() gui:Activate() end)
-                    end
-                end
-            end
         end
     end
 end
 
 -- ============================================================
--- FITUR LAIN (Fullbright, Anti Lag, dll)
+-- FITUR LAIN
 -- ============================================================
 local function apply_fullbright_medium()
     if CONFIG.fullbright_medium then
@@ -295,7 +264,7 @@ local function update_auto(dt)
 end
 
 -- ============================================================
--- UI (Sama kayak V10)
+-- UI
 -- ============================================================
 local COLORS = {
     bg = Color3.fromRGB(22,22,28), sidebar = Color3.fromRGB(16,16,22),
@@ -325,7 +294,6 @@ main.Parent = gui
 local mainCorner = Instance.new("UICorner") mainCorner.CornerRadius = UDim.new(0, 8) mainCorner.Parent = main
 local mainStroke = Instance.new("UIStroke") mainStroke.Color = COLORS.stroke mainStroke.Thickness = 1 mainStroke.Parent = main
 
--- FLOATING LOGO
 local floatingLogo = Instance.new("TextButton")
 floatingLogo.Size = UDim2.new(0, 40, 0, 40)
 floatingLogo.Position = UDim2.new(0, 20, 0, 20)
@@ -364,7 +332,6 @@ floatingLogo.MouseButton1Click:Connect(function()
     floatingLogo.Visible = false
 end)
 
--- HEADER
 local header = Instance.new("Frame") header.Size = UDim2.new(1, 0, 0, 48) header.BackgroundColor3 = COLORS.sidebar header.BorderSizePixel = 0 header.Parent = main
 local headerCorner = Instance.new("UICorner") headerCorner.CornerRadius = UDim.new(0, 8) headerCorner.Parent = header
 local headerFix = Instance.new("Frame") headerFix.Size = UDim2.new(1, 0, 0, 10) headerFix.Position = UDim2.new(0, 0, 1, -10) headerFix.BackgroundColor3 = COLORS.sidebar headerFix.BorderSizePixel = 0 headerFix.Parent = header
@@ -385,7 +352,6 @@ local closeBtn = Instance.new("TextButton") closeBtn.Size = UDim2.new(0, 22, 0, 
 local closeCorner = Instance.new("UICorner") closeCorner.CornerRadius = UDim.new(0, 4) closeCorner.Parent = closeBtn
 closeBtn.MouseButton1Click:Connect(function() main.Visible = false floatingLogo.Visible = true end)
 
--- BODY
 local body = Instance.new("Frame") body.Size = UDim2.new(1, 0, 1, -48) body.Position = UDim2.new(0, 0, 0, 48) body.BackgroundTransparency = 1 body.Parent = main
 local sidebar = Instance.new("Frame") sidebar.Size = UDim2.new(0, is_mobile and 90 or 140, 1, 0) sidebar.BackgroundColor3 = COLORS.sidebar sidebar.BorderSizePixel = 0 sidebar.Parent = body
 local panel = Instance.new("ScrollingFrame") panel.Size = UDim2.new(1, -(is_mobile and 90 or 140), 1, 0) panel.Position = UDim2.new(0, is_mobile and 90 or 140, 0, 0) panel.BackgroundColor3 = COLORS.bg panel.BorderSizePixel = 0 panel.ScrollBarThickness = 2 panel.ScrollBarImageColor3 = COLORS.stroke panel.CanvasSize = UDim2.new(0, 0, 0, 0) panel.AutomaticCanvasSize = Enum.AutomaticSize.Y panel.Parent = body
@@ -482,4 +448,4 @@ RunService.RenderStepped:Connect(function(dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V11 Loaded — Highlight ESP & QTE Fixed.")
+print("[SpookenD] V13 Loaded — VirtualUser Spacebar & Tool Activate Fixed.")
