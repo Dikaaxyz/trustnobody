@@ -1,4 +1,4 @@
--- SpookenD V13 — Violence District (VirtualUser Spacebar & Tool Activate Fix)
+-- SpookenD V14 — Violence District (Xeno Optimized Fix)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
@@ -31,6 +31,13 @@ local LP=Players.LocalPlayer
 local Camera=Workspace.CurrentCamera
 local is_mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
+-- Xeno specific methods
+local hookmetamethod = hookmetamethod
+local hookfunction = hookfunction
+local getrawmetatable = getrawmetatable
+local newcclosure = newcclosure
+local setreadonly = setreadonly
+
 local function rgb(c) return Color3.fromRGB(c[1],c[2],c[3]) end
 local function dist(a,b) return (a-b).Magnitude end
 
@@ -53,10 +60,9 @@ local function get_role(plr)
 end
 
 -- ============================================================
--- ESP (Native Highlight + BillboardGui)
+-- ESP
 -- ============================================================
 local espData = {}
-
 local function clean_esp(plr)
     if espData[plr] then
         if espData[plr].hl then pcall(function() espData[plr].hl:Destroy() end) end
@@ -140,10 +146,24 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 -- ============================================================
--- AUTO PARRY (Tool Activate + Remote Fallback)
+-- AUTO PARRY (Brute Force Remote Fallback)
 -- ============================================================
-local cached_parry_remotes = {}
+local parry_remotes = {}
 local last_parry_time = 0
+
+-- Kumpulin semua remote yang ada hubungannya sama combat
+task.spawn(function()
+    task.wait(2)
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            local n = obj.Name:lower()
+            if n:find("parry") or n:find("block") or n:find("hit") or n:find("attack") or n:find("combat") then
+                table.insert(parry_remotes, obj)
+            end
+        end
+    end
+end)
+
 local function update_auto_parry(dt)
     if not CONFIG.auto_parry then return end
     local mc = LP.Character
@@ -164,75 +184,70 @@ local function update_auto_parry(dt)
     if killer_near and tick() - last_parry_time > 0.3 then
         last_parry_time = tick()
         
-        -- 1. Prioritas utama: Aktifkan tool/pedang yang lu pegang
+        -- 1. Spam klik tool (kalau game pake tool-based parry)
         local tool = mc:FindFirstChildOfClass("Tool")
         if tool then
             pcall(function() tool:Activate() end)
         end
-
-        -- 2. Prioritas kedua: Tembak remote manual (kalau lu isi REMOTES.parry)
+        
+        -- 2. Spam RemoteEvent manual (kalau lu isi REMOTES)
         if REMOTES.parry then
             pcall(function() REMOTES.parry:FireServer() end)
-        else
-            -- 3. Fallback: Cari RemoteEvent yang namanya mirip parry/block
-            if #cached_parry_remotes == 0 then
-                for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-                    if obj:IsA("RemoteEvent") then
-                        local n = obj.Name:lower()
-                        if n:find("parry") or n:find("block") or n:find("hit") then
-                            table.insert(cached_parry_remotes, obj)
-                        end
-                    end
-                end
-            end
-            for _, remote in ipairs(cached_parry_remotes) do
-                pcall(function() remote:FireServer() end)
-            end
+        end
+        
+        -- 3. Spam RemoteEvent yang ketemu di ReplicatedStorage (Brute Force)
+        for _, remote in ipairs(parry_remotes) do
+            pcall(function() remote:FireServer() end)
         end
     end
 end
 
 -- ============================================================
--- AUTO SKILL CHECK (VIRTUAL USER SPACEBAR)
+-- AUTO SKILL CHECK (Hook NameCall Xeno)
 -- ============================================================
-local function is_qte_active()
+-- Di Xeno, kita bisa nge-hook metatable game biar bisa nyegat remote QTE.
+if CONFIG.auto_skill_check and getrawmetatable then
+    local mt = getrawmetatable(game)
+    if setreadonly then setreadonly(mt, false) end
+    local old_namecall = mt.__namecall
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        -- Kalau game ngirim sinyal QTE, kita bales otomatis
+        if method == "FireServer" or method == "InvokeServer" then
+            local name = self.Name:lower()
+            if name:find("skill") or name:find("qte") or name:find("timing") then
+                -- Nge-bales dengan parameter "Perfect" atau "Pass"
+                return old_namecall(self, "Pass", ...)
+            end
+        end
+        return old_namecall(self, ...)
+    end)
+    if setreadonly then setreadonly(mt, true) end
+end
+
+-- Fallback: Kalau game-nya cuma nunggu input Space di layar
+local function update_skill_check(dt)
+    if not CONFIG.auto_skill_check then return end
     local pg = LP:FindFirstChild("PlayerGui")
-    if not pg then return false end
+    if not pg then return end
     
-    -- Cek apakah ada GUI QTE yang lagi muncul
+    local qte_active = false
     for _, gui in ipairs(pg:GetDescendants()) do
         if gui:IsA("ScreenGui") and gui.Enabled then
             local n = gui.Name:lower()
             if n:find("skill") or n:find("timing") or n:find("qte") or n:find("minigame") then
-                return true
+                qte_active = true
+                break
             end
         end
     end
     
-    -- Cek apakah ada tulisan "Space" di layar (kayak di screenshot)
-    for _, gui in ipairs(pg:GetDescendants()) do
-        if gui:IsA("TextLabel") and gui.Visible and gui.Text:lower():find("space") then
-            return true
-        end
-    end
-    
-    return false
-end
-
-local skill_cooldown = 0
-local function update_skill_check(dt)
-    if not CONFIG.auto_skill_check then return end
-    skill_cooldown = skill_cooldown + dt
-    
-    if is_qte_active() then
-        if skill_cooldown > 0.1 then
-            skill_cooldown = 0
-            -- Nge-simulasiin pencetan tombol Spacebar lewat VirtualUser
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:KeyPress(Enum.KeyCode.Space)
-            end)
-        end
+    if qte_active then
+        pcall(function()
+            -- Coba tembak pake VirtualUser Xeno
+            VirtualUser:CaptureController()
+            VirtualUser:KeyPress(Enum.KeyCode.Space)
+        end)
     end
 end
 
@@ -448,4 +463,4 @@ RunService.RenderStepped:Connect(function(dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V13 Loaded — VirtualUser Spacebar & Tool Activate Fixed.")
+print("[SpookenD] V14 Loaded — Xeno Native Hook Fixed.")
