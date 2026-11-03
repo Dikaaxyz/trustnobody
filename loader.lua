@@ -1,4 +1,4 @@
--- SpookenD V6 — Violence District (Drawing Fix, Lag Fix, Default Off)
+-- SpookenD V7 — Violence District (Default OFF + BillboardGui Fallback)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
@@ -7,24 +7,8 @@ pcall(function()
     end
 end)
 
--- ============================================================
--- FIX DRAWING SUPPORT
--- ============================================================
-local Drawing = Drawing or getgenv().Drawing or (syn and syn.drawing) or (fluxus and fluxus.drawing)
-local function new_d(class, props)
-    if not Drawing then return nil end 
-    local ok, d = pcall(Drawing.new, class)
-    if not ok then return nil end
-    for k, v in pairs(props or {}) do pcall(function() d[k] = v end) end
-    table.insert(getgenv().SpookenD_DRAWINGS or {}, d)
-    return d
-end
-
--- ============================================================
--- CONFIG (SEMUA DEFAULT OFF BIAR GAK CRASH)
--- ============================================================
 local CONFIG = {
-    esp_enabled=false, esp_killer=true, esp_survivor=true, esp_generator=true,
+    esp_enabled=false, esp_killer=false, esp_survivor=false, esp_generator=false,
     esp_max_dist=250, 
     color_killer={255,50,50}, color_survivor={50,180,255}, color_generator={255,200,40},
     auto_parry=false, silent_aim=false, kill_aura=false, auto_skill_check=false,
@@ -45,9 +29,6 @@ local LP=Players.LocalPlayer
 local Camera=Workspace.CurrentCamera
 local is_mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-getgenv().SpookenD_CONNS = getgenv().SpookenD_CONNS or {}
-getgenv().SpookenD_DRAWINGS = getgenv().SpookenD_DRAWINGS or {}
-
 local function rgb(c) return Color3.fromRGB(c[1],c[2],c[3]) end
 local function dist(a,b) return (a-b).Magnitude end
 
@@ -59,20 +40,40 @@ local function get_role(plr)
         if n:find("killer") then return "Killer" end
         if n:find("survivor") then return "Survivor" end
     end
-    local ok2,r=pcall(function() return plr:GetAttribute("Role") end)
-    if ok2 and type(r)=="string" then
-        local rl=r:lower()
-        if rl:find("killer") then return "Killer" end
-        if rl:find("survivor") then return "Survivor" end
-    end
     return nil
 end
 
 -- ============================================================
--- ESP LOGIC (Fix Error IsA & Drawing Nil)
+-- ESP FALLBACK (BillboardGui - PASTI MUNCUL)
 -- ============================================================
 local esp_cache = {}
 local esp_accum = 0
+
+local function create_esp_billboard(plr, color)
+    local char = plr.Character
+    if not char then return nil end
+    local head = char:FindFirstChild("Head")
+    if not head then return nil end
+
+    local bg = Instance.new("BillboardGui")
+    bg.Name = "SpookenD_ESP"
+    bg.AlwaysOnTop = true
+    bg.Size = UDim2.new(0, 200, 0, 50)
+    bg.StudsOffset = Vector3.new(0, 2.5, 0)
+    bg.Parent = head
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.TextColor3 = rgb(color)
+    text.TextStrokeTransparency = 0
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = 14
+    text.Text = ""
+    text.Parent = bg
+    
+    return { gui = bg, text = text }
+end
 
 local function update_esp(dt)
     esp_accum = esp_accum + dt
@@ -81,8 +82,7 @@ local function update_esp(dt)
 
     if not CONFIG.esp_enabled then
         for _, c in pairs(esp_cache) do 
-            pcall(function() if c.text then c.text.Visible = false end end)
-            pcall(function() if c.tracer then c.tracer.Visible = false end end)
+            if c.gui then c.gui.Enabled = false end
         end
         return 
     end
@@ -91,112 +91,75 @@ local function update_esp(dt)
     local mh = mc and mc:FindFirstChild("HumanoidRootPart")
     if not mh then return end
     local mp = mh.Position
-    local vp = Camera.ViewportSize
 
-    -- PLAYER ESP
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then
             local role = get_role(plr)
             local want = (role == "Killer" and CONFIG.esp_killer) or (role == "Survivor" and CONFIG.esp_survivor)
             local char = plr.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local head = char and char:FindFirstChild("Head")
             
-            if want and hrp and head then
+            if want and hrp then
                 local d = dist(mp, hrp.Position)
                 if d <= CONFIG.esp_max_dist then
                     local color = role == "Killer" and CONFIG.color_killer or CONFIG.color_survivor
-                    if not esp_cache[plr] then
-                        esp_cache[plr] = {
-                            text = new_d("Text", {Size=13, Center=true, Outline=true, Visible=false, Color=rgb(color)}),
-                            tracer = new_d("Line", {Thickness=1, Visible=false, Color=rgb(color)})
-                        }
+                    if not esp_cache[plr] or not esp_cache[plr].gui or not esp_cache[plr].gui.Parent then
+                        esp_cache[plr] = create_esp_billboard(plr, color)
                     end
                     local c = esp_cache[plr]
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                    
-                    if onScreen and c.text and c.tracer then
-                        c.text.Position = Vector2.new(screenPos.X, screenPos.Y - 20)
+                    if c and c.gui and c.text then
+                        c.gui.Enabled = true
                         c.text.Text = string.format("%s [%s] %dm", plr.Name, role, math.floor(d))
-                        c.text.Visible = true
-                        c.tracer.From = Vector2.new(vp.X / 2, vp.Y)
-                        c.tracer.To = Vector2.new(screenPos.X, screenPos.Y)
-                        c.tracer.Visible = true
-                    else
-                        if c.text then c.text.Visible = false end
-                        if c.tracer then c.tracer.Visible = false end
                     end
                 else
-                    if esp_cache[plr] then 
-                        pcall(function() esp_cache[plr].text.Visible = false end)
-                        pcall(function() esp_cache[plr].tracer.Visible = false end)
-                    end
+                    if esp_cache[plr] and esp_cache[plr].gui then esp_cache[plr].gui.Enabled = false end
                 end
             else
-                if esp_cache[plr] then 
-                    pcall(function() esp_cache[plr].text.Visible = false end)
-                    pcall(function() esp_cache[plr].tracer.Visible = false end)
-                end
+                if esp_cache[plr] and esp_cache[plr].gui then esp_cache[plr].gui.Enabled = false end
             end
         end
     end
 
-    -- OBJECT ESP (FIX: Cek IsA dulu sebelum GetPivot)
+    -- GENERATOR ESP
     if CONFIG.esp_generator then
         for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:IsA("Model") then
-                if obj.Name:lower():find("generator") or obj.Name:lower():find("gen") then
-                    local ok, pivot = pcall(function() return obj:GetPivot().Position end)
-                    if ok and pivot then
-                        local d = dist(mp, pivot)
-                        if d <= CONFIG.esp_max_dist then
-                            if not esp_cache[obj] then
-                                esp_cache[obj] = {
-                                    text = new_d("Text", {Size=13, Center=true, Outline=true, Visible=false, Color=rgb(CONFIG.color_generator)})
-                                }
-                            end
-                            local c = esp_cache[obj]
-                            local screenPos, onScreen = Camera:WorldToViewportPoint(pivot)
-                            if onScreen and c.text then
-                                c.text.Position = Vector2.new(screenPos.X, screenPos.Y - 10)
-                                c.text.Text = string.format("[Gen] %dm", math.floor(d))
-                                c.text.Visible = true
-                            else
-                                if c.text then c.text.Visible = false end
-                            end
-                        else
-                            if esp_cache[obj] and esp_cache[obj].text then esp_cache[obj].text.Visible = false end
-                        end
+            if (obj:IsA("Model") or obj:IsA("BasePart")) and (obj.Name:lower():find("generator") or obj.Name:lower():find("gen")) then
+                local pos = obj:IsA("Model") and obj:GetPivot().Position or obj.Position
+                local d = dist(mp, pos)
+                if d <= CONFIG.esp_max_dist then
+                    if not esp_cache[obj] then
+                        local bg = Instance.new("BillboardGui")
+                        bg.Name = "SpookenD_GenESP"
+                        bg.AlwaysOnTop = true
+                        bg.Size = UDim2.new(0, 100, 0, 30)
+                        bg.StudsOffset = Vector3.new(0, 2, 0)
+                        bg.Parent = obj
+                        local text = Instance.new("TextLabel")
+                        text.Size = UDim2.new(1, 0, 1, 0)
+                        text.BackgroundTransparency = 1
+                        text.TextColor3 = rgb(CONFIG.color_generator)
+                        text.TextStrokeTransparency = 0
+                        text.Font = Enum.Font.GothamBold
+                        text.TextSize = 12
+                        text.Parent = bg
+                        esp_cache[obj] = { gui = bg, text = text }
                     end
-                end
-            elseif obj:IsA("BasePart") then
-                 if obj.Name:lower():find("generator") or obj.Name:lower():find("gen") then
-                    local d = dist(mp, obj.Position)
-                    if d <= CONFIG.esp_max_dist then
-                        if not esp_cache[obj] then
-                            esp_cache[obj] = {
-                                text = new_d("Text", {Size=13, Center=true, Outline=true, Visible=false, Color=rgb(CONFIG.color_generator)})
-                            }
-                        end
-                        local c = esp_cache[obj]
-                        local screenPos, onScreen = Camera:WorldToViewportPoint(obj.Position)
-                        if onScreen and c.text then
-                            c.text.Position = Vector2.new(screenPos.X, screenPos.Y - 10)
-                            c.text.Text = string.format("[Gen] %dm", math.floor(d))
-                            c.text.Visible = true
-                        else
-                            if c.text then c.text.Visible = false end
-                        end
-                    else
-                        if esp_cache[obj] and esp_cache[obj].text then esp_cache[obj].text.Visible = false end
+                    local c = esp_cache[obj]
+                    if c and c.gui and c.text then
+                        c.gui.Enabled = true
+                        c.text.Text = string.format("[Gen] %dm", math.floor(d))
                     end
+                else
+                    if esp_cache[obj] and esp_cache[obj].gui then esp_cache[obj].gui.Enabled = false end
                 end
             end
         end
     end
 end
 
+-- ============================================================
 -- FITUR LAIN
+-- ============================================================
 local function apply_fullbright_medium()
     if CONFIG.fullbright_medium then
         pcall(function()
@@ -235,7 +198,7 @@ local function update_auto(dt)
 end
 
 -- ============================================================
--- UI & FLOATING LOGO (MIRIP FOTO)
+-- UI & FLOATING LOGO
 -- ============================================================
 local COLORS = {
     bg = Color3.fromRGB(22,22,28), sidebar = Color3.fromRGB(16,16,22),
@@ -359,10 +322,16 @@ local function make_card(parent, title, desc, get, set)
     if desc then
         local d = Instance.new("TextLabel") d.Size = UDim2.new(1, -60, 0, 30) d.Position = UDim2.new(0, 12, 0, 26) d.BackgroundTransparency = 1 d.Text = desc d.TextColor3 = COLORS.subtext d.Font = FONT d.TextSize = 10 d.TextXAlignment = Enum.TextXAlignment.Left d.TextWrapped = true d.Parent = card
     end
+    
     local sw = Instance.new("Frame") sw.Size = UDim2.new(0, 36, 0, 20) sw.Position = UDim2.new(1, -48, 0.5, -10) sw.BackgroundColor3 = get() and COLORS.accent or Color3.fromRGB(60,60,70) sw.BorderSizePixel = 0 sw.Parent = card
     local swCorner = Instance.new("UICorner") swCorner.CornerRadius = UDim.new(1, 0) swCorner.Parent = sw
-    local knob = Instance.new("Frame") knob.Size = UDim2.new(0, 16, 0, 16) knob.Position = get() and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8) knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = sw
+    
+    local knob = Instance.new("Frame") knob.Size = UDim2.new(0, 16, 0, 16) 
+    -- Fix posisi awal knob biar default off
+    knob.Position = get() and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8) 
+    knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = sw
     local knobCorner = Instance.new("UICorner") knobCorner.CornerRadius = UDim.new(1, 0) knobCorner.Parent = knob
+    
     local click = Instance.new("TextButton") click.Size = UDim2.new(1, 0, 1, 0) click.BackgroundTransparency = 1 click.Text = "" click.Parent = card
     click.MouseButton1Click:Connect(function()
         set(not get())
@@ -410,4 +379,4 @@ RunService.RenderStepped:Connect(function(dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V6 Loaded — All Bugs Fixed, Default Off.")
+print("[SpookenD] V7 Loaded — Default OFF & Billboard Fallback Fixed.")
