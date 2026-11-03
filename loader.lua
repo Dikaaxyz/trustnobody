@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v9999.0 — God Mode Clone (The Real Method)
+    v30000.0 — The Absolute Truth (No Loop, No Stutter)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -19,59 +19,57 @@ local CAM  = WS.CurrentCamera
 
 local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
-local HAS_DRAWING = pcall(function() return Drawing.new("Circle") end)
 
 -- ==========================================
--- BYPASS
+-- 99% BYPASS
 -- ==========================================
 pcall(function()
     local svc = game:GetService("RbxAnalyticsService")
-    svc.GetHardwareIdentifier = function() return "GOD_MODE_CLONE" end
+    svc.GetHardwareIdentifier = function() return "ABSOLUTE_TRUTH_99" end
 end)
 
 -- ==========================================
 -- CONFIG
 -- ==========================================
 local CFG = {
-    auto_parry=false, show_parry_range=false, parry_range=15,
-    auto_skillcheck=false, esp=false, anti_afk=false,
+    auto_parry=false, auto_skillcheck=false, esp=false,
     keyMenu=Enum.KeyCode.RightShift
 }
 
 local espData = {}
 local hiddenFolder = Instance.new("Folder")
-hiddenFolder.Name = "GodCarrier"
+hiddenFolder.Name = "GhostCarrier"
 hiddenFolder.Parent = CAM
 
 -- ==========================================
--- UI (Modern)
+-- UI
 -- ==========================================
 local COL = {
-    bg=Color3.fromRGB(15,15,17), panel=Color3.fromRGB(25,25,30), 
-    sidebar=Color3.fromRGB(10,10,12), txt=Color3.fromRGB(255,255,255), 
-    dim=Color3.fromRGB(150,150,160), acc=Color3.fromRGB(255, 50, 50), 
-    off=Color3.fromRGB(40,40,45)
+    bg=Color3.fromRGB(18,18,20), panel=Color3.fromRGB(28,28,32), 
+    sidebar=Color3.fromRGB(12,12,14), txt=Color3.fromRGB(255,255,255), 
+    dim=Color3.fromRGB(140,140,150), acc=Color3.fromRGB(0, 200, 255), 
+    red=Color3.fromRGB(255,60,60), off=Color3.fromRGB(50,50,55)
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="SG_GodMode"
+gui.Name="SG_Absolute"
 gui.ResetOnSpawn=false
 gui.DisplayOrder=999999
 gui.Parent=LP:WaitForChild("PlayerGui")
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(0,500,0,300); main.Position=UDim2.new(0.5,-250,0.5,-150)
+main.Size=UDim2.new(0,500,0,320); main.Position=UDim2.new(0.5,-250,0.5,-160)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 8); mc.Parent = main
-local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1; ms.Transparency=0.5; ms.Parent=main
+local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=1.5; ms.Transparency=0.5; ms.Parent=main
 
 local topBar = Instance.new("Frame")
 topBar.Size=UDim2.new(1,0,0,40); topBar.BackgroundColor3=COL.bg; topBar.BorderSizePixel=0; topBar.Parent=main
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,15,0,0); logo.BackgroundTransparency=1
-logo.Text="GOD MODE"; logo.TextColor3=COL.txt; logo.Font=Enum.Font.GothamBold
+logo.Text="ABSOLUTE TRUTH"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local closeBtn = Instance.new("TextButton")
@@ -79,7 +77,15 @@ closeBtn.Size=UDim2.new(0,30,1,0); closeBtn.Position=UDim2.new(1,-35,0,0)
 closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.dim
 closeBtn.Font=Enum.Font.GothamBold; closeBtn.TextSize=14; closeBtn.Parent=topBar
 
-closeBtn.MouseButton1Click:Connect(function() main.Visible = false end)
+local openBtn = Instance.new("TextButton")
+openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
+openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=0
+openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack
+openBtn.TextSize=18; openBtn.Parent=gui; openBtn.Visible=false
+local obc = Instance.new("UICorner"); obc.CornerRadius = UDim.new(0, 8); obc.Parent = openBtn
+
+closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visible = true end)
+openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
 
 local function addSwitch(label,key,yOffset)
     local row=Instance.new("TextButton")
@@ -108,15 +114,14 @@ local function addSwitch(label,key,yOffset)
     end)
 end
 
-addSwitch("Auto Parry (Tool Hook)", "auto_parry", 50)
-addSwitch("Auto Skillcheck (Rotation)", "auto_skillcheck", 90)
+addSwitch("Auto Parry (Raycast)", "auto_parry", 50)
+addSwitch("Auto Skillcheck (Hook)", "auto_skillcheck", 90)
 addSwitch("Enable ESP", "esp", 130)
-addSwitch("Anti-AFK", "anti_afk", 170)
 
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
     if i.KeyCode == CFG.keyMenu then
-        main.Visible = not main.Visible
+        main.Visible = not main.Visible; openBtn.Visible = not main.Visible
     elseif i.KeyCode == mouseUnlockKey then
         MouseLocked = not MouseLocked
         UIS.MouseBehavior = MouseLocked and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
@@ -141,7 +146,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 -- ==========================================
--- ENGINES
+-- ENGINES (TRUTH)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -154,112 +159,7 @@ local function isKillerSafe(p)
     return false
 end
 
--- 1. AUTO PARRY (HOOK TOOL ACTIVATED)
-local parryBusy = false
-local hookedTools = {}
-
-local function hookTool(char)
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and not hookedTools[tool] then
-            hookedTools[tool] = true
-            tool.Activated:Connect(function()
-                if CFG.auto_parry and not parryBusy then
-                    local dist = (char.HumanoidRootPart.Position - LP.Character.HumanoidRootPart.Position).Magnitude
-                    if dist < CFG.parry_range then
-                        parryBusy = true
-                        if type(mouse2click) == "function" then
-                            mouse2click()
-                        else
-                            VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
-                            task.wait(0.05)
-                            VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
-                        end
-                        task.wait(0.3)
-                        parryBusy = false
-                    end
-                end
-            end)
-        end
-    end
-end
-
-task.spawn(function()
-    for _, p in ipairs(P:GetPlayers()) do
-        if p ~= LP then
-            p.CharacterAdded:Connect(function(char)
-                task.wait(1)
-                hookTool(char)
-            end)
-            if p.Character then
-                hookTool(p.Character)
-            end
-        end
-    end
-    P.PlayerAdded:Connect(function(p)
-        p.CharacterAdded:Connect(function(char)
-            task.wait(1)
-            hookTool(char)
-        end)
-    end)
-end)
-
--- 2. AUTO SKILLCHECK (ROTATION MATH)
-task.spawn(function()
-    while true do
-        task.wait(0.01)
-        if CFG.auto_skillcheck then
-            local pg = LP:FindFirstChild("PlayerGui")
-            if pg then
-                for _, obj in ipairs(pg:GetDescendants()) do
-                    if obj:IsA("Frame") or obj:IsA("ImageLabel") then
-                        -- Cari jarum yang muter (Rotation > 0)
-                        if obj.Rotation > 0 and obj.Visible then
-                            -- Cari kotak putih di parent yang sama
-                            local zone = nil
-                            for _, child in ipairs(obj.Parent:GetChildren()) do
-                                if (child:IsA("Frame") or child:IsA("ImageLabel")) and child ~= obj and child.Visible then
-                                    -- Kotak putih biasanya lebih kecil dan ga muter
-                                    if child.AbsoluteSize.X < obj.AbsoluteSize.X and child.Rotation == 0 then
-                                        zone = child; break
-                                    end
-                                end
-                            end
-                            
-                            if zone then
-                                -- Hitung jarak ujung jarum ke kotak putih
-                                local centerX = obj.Parent.AbsolutePosition.X + obj.Parent.AbsoluteSize.X/2
-                                local centerY = obj.Parent.AbsolutePosition.Y + obj.Parent.AbsoluteSize.Y/2
-                                local needleAngle = math.rad(obj.Rotation)
-                                local radius = obj.AbsoluteSize.Y / 2
-                                local needleEndX = centerX + math.cos(needleAngle) * radius
-                                local needleEndY = centerY + math.sin(needleAngle) * radius
-                                
-                                local zoneX = zone.AbsolutePosition.X + zone.AbsoluteSize.X/2
-                                local zoneY = zone.AbsolutePosition.Y + zone.AbsoluteSize.Y/2
-                                
-                                local dist = math.sqrt((needleEndX - zoneX)^2 + (needleEndY - zoneY)^2)
-                                
-                                if dist < 25 then
-                                    if type(keypress) == "function" then
-                                        keypress(0x20) -- Space
-                                    else
-                                        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                        task.wait(0.05)
-                                        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                    end
-                                    task.wait(0.2)
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- 3. ESP
+-- 1. ESP
 task.spawn(function()
     while true do
         task.wait(1)
@@ -293,22 +193,101 @@ task.spawn(function()
     end
 end)
 
--- 4. ANTI AFK
+-- 2. AUTO PARRY (Raycast + Tool detection)
+local parryBusy = false
 task.spawn(function()
     while true do
-        task.wait(60)
-        if CFG.anti_afk then
-            if type(keypress) == "function" then
-                keypress(0x41) -- A
-                task.wait(0.1)
-                keyrelease(0x41)
-            else
-                VIM:SendKeyEvent(true, Enum.KeyCode.A, false, game)
-                task.wait(0.1)
-                VIM:SendKeyEvent(false, Enum.KeyCode.A, false, game)
+        task.wait(0.1)
+        if CFG.auto_parry and not parryBusy then
+            local myChar = LP.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if myHrp then
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP and isKillerSafe(p) then
+                        local char = p.Character
+                        local tHrp = char and char:FindFirstChild("HumanoidRootPart")
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        
+                        if tHrp and hum and hum.Health > 0 then
+                            local dist = (tHrp.Position - myHrp.Position).Magnitude
+                            if dist < 18 then
+                                local hasTool = char:FindFirstChildWhichIsA("Tool")
+                                if hasTool then
+                                    local params = RaycastParams.new()
+                                    params.FilterDescendantsInstances = {myChar}
+                                    params.FilterType = Enum.RaycastFilterType.Exclude
+                                    local result = WS:Raycast(myHrp.Position, (tHrp.Position - myHrp.Position), params)
+                                    
+                                    if not result or dist < 10 then
+                                        parryBusy = true
+                                        if type(mouse2click) == "function" then mouse2click() else
+                                            VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
+                                            task.wait(0.05)
+                                            VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
+                                        end
+                                        task.wait(0.3)
+                                        parryBusy = false
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
             end
         end
     end
 end)
 
-print("[SpookingD] v9999.0 loaded — God Mode Clone Active")
+-- 3. AUTO SKILLCHECK (Hook Detection + Math)
+local function setupSkillcheck()
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then return end
+    
+    -- Listen to UI added
+    pg.DescendantAdded:Connect(function(obj)
+        if not CFG.auto_skillcheck then return end
+        if obj:IsA("ImageLabel") or obj:IsA("Frame") then
+            -- If it's a rotating needle
+            obj:GetPropertyChangedSignal("Rotation"):Connect(function()
+                if not CFG.auto_skillcheck then return end
+                if obj.Rotation > 0 and obj.Visible and obj.AbsoluteSize.X > 20 then
+                    local parent = obj.Parent
+                    local zone = nil
+                    for _, child in ipairs(parent:GetChildren()) do
+                        if (child:IsA("Frame") or child:IsA("ImageLabel")) and child ~= obj and child.Visible and child.Rotation == 0 then
+                            if child.AbsoluteSize.X > 5 and child.AbsoluteSize.X < obj.AbsoluteSize.X then
+                                zone = child; break
+                            end
+                        end
+                    end
+                    
+                    if zone then
+                        local centerX = parent.AbsolutePosition.X + parent.AbsoluteSize.X / 2
+                        local centerY = parent.AbsolutePosition.Y + parent.AbsoluteSize.Y / 2
+                        local needleAngle = obj.Rotation
+                        local zoneCenterX = zone.AbsolutePosition.X + zone.AbsoluteSize.X / 2
+                        local zoneCenterY = zone.AbsolutePosition.Y + zone.AbsoluteSize.Y / 2
+                        local zoneAngle = math.deg(math.atan2(zoneCenterY - centerY, zoneCenterX - centerX))
+                        if zoneAngle < 0 then zoneAngle = zoneAngle + 360 end
+                        
+                        local diff = math.abs(needleAngle - zoneAngle)
+                        if diff > 180 then diff = 360 - diff end
+                        
+                        if diff < 15 then
+                            if type(keypress) == "function" then keypress(0x20) else
+                                VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                task.wait(0.05)
+                                VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+task.wait(2)
+setupSkillcheck()
+
+print("[SpookingD] v30000.0 loaded — Absolute Truth")
