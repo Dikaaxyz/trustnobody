@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v999.0 — Absolute God Tier (Merged All Scripts + 99% Bypass)
+    v999.9 — Premium Clone (100% Mechanism)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -15,16 +15,13 @@ local VIM  = game:GetService("VirtualInputManager")
 local LP   = P.LocalPlayer
 local CAM  = WS.CurrentCamera
 
-local MasterEnabled = false
 local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
 
 -- ==========================================
--- GHOST PROTOCOL (MAX 99% BYPASS)
+-- GHOST PROTOCOL (99% BYPASS)
 -- ==========================================
-local Ghost = {}
-function Ghost.Init()
-    -- 1. HWID Spoof
+local function GhostInit()
     if writefile and readfile and isfile then
         pcall(function()
             local f = "ghost_hwid.dat"
@@ -37,60 +34,27 @@ function Ghost.Init()
         svc.GetHardwareIdentifier = function() return getgenv().GhostHWID or "G" end
         if svc.GetSessionId then svc.GetSessionId = function() return tostring(math.random(100000000, 999999999)) end end
     end)
-
-    -- 2. Trace Wiper
-    if writefile and isfile and delfile then
-        pcall(function()
-            for _, f in ipairs({"RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt"}) do
-                if isfile(f) then delfile(f) end
-            end
-        end)
-    end
 end
-Ghost.Init()
-
--- 3. Anti-Bot (Jitter)
-local inputCap = 5
-local inputWindow = 1.0
-local inputCount = 0
-local lastReset = tick()
-local function CanInput()
-    if tick() - lastReset >= inputWindow then lastReset = tick(); inputCount = 0 end
-    if inputCount >= inputCap then return false end
-    inputCount = inputCount + 1
-    return true
-end
-local function Jitter(lo, hi) return lo + math.random() * (hi - lo) end
+GhostInit()
 
 -- ==========================================
 -- CONFIG
 -- ==========================================
 local CFG = {
-    -- Claudeware
-    esp=false, killer_esp=true, survivor_esp=true, radar=false, gen_esp=true, fov_val=70,
-    -- 717exe
-    pumpkin_esp=false,
-    -- No Skillcheck
-    no_skillcheck=false, auto_farm=false,
-    -- Hendar
-    crosshair=false, fly=false, noclip=false, proximity_alert=false,
-    -- BEST VD
-    desync=false, invis=false, hitbox=false, autoplay=false, lunge=false, parry=false, perfect_gen=false, godmode=false, instant_escape=false,
-    
-    -- Internal
+    esp=false, killer_esp=true, survivor_esp=true, gen_esp=true,
+    crosshair=false, fly=false, noclip=false, godmode=false,
+    parry=false, perfect_gen=false, no_skillcheck=false, 
     ws_enabled=false, ws_speed=30, keyMenu=Enum.KeyCode.RightShift
 }
 
 local espData = {}
 local flyBV = nil
-local parryBusy = false
-
 local hiddenFolder = Instance.new("Folder")
 hiddenFolder.Name = "GhostCarrier"
 hiddenFolder.Parent = CAM or WS
 
 -- ==========================================
--- TABBED GUI (Lightweight)
+-- PREMIUM UI (Tabs)
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -99,7 +63,7 @@ local COL = {
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="SG_GodTier"
+gui.Name="SG_Premium"
 gui.ResetOnSpawn=false
 gui.DisplayOrder=999999
 gui.Parent=LP:WaitForChild("PlayerGui")
@@ -115,15 +79,22 @@ topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.Bor
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD v999"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
+logo.Text="SPOOKINGD PREMIUM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
-local masterBtn = Instance.new("TextButton")
-masterBtn.Size=UDim2.new(0,100,0,22); masterBtn.Position=UDim2.new(1,-110,0,6)
-masterBtn.BackgroundColor3=COL.red; masterBtn.BorderSizePixel=0
-masterBtn.Text="OFF"; masterBtn.TextColor3=Color3.new(1,1,1)
-masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=12; masterBtn.Parent=topBar
-local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(0, 4); mbc.Parent = masterBtn
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size=UDim2.new(0,30,1,0); closeBtn.Position=UDim2.new(1,-30,0,0)
+closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.red
+closeBtn.Font=Enum.Font.GothamBlack; closeBtn.TextSize=14; closeBtn.Parent=topBar
+
+local openBtn = Instance.new("TextButton")
+openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
+openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc
+openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack
+openBtn.TextSize=20; openBtn.Parent=gui; openBtn.Visible=false
+
+closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visible = true end)
+openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
 
 local sidebar = Instance.new("Frame")
 sidebar.Size=UDim2.new(0,140,1,-35); sidebar.Position=UDim2.new(0,0,0,35)
@@ -143,7 +114,7 @@ local function addTab(name)
     pg.Size=UDim2.new(1,-150,1,-50); pg.Position=UDim2.new(0,150,0,45)
     pg.BackgroundTransparency=1; pg.BorderSizePixel=0
     pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc
-    pg.CanvasSize=UDim2.new(0,0,0,600); pg.Visible=false; pg.Parent=main
+    pg.CanvasSize=UDim2.new(0,0,0,400); pg.Visible=false; pg.Parent=main
     table.insert(sidePages, pg)
     
     local idx=#sideTabs
@@ -176,74 +147,30 @@ local function addSwitch(parent,label,key,yOffset)
     knob.BackgroundColor3=Color3.fromRGB(255,255,255); knob.Parent=pill
     local kc=Instance.new("UICorner"); kc.CornerRadius=UDim.new(1,0); kc.Parent=knob
     row.MouseButton1Click:Connect(function()
-        if not MasterEnabled then return end
         CFG[key]=not CFG[key]
         pill.BackgroundColor3=CFG[key] and COL.acc or COL.off
         knob.Position=CFG[key] and UDim2.new(1,-14,0.5,-6) or UDim2.new(0,2,0.5,-6)
     end)
 end
 
-local pgVisual = addTab("Visuals")
-local pgCombat = addTab("Combat")
-local pgPlayer = addTab("Player")
-local pgWorld  = addTab("World")
+local scV = addTab("Visuals")
+local scC = addTab("Combat")
+local scP = addTab("Player")
 
--- VISUALS
-addSwitch(pgVisual, "Enable Player ESP", "esp", 10)
-addSwitch(pgVisual, "Killer Color (Red)", "killer_esp", 40)
-addSwitch(pgVisual, "Survivor Color (White)", "survivor_esp", 70)
-addSwitch(pgVisual, "Generator ESP", "gen_esp", 100)
-addSwitch(pgVisual, "Pumpkin ESP", "pumpkin_esp", 130)
-addSwitch(pgVisual, "Custom Crosshair", "crosshair", 160)
-addSwitch(pgVisual, "Killer Proximity Alert", "proximity_alert", 190)
+addSwitch(scV, "Enable ESP", "esp", 10)
+addSwitch(scV, "Killer (Red)", "killer_esp", 40)
+addSwitch(scV, "Survivor (White)", "survivor_esp", 70)
 
--- COMBAT
-addSwitch(pgCombat, "Auto Parry (Dagger)", "parry", 10)
-addSwitch(pgCombat, "Auto Perfect Generator", "perfect_gen", 40)
-addSwitch(pgCombat, "No Skillcheck (Skip)", "no_skillcheck", 70)
-addSwitch(pgCombat, "Expand Hitboxes", "hitbox", 100)
-addSwitch(pgCombat, "Infinite Lunge (Killer)", "lunge", 130)
-addSwitch(pgCombat, "God Mode", "godmode", 160)
+addSwitch(scC, "Auto Parry", "parry", 10)
+addSwitch(scC, "Auto Perfect Gen", "perfect_gen", 40)
+addSwitch(scC, "No Skillcheck", "no_skillcheck", 70)
+addSwitch(scC, "God Mode", "godmode", 100)
 
--- PLAYER
-addSwitch(pgPlayer, "Fly", "fly", 10)
-addSwitch(pgPlayer, "Noclip", "noclip", 40)
-addSwitch(pgPlayer, "WalkSpeed (30)", "ws_enabled", 70)
-addSwitch(pgPlayer, "Desync (Lag Switch)", "desync", 100)
-addSwitch(pgPlayer, "Invisibility", "invis", 130)
-addSwitch(pgPlayer, "Instant Escape", "instant_escape", 160)
-
--- WORLD
-addSwitch(pgWorld, "Auto Farm", "auto_farm", 10)
-addSwitch(pgWorld, "Auto Play (Bot)", "autoplay", 40)
+addSwitch(scP, "Noclip", "noclip", 10)
+addSwitch(scP, "Fly", "fly", 40)
+addSwitch(scP, "WalkSpeed", "ws_enabled", 70)
 
 sideTabs[1].TextColor3=COL.acc; sideTabs[1].BackgroundTransparency=0.8; sideTabs[1].BackgroundColor3=COL.acc; sidePages[1].Visible=true
-
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size=UDim2.new(0,30,1,0); closeBtn.Position=UDim2.new(1,-30,0,0)
-closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.red
-closeBtn.Font=Enum.Font.GothamBlack; closeBtn.TextSize=14; closeBtn.Parent=topBar
-
-local openBtn = Instance.new("TextButton")
-openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
-openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc
-openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack
-openBtn.TextSize=20; openBtn.Parent=gui; openBtn.Visible=false
-
-closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visible = true end)
-openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
-
-masterBtn.MouseButton1Click:Connect(function()
-    MasterEnabled = not MasterEnabled
-    if MasterEnabled then
-        masterBtn.Text="ON"; masterBtn.BackgroundColor3=COL.acc
-    else
-        masterBtn.Text="OFF"; masterBtn.BackgroundColor3=COL.red
-        for p in pairs(espData) do if espData[p].hl then espData[p].hl:Destroy() end end
-        espData = {}
-        if flyBV then flyBV:Destroy(); flyBV = nil end
-    end
-end)
 
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
@@ -257,7 +184,7 @@ UIS.InputBegan:Connect(function(i,pr)
 end)
 
 -- ==========================================
--- LOGIC ENGINES (Lightweight & Safe)
+-- ENGINES
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -270,11 +197,11 @@ local function isKillerSafe(p)
     return false
 end
 
--- ESP ENGINE (1s Refresh)
+-- 1. ESP (Billboard Method, Anti-Lag)
 task.spawn(function()
     while true do
-        task.wait(1)
-        if MasterEnabled and CFG.esp then
+        task.wait(0.5)
+        if CFG.esp then
             pcall(function()
                 for _, p in ipairs(P:GetPlayers()) do
                     if p ~= LP then
@@ -286,20 +213,27 @@ task.spawn(function()
                             if (killer and not CFG.killer_esp) or (not killer and not CFG.survivor_esp) then
                             else
                                 local d = espData[p]
-                                if not d or not d.hl.Parent then
-                                    if d and d.hl then d.hl:Destroy() end
-                                    local hl = Instance.new("Highlight")
-                                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                                    hl.Adornee = char
-                                    hl.Parent = hiddenFolder
-                                    espData[p] = { hl = hl }
+                                if not d or not d.bg.Parent then
+                                    if d and d.bg then d.bg:Destroy() end
+                                    local bg = Instance.new("BillboardGui")
+                                    bg.Adornee = hrp; bg.Size = UDim2.new(0, 150, 0, 30)
+                                    bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true
+                                    bg.Parent = hiddenFolder
+                                    
+                                    local txt = Instance.new("TextLabel")
+                                    txt.Size = UDim2.new(1,0,1,0); txt.BackgroundTransparency = 1
+                                    txt.TextColor3 = Color3.new(1,1,1); txt.TextStrokeTransparency = 0
+                                    txt.Font = Enum.Font.GothamBold; txt.TextSize = 12; txt.Parent = bg
+                                    
+                                    espData[p] = { bg = bg, txt = txt }
                                     d = espData[p]
                                 end
                                 local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
-                                d.hl.FillColor = color; d.hl.OutlineColor = color
+                                d.txt.Text = p.Name
+                                d.txt.TextColor3 = color
                             end
                         elseif espData[p] then
-                            espData[p].hl:Destroy(); espData[p] = nil
+                            espData[p].bg:Destroy(); espData[p] = nil
                         end
                     end
                 end
@@ -308,9 +242,8 @@ task.spawn(function()
     end
 end)
 
--- MOVEMENT (Fly, Noclip, WS, Godmode)
+-- 2. Movement (Fly, Noclip, WS, Godmode)
 RS.Stepped:Connect(function(_,dt)
-    if not MasterEnabled then return end
     local c = LP.Character
     if not c then return end
     local hum = c:FindFirstChildOfClass("Humanoid")
@@ -340,12 +273,12 @@ RS.Stepped:Connect(function(_,dt)
     end
 end)
 
--- SMART PARRY (Raycast + Animation)
-local lastSwingTime = {}
+-- 3. Auto Parry (Raycast Method - Anti-Lag)
+local parryBusy = false
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if MasterEnabled and CFG.parry and not parryBusy and CanInput() then
+        if CFG.parry and not parryBusy then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if myHrp then
@@ -357,30 +290,20 @@ task.spawn(function()
                         
                         if tHrp and hum and hum.Health > 0 then
                             local dist = (tHrp.Position - myHrp.Position).Magnitude
-                            local currentTime = tick()
-                            local lastTime = lastSwingTime[p] or 0
-                            
-                            if dist < 18 and currentTime - lastTime > 0.8 then
-                                local animator = hum:FindFirstChildOfClass("Animator")
-                                local attacking = false
-                                if animator then
-                                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                                        local n = track.Name:lower()
-                                        if track.WeightCurrent > 0.1 and not (n:find("idle") or n:find("walk") or n:find("run") or n:find("fall")) then
-                                            attacking = true; break
-                                        end
-                                    end
-                                end
+                            if dist < 18 then
+                                local params = RaycastParams.new()
+                                params.FilterDescendantsInstances = {myChar}
+                                params.FilterType = Enum.RaycastFilterType.Exclude
+                                local result = WS:Raycast(myHrp.Position, (tHrp.Position - myHrp.Position), params)
                                 
-                                if dist < 12 or attacking then
+                                if not result or dist < 10 then
                                     parryBusy = true
-                                    lastSwingTime[p] = currentTime
                                     pcall(function()
                                         VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
                                         task.wait(0.05)
                                         VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
                                     end)
-                                    task.wait(0.2)
+                                    task.wait(0.4) -- Cooldown
                                     parryBusy = false
                                     break
                                 end
@@ -393,12 +316,13 @@ task.spawn(function()
     end
 end)
 
--- AUTO PERFECT GEN (Event Listener)
+-- 4. Auto Perfect Gen (Event Listener - Zero Stutter)
 local function setupGenListener()
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return end
+    
     pg.DescendantAdded:Connect(function(child)
-        if MasterEnabled and CFG.perfect_gen then
+        if CFG.perfect_gen then
             if child:IsA("TextLabel") and child.Text:lower():find("perfect") then
                 pcall(function()
                     VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -412,11 +336,11 @@ end
 task.wait(2)
 setupGenListener()
 
--- NO SKILLCHECK (Skip)
+-- 5. No Skillcheck (Skip)
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if MasterEnabled and CFG.no_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and CanInput() then
+        if CFG.no_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
             local pg = LP:FindFirstChild("PlayerGui")
             if pg then
                 for _, v in ipairs(pg:GetDescendants()) do
@@ -434,4 +358,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v999.0 loaded — Absolute God Tier")
+print("[SpookingD] v999.9 loaded — Premium Clone Active")
