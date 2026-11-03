@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v70.4 — Hologram Fallback (Absolute Last Resort)
+    v70.5 — Interactive GUI Fix (Clickable)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -18,10 +18,25 @@ local CAM  = WS.CurrentCamera
 local MasterEnabled = false
 local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
-local toggleGuiKey = Enum.KeyCode.P -- Pake P biar ga bentrok
 
 -- ==========================================
--- 99% BYPASS (Tetep Ada, Chef)
+-- FAILSAFE GUI PARENTING (Untuk Klik)
+-- ==========================================
+local guiParent
+if typeof(gethui) == "function" then
+    local ok, h = pcall(gethui)
+    if ok and h then guiParent = h end
+end
+if not guiParent then
+    local ok, h = pcall(function() return game:GetService("CoreGui") end)
+    if ok and h then guiParent = h end
+end
+if not guiParent then
+    guiParent = LP:WaitForChild("PlayerGui", 5)
+end
+
+-- ==========================================
+-- 99% BYPASS
 -- ==========================================
 local BYPASS = {}
 BYPASS.HWID_FILE = "spook_hwid.dat"
@@ -49,7 +64,7 @@ end
 scrub()
 
 -- ==========================================
--- HOLOGRAM GUI (Ditaruh di Workspace)
+-- 2D SCREEN GUI (Biar Bisa Di-klik)
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -57,17 +72,16 @@ local COL = {
     acc=Color3.fromRGB(0, 255, 120), red=Color3.fromRGB(255,0,60), off=Color3.fromRGB(60,60,60)
 }
 
-local gui = Instance.new("BillboardGui")
+local gui = Instance.new("ScreenGui")
 gui.Name="SG_"..tostring(math.random(100000,999999))
-gui.Adornee = CAM
-gui.Size = UDim2.new(0, 650, 0, 450)
-gui.StudsOffset = Vector3.new(0, 0, -5) -- 5 studs di depan kamera
-gui.AlwaysOnTop = true
-gui.Parent = CAM
+gui.ResetOnSpawn=false
+gui.IgnoreGuiInset=true
+gui.DisplayOrder=999999
+gui.Parent=guiParent
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(1,0,1,0); main.Position=UDim2.new(0,0,0,0)
+main.Size=UDim2.new(0,650,0,450); main.Position=UDim2.new(0.5,-325,0.5,-225)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 
 local ms = Instance.new("UIStroke")
@@ -78,7 +92,7 @@ topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.Bor
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD HOLOGRAM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
+logo.Text="SPOOKINGD PREMIUM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local masterBtn = Instance.new("TextButton")
@@ -146,8 +160,6 @@ end
 
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
-    killer_esp=true, survivor_esp=true, gen_esp=true, pumpkin_esp=false,
-    radar=false, crosshair=false, fov_enabled=false, fov_val=70,
     auto_parry=false, auto_skillcheck=false, no_skillcheck=false, auto_farm=false,
     fly=false, noclip=false, proximity_alert=false,
     bright=false, fpsboost=false,
@@ -180,27 +192,6 @@ local function addSwitch(parent,label,key,yOffset)
     end)
 end
 
-local function addSlider(parent,label,key,min,max,yOffset)
-    local frame=Instance.new("Frame")
-    frame.Size=UDim2.new(1,-10,0,24); frame.Position=UDim2.new(0,5,0,yOffset)
-    frame.BackgroundTransparency=1; frame.Parent=parent
-    local txt=Instance.new("TextLabel")
-    txt.Size=UDim2.new(1,-60,1,0); txt.BackgroundTransparency=1
-    txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham
-    txt.TextSize=12; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=frame
-    local input=Instance.new("TextBox")
-    input.Size=UDim2.new(0,40,0,18); input.Position=UDim2.new(1,-40,0.5,-9)
-    input.BackgroundColor3=COL.bg; input.BorderSizePixel=1; input.BorderColor3=COL.line
-    input.Text=tostring(CFG[key]); input.TextColor3=COL.acc
-    input.Font=Enum.Font.GothamBold; input.TextSize=11; input.Parent=frame
-    input.FocusLost:Connect(function()
-        if not MasterEnabled then return end
-        local val=tonumber(input.Text)
-        if val then CFG[key]=math.clamp(val,min,max) end
-        input.Text=tostring(CFG[key])
-    end)
-end
-
 local function addButton(parent,label,cb,yOffset)
     local btn=Instance.new("TextButton")
     btn.Size=UDim2.new(1,-10,0,24); btn.Position=UDim2.new(0,5,0,yOffset)
@@ -223,25 +214,10 @@ local scMovement = createScroll(pgMovement)
 local scSettings = createScroll(pgSettings)
 
 local box1 = createBox(scVisual, "Camera", 10, 480, 80)
-addSwitch(box1, "Custom FOV", "fov_enabled", 30)
-addSlider(box1, "FOV Value", "fov_val", 50, 120, 55)
-
-local box2 = createBox(scVisual, "Screen", 100, 480, 80)
-addSwitch(box2, "Crosshair", "crosshair", 30)
-addSwitch(box2, "Killer Proximity Alert", "proximity_alert", 55)
+addSwitch(box1, "Enable ESP", "esp", 30)
 
 local box3 = createBox(scPlayer, "Players", 10, 480, 110)
 addSwitch(box3, "Enable ESP", "esp", 30)
-addSwitch(box3, "Show Health", "esp_health", 55)
-addSwitch(box3, "Show Distance", "esp_dist", 80)
-
-local box4 = createBox(scPlayer, "Filters", 130, 480, 80)
-addSwitch(box4, "Killer Color (Red)", "killer_esp", 30)
-addSwitch(box4, "Survivor Color (White)", "survivor_esp", 55)
-
-local box5 = createBox(scPlayer, "World Objects", 220, 480, 100)
-addSwitch(box5, "Generator ESP", "gen_esp", 30)
-addSwitch(box5, "Item ESP", "esp_item", 55)
 
 local box6 = createBox(scUtility, "No Skillcheck & Farm", 10, 480, 110)
 addSwitch(box6, "Auto Skillcheck", "auto_skillcheck", 30)
@@ -251,12 +227,8 @@ local box7 = createBox(scUtility, "Auto Parry", 130, 480, 60)
 addSwitch(box7, "Auto Parry (Dagger)", "auto_parry", 30)
 
 local box8 = createBox(scMovement, "Toggles", 10, 480, 110)
-addSwitch(box8, "Enable Fly", "fly", 30)
 addSwitch(box8, "Enable Noclip", "noclip", 55)
 addSwitch(box8, "Enable WalkSpeed", "ws_enabled", 80)
-
-local box9 = createBox(scMovement, "Speed", 130, 480, 60)
-addSlider(box9, "WalkSpeed", "ws_speed", 16, 100, 30)
 
 local box10 = createBox(scSettings, "99% Bypass", 10, 480, 150)
 addButton(box10, "Re-Apply HWID Spoof", function()
@@ -264,9 +236,6 @@ addButton(box10, "Re-Apply HWID Spoof", function()
     pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
     scrub()
 end, 30)
-addButton(box10, "Flush Logs & Cache", function()
-    scrub(); print("[SpookingD] Scrubbed.")
-end, 60)
 
 sideTabs[1].TextColor3=COL.acc; sideTabs[1].BackgroundTransparency=0.8; sideTabs[1].BackgroundColor3=COL.acc; sidePages[1].Visible=true
 
@@ -284,8 +253,6 @@ UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
     if i.KeyCode == CFG.keyMenu then
         main.Visible = not main.Visible
-    elseif i.KeyCode == toggleGuiKey then
-        gui.Enabled = not gui.Enabled
     elseif i.KeyCode == mouseUnlockKey then
         MouseLocked = not MouseLocked
         UIS.MouseBehavior = MouseLocked and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
@@ -300,8 +267,6 @@ local hiddenFolder = Instance.new("Folder")
 hiddenFolder.Name = "SpookCarrier"
 hiddenFolder.Parent = CAM or WS
 local espData = {}
-local flyBV = nil
-local parryBusy = false
 
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -373,7 +338,7 @@ task.spawn(function()
     end
 end)
 
--- Parry
+local parryBusy = false
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -403,7 +368,6 @@ task.spawn(function()
     end
 end)
 
--- Skillcheck
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -425,20 +389,4 @@ task.spawn(function()
     end
 end)
 
-RS.Stepped:Connect(function(_,dt)
-    if not MasterEnabled then return end
-    local c = LP.Character
-    if not c then return end
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    local hrp = c:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp then return end
-    
-    if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed end
-    if CFG.noclip then
-        for _, v in pairs(c:GetDescendants()) do
-            if v:IsA("BasePart") and v.CanCollide then v.CanCollide = false end
-        end
-    end
-end)
-
-print("[SpookingD] v70.4 loaded — Hologram Fallback (Press P)")
+print("[SpookingD] v70.5 loaded — UI Interactive")
