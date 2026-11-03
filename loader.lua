@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v150.2 — Zero-Stutter Fix (Smart Detection)
+    v150.3 — The Real Zero-Stutter Gen Fix
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -76,7 +76,7 @@ topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.Bor
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD v150.2"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
+logo.Text="SPOOKINGD v150.3"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local masterBtn = Instance.new("TextButton")
@@ -158,16 +158,6 @@ local function addSwitch(parent,label,key,yOffset)
     end)
 end
 
-local pgVisual = addSideTab("Visuals")
-local pgCombat = addSideTab("Combat")
-local pgPlayer = addSideTab("Player")
-
-local scVisual = addSideTab("Visuals") -- Small bug in original fixed
-local scCombat = addSideTab("Combat")
-local scPlayer = addSideTab("Player")
-
--- Re-setup tabs because of previous bug
-sideTabs = {}; sidePages = {}
 local scV = addSideTab("Visuals")
 local scC = addSideTab("Combat")
 local scP = addSideTab("Player")
@@ -209,7 +199,7 @@ UIS.InputBegan:Connect(function(i,pr)
 end)
 
 -- ==========================================
--- ENGINES
+-- ESP ENGINE (1s Refresh)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -222,7 +212,6 @@ local function isKillerSafe(p)
     return false
 end
 
--- ESP ENGINE (1s Refresh)
 task.spawn(function()
     while true do
         task.wait(1)
@@ -268,7 +257,7 @@ local lastSwingTime = {}
 
 task.spawn(function()
     while true do
-        task.wait(0.1) -- Cek 10x per detik, bukan 50x (Anti-Lag)
+        task.wait(0.1)
         if MasterEnabled and CFG.parry and not parryBusy then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -284,7 +273,6 @@ task.spawn(function()
                             local currentTime = tick()
                             local lastTime = lastSwingTime[p] or 0
                             
-                            -- Cooldown 1 detik biar ga spam
                             if dist < 18 and currentTime - lastTime > 1.0 then
                                 local animator = hum:FindFirstChildOfClass("Animator")
                                 local attacking = false
@@ -297,7 +285,6 @@ task.spawn(function()
                                     end
                                 end
                                 
-                                -- Klik kalau dia ngayun ATAU bener-bener nempel
                                 if dist < 10 or attacking then
                                     parryBusy = true
                                     lastSwingTime[p] = currentTime
@@ -320,23 +307,33 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- SMART AUTO PERFECT GEN
+-- SMART AUTO PERFECT GEN (Optimized)
 -- ==========================================
 task.spawn(function()
     while true do
-        task.wait(0.2) -- Scan UI 5x per detik (Ringan)
+        task.wait(0.5) -- Scan 2x per detik, ringan
         if MasterEnabled and CFG.perfect_gen then
             local pg = LP:FindFirstChild("PlayerGui")
             if pg then
-                for _, obj in ipairs(pg:GetDescendants()) do
-                    if obj:IsA("TextLabel") and obj.Text:lower():find("perfect") then
-                        pcall(function()
-                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                            task.wait(0.05)
-                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                        end)
-                        task.wait(0.5) -- Cooldown biar ga dobel klik
-                        break
+                local centerUI = pg:FindFirstChild("ScreenGui") -- Cari root UI
+                -- Kita cuma ngecek Frame yang di tengah aja
+                for _, v in ipairs(pg:GetChildren()) do
+                    if v:IsA("ScreenGui") and v.Enabled then
+                        for _, frame in ipairs(v:GetDescendants()) do
+                            if frame:IsA("Frame") and frame.AbsolutePosition.X > 200 and frame.AbsolutePosition.X < 800 then
+                                for _, txt in ipairs(frame:GetDescendants()) do
+                                    if txt:IsA("TextLabel") and txt.Text:lower():find("perfect") then
+                                        pcall(function()
+                                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                                            task.wait(0.05)
+                                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                        end)
+                                        task.wait(1.0) -- Cooldown tebel biar ga spam
+                                        break
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -345,7 +342,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- NO SKILLCHECK (Skip Minigame)
+-- NO SKILLCHECK (Spam Mode)
 -- ==========================================
 task.spawn(function()
     while true do
@@ -368,4 +365,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v150.2 loaded — SMART DETECTION (Zero Stutter)")
+print("[SpookingD] v150.3 loaded — SMART DETECTION")
