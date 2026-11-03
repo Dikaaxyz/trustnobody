@@ -1,4 +1,4 @@
--- SpookenD V8 — Violence District (Default OFF + BillboardGui Fallback)
+-- SpookenD V10 — Violence District (Spacebar Skill Check + Auto Parry)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
@@ -11,7 +11,8 @@ local CONFIG = {
     esp_enabled=false, esp_killer=false, esp_survivor=false, esp_generator=false,
     esp_max_dist=250, 
     color_killer={255,50,50}, color_survivor={50,180,255}, color_generator={255,200,40},
-    auto_parry=false, silent_aim=false, kill_aura=false, auto_skill_check=false,
+    auto_parry=false, parry_dist=15,
+    silent_aim=false, kill_aura=false, auto_skill_check=false,
     auto_generator=false, auto_heal=false, auto_unhook=false, auto_escape=false,
     speed_enabled=false, speed_value=35, noclip_enabled=false, fly_enabled=false, fly_speed=50,
     fullbright_medium=false, fps_boost=false, anti_lag=false, no_fog_enabled=false,
@@ -25,6 +26,7 @@ local UserInputService=game:GetService("UserInputService")
 local Lighting=game:GetService("Lighting")
 local Workspace=game:GetService("Workspace")
 local CoreGui=game:GetService("CoreGui")
+local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local LP=Players.LocalPlayer
 local Camera=Workspace.CurrentCamera
 local is_mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -44,7 +46,7 @@ local function get_role(plr)
 end
 
 -- ============================================================
--- ESP FALLBACK (BillboardGui - PASTI MUNCUL)
+-- ESP FALLBACK (BillboardGui)
 -- ============================================================
 local esp_cache = {}
 local esp_accum = 0
@@ -158,6 +160,107 @@ local function update_esp(dt)
 end
 
 -- ============================================================
+-- AUTO PARRY
+-- ============================================================
+local cached_parry_remotes = {}
+local last_parry_time = 0
+local function update_auto_parry(dt)
+    if not CONFIG.auto_parry then return end
+    local mc = LP.Character
+    local mh = mc and mc:FindFirstChild("HumanoidRootPart")
+    if not mh then return end
+
+    local killer_near = false
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and get_role(p) == "Killer" then
+            local kh = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+            if kh and dist(mh.Position, kh.Position) <= CONFIG.parry_dist then
+                killer_near = true
+                break
+            end
+        end
+    end
+
+    if killer_near and tick() - last_parry_time > 0.5 then
+        last_parry_time = tick()
+        if REMOTES.parry then
+            pcall(function() REMOTES.parry:FireServer() end)
+        else
+            if #cached_parry_remotes == 0 then
+                for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+                    if obj:IsA("RemoteEvent") then
+                        local n = obj.Name:lower()
+                        if n:find("parry") or n:find("block") or n:find("hit") or n:find("attack") then
+                            table.insert(cached_parry_remotes, obj)
+                        end
+                    end
+                end
+            end
+            for _, remote in ipairs(cached_parry_remotes) do
+                pcall(function() remote:FireServer() end)
+            end
+            -- Tool activate (kalau lu megang pedang/parry tool)
+            local char = LP.Character
+            local tool = char and char:FindFirstChildOfClass("Tool")
+            if tool then pcall(function() tool:Activate() end) end
+        end
+    end
+end
+
+-- ============================================================
+-- AUTO SKILL CHECK (Spacebar Emulator)
+-- ============================================================
+-- Konsep: Pas UI Skill check muncul, kirim input Spacebar.
+local function get_hidden_gui()
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    for _, gui in ipairs(pg:GetDescendants()) do
+        if gui:IsA("ScreenGui") and gui.Enabled then
+            local n = gui.Name:lower()
+            if n:find("skill") or n:find("timing") or n:find("qte") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local skill_cooldown = 0
+local function update_skill_check(dt)
+    if not CONFIG.auto_skill_check then return end
+    
+    -- Kasih delay 0.2 detik biar gak spam
+    skill_cooldown = skill_cooldown + dt
+    if skill_cooldown < 0.2 then return end
+    
+    if get_hidden_gui() then
+        skill_cooldown = 0
+        -- Emulasi tekan Spacebar
+        if keypress then
+            pcall(function() keypress(0x20) end)
+        elseif VirtualUser then
+            pcall(function()
+                local vu = game:GetService("VirtualUser")
+                vu:CaptureController()
+                vu:KeyPress(Enum.KeyCode.Space)
+            end)
+        end
+        -- Fallback kalau itu ternyata TextButton
+        local pg = LP:FindFirstChild("PlayerGui")
+        if pg then
+            for _, gui in ipairs(pg:GetDescendants()) do
+                if gui:IsA("TextButton") and gui.Visible then
+                    local n = gui.Name:lower()
+                    if n:find("space") or n:find("click") or n:find("tap") then
+                        pcall(function() gui:Activate() end)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ============================================================
 -- FITUR LAIN
 -- ============================================================
 local function apply_fullbright_medium()
@@ -180,19 +283,6 @@ local function update_auto(dt)
         local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
         if hum and hum.Health < hum.MaxHealth * 0.8 then
             if REMOTES.heal then pcall(function() REMOTES.heal:FireServer() end) end
-        end
-    end
-    if CONFIG.auto_parry and REMOTES.parry then
-        local mh = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-        if mh then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LP and get_role(p) == "Killer" then
-                    local kh = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-                    if kh and dist(mh.Position, kh.Position) <= 12 then
-                        pcall(function() REMOTES.parry:FireServer() end)
-                    end
-                end
-            end
         end
     end
 end
@@ -323,7 +413,6 @@ local function make_card(parent, title, desc, get, set)
         local d = Instance.new("TextLabel") d.Size = UDim2.new(1, -60, 0, 30) d.Position = UDim2.new(0, 12, 0, 26) d.BackgroundTransparency = 1 d.Text = desc d.TextColor3 = COLORS.subtext d.Font = FONT d.TextSize = 10 d.TextXAlignment = Enum.TextXAlignment.Left d.TextWrapped = true d.Parent = card
     end
     
-    -- SET DEFAULT FALSE (Biar mati dari awal)
     local sw = Instance.new("Frame") sw.Size = UDim2.new(0, 36, 0, 20) sw.Position = UDim2.new(1, -48, 0.5, -10) sw.BackgroundColor3 = Color3.fromRGB(60,60,70) sw.BorderSizePixel = 0 sw.Parent = card
     local swCorner = Instance.new("UICorner") swCorner.CornerRadius = UDim.new(1, 0) swCorner.Parent = sw
     
@@ -357,7 +446,7 @@ make_card(pages["Auto"], "Auto Generator", "Selesaikan generator otomatis", func
 make_card(pages["Auto"], "Auto Heal", "Heal diri sendiri saat HP turun", function() return CONFIG.auto_heal end, function(v) CONFIG.auto_heal=v end)
 make_card(pages["Auto"], "Auto Unhook", "Lepas diri dari hook", function() return CONFIG.auto_unhook end, function(v) CONFIG.auto_unhook=v end)
 make_card(pages["Auto"], "Auto Escape", "Pergi ke exit gate otomatis", function() return CONFIG.auto_escape end, function(v) CONFIG.auto_escape=v end)
-make_card(pages["Auto"], "Auto Skill Check", "Selesaikan skill check otomatis", function() return CONFIG.auto_skill_check end, function(v) CONFIG.auto_skill_check=v end)
+make_card(pages["Auto"], "Auto Skill Check", "Tekan Spacebar otomatis pas QTE muncul", function() return CONFIG.auto_skill_check end, function(v) CONFIG.auto_skill_check=v end)
 
 make_card(pages["Killer"], "Hitbox for Survivor Players", "Increase hitbox size to 10 studs for survivor", function() return CONFIG.hitbox_survivor end, function(v) CONFIG.hitbox_survivor=v end)
 make_card(pages["Killer"], "Auto Parry", "Parry otomatis saat killer dekat", function() return CONFIG.auto_parry end, function(v) CONFIG.auto_parry=v end)
@@ -382,7 +471,9 @@ apply_misc()
 
 RunService.RenderStepped:Connect(function(dt)
     pcall(update_esp, dt)
+    pcall(update_auto_parry, dt)
+    pcall(update_skill_check, dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V8 Loaded — Default OFF & Billboard Fallback Fixed.")
+print("[SpookenD] V10 Loaded — Skill Check Spacebar Fixed.")
