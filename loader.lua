@@ -1,4 +1,4 @@
--- SpookenD V7 — Violence District (Default OFF + BillboardGui Fallback)
+-- SpookenD V8 — Violence District (Default OFF + BillboardGui Fallback)
 -- Isi REMOTES dari ReplicatedStorage dulu sebelum execute.
 
 pcall(function()
@@ -323,20 +323,26 @@ local function make_card(parent, title, desc, get, set)
         local d = Instance.new("TextLabel") d.Size = UDim2.new(1, -60, 0, 30) d.Position = UDim2.new(0, 12, 0, 26) d.BackgroundTransparency = 1 d.Text = desc d.TextColor3 = COLORS.subtext d.Font = FONT d.TextSize = 10 d.TextXAlignment = Enum.TextXAlignment.Left d.TextWrapped = true d.Parent = card
     end
     
-    local sw = Instance.new("Frame") sw.Size = UDim2.new(0, 36, 0, 20) sw.Position = UDim2.new(1, -48, 0.5, -10) sw.BackgroundColor3 = get() and COLORS.accent or Color3.fromRGB(60,60,70) sw.BorderSizePixel = 0 sw.Parent = card
+    -- SET DEFAULT FALSE (Biar mati dari awal)
+    local sw = Instance.new("Frame") sw.Size = UDim2.new(0, 36, 0, 20) sw.Position = UDim2.new(1, -48, 0.5, -10) sw.BackgroundColor3 = Color3.fromRGB(60,60,70) sw.BorderSizePixel = 0 sw.Parent = card
     local swCorner = Instance.new("UICorner") swCorner.CornerRadius = UDim.new(1, 0) swCorner.Parent = sw
     
     local knob = Instance.new("Frame") knob.Size = UDim2.new(0, 16, 0, 16) 
-    -- Fix posisi awal knob biar default off
-    knob.Position = get() and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8) 
+    knob.Position = UDim2.new(0, 2, 0.5, -8) 
     knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = sw
     local knobCorner = Instance.new("UICorner") knobCorner.CornerRadius = UDim.new(1, 0) knobCorner.Parent = knob
     
     local click = Instance.new("TextButton") click.Size = UDim2.new(1, 0, 1, 0) click.BackgroundTransparency = 1 click.Text = "" click.Parent = card
     click.MouseButton1Click:Connect(function()
-        set(not get())
-        sw.BackgroundColor3 = get() and COLORS.accent or Color3.fromRGB(60,60,70)
-        knob.Position = get() and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+        local is_now_on = not get()
+        set(is_now_on)
+        if is_now_on then
+            sw.BackgroundColor3 = COLORS.accent
+            knob.Position = UDim2.new(1, -18, 0.5, -8)
+        else
+            sw.BackgroundColor3 = Color3.fromRGB(60,60,70)
+            knob.Position = UDim2.new(0, 2, 0.5, -8)
+        end
     end)
 end
 
@@ -379,4 +385,4 @@ RunService.RenderStepped:Connect(function(dt)
     pcall(update_auto, dt)
 end)
 
-print("[SpookenD] V7 Loaded — Default OFF & Billboard Fallback Fixed.")
+print("[SpookenD] V8 Loaded — Default OFF & Billboard Fallback Fixed.")
