@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v99.0 — GOD TIER (Merged all features + 99% Bypass)
+    v99.1 — GOD TIER (All Features Merged + Bypass)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -508,4 +508,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v99.0 loaded — GOD TIER ACTIVE")
+print("[SpookingD] v99.1 loaded — GOD TIER ACTIVE")
