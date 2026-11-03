@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v70.6 — Force Render Fix (Wait for Game Idle)
+    v70.7 — Clickable & Unlocked (Final Fix)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -19,26 +19,25 @@ local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
 
 -- ==========================================
--- BYPASS
+-- 99% BYPASS
 -- ==========================================
 pcall(function()
-    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return "SPOOK_FORCE" end
+    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return "SPOOK_CLICK" end
 end)
 
 -- ==========================================
--- GUI
+-- 2D SCREEN GUI
 -- ==========================================
+task.wait(1)
+
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
     line=Color3.fromRGB(50,50,50), txt=Color3.fromRGB(255,255,255), dim=Color3.fromRGB(150,150,150),
     acc=Color3.fromRGB(0, 255, 120), red=Color3.fromRGB(255,0,60), off=Color3.fromRGB(60,60,60)
 }
 
--- Delay 2 seconds to let the game load
-task.wait(2)
-
 local gui = Instance.new("ScreenGui")
-gui.Name="SG_"..tostring(math.random(100000,999999))
+gui.Name="SG_Final"
 gui.ResetOnSpawn=false
 gui.IgnoreGuiInset=true
 gui.DisplayOrder=999999
@@ -46,7 +45,7 @@ gui.Parent = LP:WaitForChild("PlayerGui")
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(0,550,0,400); main.Position=UDim2.new(0.5,-275,0.5,-200)
+main.Size=UDim2.new(0,450,0,350); main.Position=UDim2.new(0.5,-225,0.5,-175)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 
 local ms = Instance.new("UIStroke")
@@ -57,7 +56,7 @@ topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.Bor
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(1,0,0,35); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD PREMIUM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
+logo.Text="SPOOKINGD FINAL"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local closeBtn = Instance.new("TextButton")
@@ -81,6 +80,8 @@ masterBtn.BackgroundColor3=COL.red; masterBtn.BorderSizePixel=0
 masterBtn.Text="ENABLE SCRIPT"; masterBtn.TextColor3=Color3.new(1,1,1)
 masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=12; masterBtn.Parent=main
 local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(0, 4); mbc.Parent = masterBtn
+
+local CFG = { esp=false, auto_parry=false, auto_skillcheck=false }
 
 local function addSwitch(parent,label,key,yOffset)
     local row=Instance.new("TextButton")
@@ -107,8 +108,6 @@ local function addSwitch(parent,label,key,yOffset)
     end)
 end
 
-local CFG = { esp=false, auto_parry=false, auto_skillcheck=false }
-
 addSwitch(main, "Enable ESP (Highlight)", "esp", 90)
 addSwitch(main, "Auto Parry (Dagger)", "auto_parry", 125)
 addSwitch(main, "Auto Skillcheck (Spam)", "auto_skillcheck", 160)
@@ -122,6 +121,7 @@ masterBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- BUKA GUI & UNLOCK MOUSE
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
     if i.KeyCode == Enum.KeyCode.RightShift then
@@ -278,4 +278,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v70.6 loaded — Force Render Active")
+print("[SpookingD] v70.7 loaded — Clickable & Unlocked")
