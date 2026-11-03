@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v70.5 — Interactive GUI Fix (Clickable)
+    v70.6 — Force Render Fix (Wait for Game Idle)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -10,7 +10,6 @@ local P    = game:GetService("Players")
 local RS   = game:GetService("RunService")
 local UIS  = game:GetService("UserInputService")
 local WS   = game:GetService("Workspace")
-local L    = game:GetService("Lighting")
 local VIM  = game:GetService("VirtualInputManager")
 local LP   = P.LocalPlayer
 local CAM  = WS.CurrentCamera
@@ -20,51 +19,14 @@ local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
 
 -- ==========================================
--- FAILSAFE GUI PARENTING (Untuk Klik)
+-- BYPASS
 -- ==========================================
-local guiParent
-if typeof(gethui) == "function" then
-    local ok, h = pcall(gethui)
-    if ok and h then guiParent = h end
-end
-if not guiParent then
-    local ok, h = pcall(function() return game:GetService("CoreGui") end)
-    if ok and h then guiParent = h end
-end
-if not guiParent then
-    guiParent = LP:WaitForChild("PlayerGui", 5)
-end
+pcall(function()
+    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return "SPOOK_FORCE" end
+end)
 
 -- ==========================================
--- 99% BYPASS
--- ==========================================
-local BYPASS = {}
-BYPASS.HWID_FILE = "spook_hwid.dat"
-function BYPASS.loadHwid()
-    if readfile and isfile and writefile then
-        pcall(function()
-            if isfile(BYPASS.HWID_FILE) then
-                local v = readfile(BYPASS.HWID_FILE)
-                if v and #v >= 6 then getgenv().SpoofedHWID = v; return end
-            end
-            local v = tostring(math.random(100000,999999)) .. "SPOOK"
-            writefile(BYPASS.HWID_FILE, v)
-            getgenv().SpoofedHWID = v
-        end)
-    else
-        getgenv().SpoofedHWID = tostring(math.random(100000,999999)) .. "SPOOK"
-    end
-end
-BYPASS.loadHwid()
-pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
-local function scrub()
-    if not (writefile and isfile and delfile) then return end
-    pcall(function() for _, f in ipairs({"RobloxCookies.dat", "rbx_cookie", "log.txt"}) do if isfile(f) then delfile(f) end end end)
-end
-scrub()
-
--- ==========================================
--- 2D SCREEN GUI (Biar Bisa Di-klik)
+-- GUI
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -72,16 +34,19 @@ local COL = {
     acc=Color3.fromRGB(0, 255, 120), red=Color3.fromRGB(255,0,60), off=Color3.fromRGB(60,60,60)
 }
 
+-- Delay 2 seconds to let the game load
+task.wait(2)
+
 local gui = Instance.new("ScreenGui")
 gui.Name="SG_"..tostring(math.random(100000,999999))
 gui.ResetOnSpawn=false
 gui.IgnoreGuiInset=true
 gui.DisplayOrder=999999
-gui.Parent=guiParent
+gui.Parent = LP:WaitForChild("PlayerGui")
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(0,650,0,450); main.Position=UDim2.new(0.5,-325,0.5,-225)
+main.Size=UDim2.new(0,550,0,400); main.Position=UDim2.new(0.5,-275,0.5,-200)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 
 local ms = Instance.new("UIStroke")
@@ -91,168 +56,76 @@ local topBar = Instance.new("Frame")
 topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.BorderSizePixel=0; topBar.Parent=main
 
 local logo = Instance.new("TextLabel")
-logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
+logo.Size=UDim2.new(1,0,0,35); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
 logo.Text="SPOOKINGD PREMIUM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size=UDim2.new(0,30,0,30); closeBtn.Position=UDim2.new(1,-35,0,2)
+closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.red
+closeBtn.Font=Enum.Font.GothamBlack; closeBtn.TextSize=16; closeBtn.Parent=topBar
+
+local openBtn = Instance.new("TextButton")
+openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
+openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc
+openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack
+openBtn.TextSize=22; openBtn.Parent=gui; openBtn.Visible=false
+local obc = Instance.new("UICorner"); obc.CornerRadius = UDim.new(0, 8); obc.Parent = openBtn
+
+closeBtn.MouseButton1Click:Connect(function() main.Visible=false; openBtn.Visible=true end)
+openBtn.MouseButton1Click:Connect(function() main.Visible=true; openBtn.Visible=false end)
+
 local masterBtn = Instance.new("TextButton")
-masterBtn.Size=UDim2.new(0,100,0,22); masterBtn.Position=UDim2.new(1,-120,0,6)
+masterBtn.Size=UDim2.new(1,-20,0,30); masterBtn.Position=UDim2.new(0,10,0,45)
 masterBtn.BackgroundColor3=COL.red; masterBtn.BorderSizePixel=0
-masterBtn.Text="OFF"; masterBtn.TextColor3=Color3.new(1,1,1)
-masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=12; masterBtn.Parent=topBar
+masterBtn.Text="ENABLE SCRIPT"; masterBtn.TextColor3=Color3.new(1,1,1)
+masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=12; masterBtn.Parent=main
 local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(0, 4); mbc.Parent = masterBtn
-
-local sidebar = Instance.new("Frame")
-sidebar.Size=UDim2.new(0,140,1,-35); sidebar.Position=UDim2.new(0,0,0,35)
-sidebar.BackgroundColor3=COL.sidebar; sidebar.BackgroundTransparency=0.5; sidebar.BorderSizePixel=0; sidebar.Parent=main
-
-local sideTabs, sidePages = {}, {}
-local function addSideTab(name)
-    local btn = Instance.new("TextButton")
-    btn.Size=UDim2.new(1,-20,0,30); btn.Position=UDim2.new(0,10,0,10+(#sideTabs*35))
-    btn.BackgroundColor3=COL.sidebar; btn.BackgroundTransparency = 1; btn.BorderSizePixel=0
-    btn.Text="  "..name; btn.TextColor3=COL.dim; btn.Font=Enum.Font.GothamBold
-    btn.TextSize=12; btn.TextXAlignment=Enum.TextXAlignment.Left
-    btn.AutoButtonColor=false; btn.Parent=sidebar
-    table.insert(sideTabs, btn)
-    
-    local pg=Instance.new("Frame")
-    pg.Size=UDim2.new(1,-150,1,-50); pg.Position=UDim2.new(0,150,0,45)
-    pg.BackgroundTransparency=1; pg.Visible=false; pg.Parent=main
-    table.insert(sidePages, pg)
-    
-    local idx=#sideTabs
-    btn.MouseButton1Click:Connect(function()
-        for i,t in ipairs(sideTabs) do
-            t.TextColor3=(i==idx) and COL.acc or COL.dim
-            t.BackgroundTransparency=(i==idx) and 0.8 or 1
-            t.BackgroundColor3=(i==idx) and COL.acc or COL.sidebar
-        end
-        for i,p in ipairs(sidePages) do p.Visible=(i==idx) end
-    end)
-    return pg
-end
-
-local function createScroll(parent)
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Size=UDim2.new(1,0,1,0)
-    scroll.BackgroundTransparency=1; scroll.BorderSizePixel=0
-    scroll.ScrollBarThickness=2; scroll.ScrollBarImageColor3=COL.acc
-    scroll.CanvasSize=UDim2.new(0,0,0,600); scroll.Parent=parent
-    return scroll
-end
-
-local function createBox(parent,title,y,w,h)
-    local box=Instance.new("Frame")
-    box.Size=UDim2.new(0,w,0,h); box.Position=UDim2.new(0,10,0,y)
-    box.BackgroundColor3=COL.panel; box.BackgroundTransparency = 0.3; box.BorderSizePixel=0; box.Parent=parent
-    local bs=Instance.new("UIStroke"); bs.Color=COL.line; bs.Thickness=1; bs.Parent=box
-    local header=Instance.new("Frame")
-    header.Size=UDim2.new(1,0,0,24); header.BackgroundColor3=COL.bg; header.BackgroundTransparency=0.5
-    header.BorderSizePixel=0; header.Parent=box
-    local tl=Instance.new("TextLabel")
-    tl.Size=UDim2.new(1,-10,1,0); tl.Position=UDim2.new(0,10,0,0)
-    tl.BackgroundTransparency=1; tl.Text=title; tl.TextColor3=COL.txt
-    tl.Font=Enum.Font.GothamBold; tl.TextSize=11
-    tl.TextXAlignment=Enum.TextXAlignment.Left; tl.Parent=header
-    return box
-end
-
-local CFG = {
-    esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
-    auto_parry=false, auto_skillcheck=false, no_skillcheck=false, auto_farm=false,
-    fly=false, noclip=false, proximity_alert=false,
-    bright=false, fpsboost=false,
-    ws_enabled=false, ws_speed=16,
-    keyMenu=Enum.KeyCode.RightShift
-}
 
 local function addSwitch(parent,label,key,yOffset)
     local row=Instance.new("TextButton")
-    row.Size=UDim2.new(1,-10,0,26); row.Position=UDim2.new(0,5,0,yOffset)
+    row.Size=UDim2.new(1,-20,0,30); row.Position=UDim2.new(0,10,0,yOffset)
     row.BackgroundTransparency=1; row.Text=""; row.Parent=parent
     local txt=Instance.new("TextLabel")
     txt.Size=UDim2.new(1,-50,1,0); txt.BackgroundTransparency=1
     txt.Text=label; txt.TextColor3=COL.txt; txt.Font=Enum.Font.Gotham
-    txt.TextSize=12; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=row
+    txt.TextSize=13; txt.TextXAlignment=Enum.TextXAlignment.Left; txt.Parent=row
     local pill=Instance.new("Frame")
-    pill.Size=UDim2.new(0,32,0,16); pill.Position=UDim2.new(1,-32,0.5,-8)
+    pill.Size=UDim2.new(0,40,0,20); pill.Position=UDim2.new(1,-40,0.5,-10)
     pill.BackgroundColor3=CFG[key] and COL.acc or COL.off; pill.Parent=row
     local pc=Instance.new("UICorner"); pc.CornerRadius=UDim.new(1,0); pc.Parent=pill
     local knob=Instance.new("Frame")
-    knob.Size=UDim2.new(0,12,0,12)
-    knob.Position=CFG[key] and UDim2.new(1,-14,0.5,-6) or UDim2.new(0,2,0.5,-6)
+    knob.Size=UDim2.new(0,16,0,16)
+    knob.Position=CFG[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)
     knob.BackgroundColor3=Color3.fromRGB(255,255,255); knob.Parent=pill
     local kc=Instance.new("UICorner"); kc.CornerRadius=UDim.new(1,0); kc.Parent=knob
     row.MouseButton1Click:Connect(function()
         if not MasterEnabled then return end
         CFG[key]=not CFG[key]
         pill.BackgroundColor3=CFG[key] and COL.acc or COL.off
-        knob.Position=CFG[key] and UDim2.new(1,-14,0.5,-6) or UDim2.new(0,2,0.5,-6)
+        knob.Position=CFG[key] and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)
     end)
 end
 
-local function addButton(parent,label,cb,yOffset)
-    local btn=Instance.new("TextButton")
-    btn.Size=UDim2.new(1,-10,0,24); btn.Position=UDim2.new(0,5,0,yOffset)
-    btn.BackgroundColor3=COL.bg; btn.BorderSizePixel=1; btn.BorderColor3=COL.line
-    btn.Text=label; btn.TextColor3=COL.txt; btn.Font=Enum.Font.GothamBold
-    btn.TextSize=11; btn.Parent=parent
-    btn.MouseButton1Click:Connect(function() if MasterEnabled then pcall(cb) end end)
-end
+local CFG = { esp=false, auto_parry=false, auto_skillcheck=false }
 
-local pgVisual = addSideTab("Visuals")
-local pgPlayer = addSideTab("Player ESP")
-local pgUtility = addSideTab("Utility")
-local pgMovement = addSideTab("Movement")
-local pgSettings = addSideTab("Settings")
-
-local scVisual = createScroll(pgVisual)
-local scPlayer = createScroll(pgPlayer)
-local scUtility = createScroll(pgUtility)
-local scMovement = createScroll(pgMovement)
-local scSettings = createScroll(pgSettings)
-
-local box1 = createBox(scVisual, "Camera", 10, 480, 80)
-addSwitch(box1, "Enable ESP", "esp", 30)
-
-local box3 = createBox(scPlayer, "Players", 10, 480, 110)
-addSwitch(box3, "Enable ESP", "esp", 30)
-
-local box6 = createBox(scUtility, "No Skillcheck & Farm", 10, 480, 110)
-addSwitch(box6, "Auto Skillcheck", "auto_skillcheck", 30)
-addSwitch(box6, "No Skillcheck (Skip)", "no_skillcheck", 55)
-
-local box7 = createBox(scUtility, "Auto Parry", 130, 480, 60)
-addSwitch(box7, "Auto Parry (Dagger)", "auto_parry", 30)
-
-local box8 = createBox(scMovement, "Toggles", 10, 480, 110)
-addSwitch(box8, "Enable Noclip", "noclip", 55)
-addSwitch(box8, "Enable WalkSpeed", "ws_enabled", 80)
-
-local box10 = createBox(scSettings, "99% Bypass", 10, 480, 150)
-addButton(box10, "Re-Apply HWID Spoof", function()
-    BYPASS.loadHwid()
-    pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
-    scrub()
-end, 30)
-
-sideTabs[1].TextColor3=COL.acc; sideTabs[1].BackgroundTransparency=0.8; sideTabs[1].BackgroundColor3=COL.acc; sidePages[1].Visible=true
+addSwitch(main, "Enable ESP (Highlight)", "esp", 90)
+addSwitch(main, "Auto Parry (Dagger)", "auto_parry", 125)
+addSwitch(main, "Auto Skillcheck (Spam)", "auto_skillcheck", 160)
 
 masterBtn.MouseButton1Click:Connect(function()
     MasterEnabled = not MasterEnabled
     if MasterEnabled then
-        masterBtn.Text="ON"; masterBtn.BackgroundColor3=COL.acc
+        masterBtn.Text="SCRIPT: ON"; masterBtn.BackgroundColor3=COL.acc
     else
-        masterBtn.Text="OFF"; masterBtn.BackgroundColor3=COL.red
-        fullTeardown()
+        masterBtn.Text="ENABLE SCRIPT"; masterBtn.BackgroundColor3=COL.red
     end
 end)
 
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
-    if i.KeyCode == CFG.keyMenu then
-        main.Visible = not main.Visible
+    if i.KeyCode == Enum.KeyCode.RightShift then
+        main.Visible = not main.Visible; openBtn.Visible = not main.Visible
     elseif i.KeyCode == mouseUnlockKey then
         MouseLocked = not MouseLocked
         UIS.MouseBehavior = MouseLocked and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
@@ -260,13 +133,30 @@ UIS.InputBegan:Connect(function(i,pr)
     end
 end)
 
+local drag, ds, sp
+topBar.InputBegan:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+        drag=true; ds=i.Position; sp=main.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+        local d=i.Position-ds
+        main.Position=UDim2.new(sp.X.Scale, sp.X.Offset+d.X, sp.Y.Scale, sp.Y.Offset+d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
+end)
+
 -- ==========================================
--- ENGINE IMPLEMENTATIONS (SIMPEL)
+-- ESP & AUTOMATION
 -- ==========================================
 local hiddenFolder = Instance.new("Folder")
 hiddenFolder.Name = "SpookCarrier"
 hiddenFolder.Parent = CAM or WS
 local espData = {}
+local parryBusy = false
 
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -338,7 +228,6 @@ task.spawn(function()
     end
 end)
 
-local parryBusy = false
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -389,4 +278,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v70.5 loaded — UI Interactive")
+print("[SpookingD] v70.6 loaded — Force Render Active")
