@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v150.0 — Ultimate Rebuild (All Features, Anti-Crash, 99% Bypass)
+    v150.1 — Full Script (Parry & Gen Fix)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -24,7 +24,6 @@ local mouseUnlockKey = Enum.KeyCode.RightControl
 local Ghost = {}
 
 function Ghost.Init()
-    -- 1. HWID Spoof (Randomized per session, saved if executor supports)
     if writefile and readfile and isfile then
         pcall(function()
             local HWID_FILE = "ghost_hwid.dat"
@@ -40,7 +39,6 @@ function Ghost.Init()
         getgenv().GhostHWID = tostring(math.random(10000000, 99999999)) .. "_GHOST"
     end
 
-    -- 2. Hook Analytics
     pcall(function()
         local svc = game:GetService("RbxAnalyticsService")
         svc.GetHardwareIdentifier = function() return getgenv().GhostHWID end
@@ -49,7 +47,6 @@ function Ghost.Init()
         end
     end)
 
-    -- 3. Trace Wiper
     if writefile and isfile and delfile then
         pcall(function()
             local SCRUB = {"RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt"}
@@ -62,7 +59,6 @@ end
 
 Ghost.Init()
 
--- 4. Humanization (Anti-Bot)
 local inputCap = 5
 local inputWindow = 1.0
 local inputCount = 0
@@ -84,18 +80,11 @@ local function Jitter(lo, hi) return lo + math.random() * (hi - lo) end
 -- CONFIG & STATE
 -- ==========================================
 local CFG = {
-    -- Claudeware
     esp=false, killer_esp=true, survivor_esp=true, radar=false, gen_esp=true, fov_val=70,
-    -- 717exe
     pumpkin_esp=false,
-    -- No Skillcheck
     no_skillcheck=false, auto_farm=false,
-    -- Hendar
     crosshair=false, fly=false, noclip=false, proximity_alert=false,
-    -- BEST VD
     desync=false, invis=false, hitbox=false, autoplay=false, lunge=false, parry=false, perfect_gen=false, godmode=false, instant_escape=false,
-    
-    -- Internal
     ws_enabled=false, ws_speed=30,
     keyMenu=Enum.KeyCode.RightShift
 }
@@ -103,7 +92,6 @@ local CFG = {
 local espData = {}
 local flyBV = nil
 local parryBusy = false
-local currentFov = 70
 
 local hiddenFolder = Instance.new("Folder")
 hiddenFolder.Name = "GhostCarrier"
@@ -258,7 +246,6 @@ end
 local pgVisual = addTab("Visuals")
 local pgCombat = addTab("Combat")
 local pgPlayer = addTab("Player")
-local pgWorld  = addTab("World")
 local pgMisc   = addTab("Misc")
 
 -- VISUALS
@@ -312,7 +299,6 @@ masterBtn.MouseButton1Click:Connect(function()
         masterBtn.Text="ON"; masterBtn.BackgroundColor3=COL.acc
     else
         masterBtn.Text="OFF"; masterBtn.BackgroundColor3=COL.red
-        -- Cleanup
         for p in pairs(espData) do if espData[p].hl then espData[p].hl:Destroy() end end
         espData = {}
         if flyBV then flyBV:Destroy(); flyBV = nil end
@@ -360,7 +346,7 @@ local function isKillerSafe(p)
     return false
 end
 
--- ESP Loop (1s refresh, safe pcall)
+-- ESP Loop
 task.spawn(function()
     while true do
         task.wait(1)
@@ -375,7 +361,6 @@ task.spawn(function()
                         if hrp and hum and hum.Health > 0 then
                             local killer = isKillerSafe(p)
                             if (killer and not CFG.killer_esp) or (not killer and not CFG.survivor_esp) then
-                                -- skip
                             else
                                 local d = espData[p]
                                 if not d or not d.hl.Parent then
@@ -400,7 +385,7 @@ task.spawn(function()
     end
 end)
 
--- Movement (Smooth Frame-by-Frame)
+-- Movement Loop
 RS.Stepped:Connect(function(_,dt)
     if not MasterEnabled then return end
     local c = LP.Character
@@ -432,11 +417,16 @@ RS.Stepped:Connect(function(_,dt)
     end
 end)
 
--- Parry
+-- ==========================================
+-- AUTO PARRY (OP FIX)
+-- ==========================================
+local parryBusy = false
+local lastSwingTime = {}
+
 task.spawn(function()
     while true do
-        task.wait(0.1)
-        if MasterEnabled and CFG.parry and not parryBusy and CanInput() then
+        task.wait(0.02)
+        if MasterEnabled and CFG.parry and not parryBusy then
             local myChar = LP.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if myHrp then
@@ -444,17 +434,38 @@ task.spawn(function()
                     if p ~= LP and isKillerSafe(p) then
                         local char = p.Character
                         local tHrp = char and char:FindFirstChild("HumanoidRootPart")
-                        if tHrp and (tHrp.Position - myHrp.Position).Magnitude < 20 then
-                            parryBusy = true
-                            local w = Jitter(0.008, 0.018)
-                            pcall(function()
-                                VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
-                                task.wait(w)
-                                VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
-                            end)
-                            task.wait(0.25)
-                            parryBusy = false
-                            break
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        
+                        if tHrp and hum and hum.Health > 0 then
+                            local dist = (tHrp.Position - myHrp.Position).Magnitude
+                            local currentTime = tick()
+                            local lastTime = lastSwingTime[p] or 0
+                            
+                            if dist < 30 and currentTime - lastTime > 0.5 then
+                                local animator = hum:FindFirstChildOfClass("Animator")
+                                local attacking = false
+                                if animator then
+                                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                        local n = track.Name:lower()
+                                        if track.WeightCurrent > 0.1 and not (n:find("idle") or n:find("walk") or n:find("run") or n:find("fall")) then
+                                            attacking = true; break
+                                        end
+                                    end
+                                end
+                                
+                                if dist < 15 or attacking then
+                                    parryBusy = true
+                                    lastSwingTime[p] = currentTime
+                                    pcall(function()
+                                        VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
+                                        task.wait(0.05)
+                                        VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
+                                    end)
+                                    task.wait(0.2)
+                                    parryBusy = false
+                                    break
+                                end
+                            end
                         end
                     end
                 end
@@ -463,7 +474,33 @@ task.spawn(function()
     end
 end)
 
--- Skillcheck
+-- ==========================================
+-- AUTO PERFECT GENERATOR (FIX)
+-- ==========================================
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if MasterEnabled and CFG.perfect_gen then
+            local pg = LP:FindFirstChild("PlayerGui")
+            if pg then
+                for _, obj in ipairs(pg:GetDescendants()) do
+                    if obj:IsA("TextLabel") and obj.Text:lower():find("perfect") then
+                        pcall(function()
+                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                            task.wait(0.05)
+                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- NO SKILLCHECK (SPAM)
+-- ==========================================
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -486,4 +523,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v150.0 loaded — ULTIMATE ACTIVE")
+print("[SpookingD] v150.1 loaded — Parry & Gen Fix Active")
