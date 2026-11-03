@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v70.1 — GUI Fallback Fix (Guaranteed to Load)
+    v70.3 — Ultimate Loader (Full Bypass + Workspace Fallback)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -71,32 +71,27 @@ local function canSendInput()
 end
 local function jittered(lo, hi) return lo + math.random() * (hi - lo) end
 
-local CFG = {
-    esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
-    killer_esp=true, survivor_esp=true, gen_esp=true, pumpkin_esp=false,
-    radar=false, crosshair=false, fov_enabled=false, fov_val=70,
-    auto_parry=false, auto_skillcheck=false, no_skillcheck=false, auto_farm=false,
-    fly=false, noclip=false, proximity_alert=false,
-    bright=false, fpsboost=false,
-    ws_enabled=false, ws_speed=16,
-    keyMenu=Enum.KeyCode.RightShift
-}
+-- ==========================================
+-- FAILSAFE GUI PARENTING
+-- ==========================================
+local function getSafeGuiParent()
+    -- 1. Try Xeno's gethui
+    if typeof(gethui) == "function" then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    -- 2. Try CoreGui
+    local ok, cg = pcall(function() return CG end)
+    if ok and cg then return cg end
+    -- 3. Fallback to PlayerGui
+    local pg = LP:FindFirstChild("PlayerGui")
+    if pg then return pg end
+    -- 4. Last resort: Workspace (Billboard)
+    return WS
+end
 
--- ==========================================
--- GUARANTEED GUI PARENTING
--- ==========================================
-local guiParent
-if typeof(gethui) == "function" then
-    local ok, h = pcall(gethui)
-    if ok and h then guiParent = h end
-end
-if not guiParent then
-    local ok, h = pcall(function() return CG end)
-    if ok and h then guiParent = h end
-end
-if not guiParent then
-    guiParent = LP:WaitForChild("PlayerGui", 5) or WS
-end
+local guiParent = getSafeGuiParent()
+local isWorkspace = (guiParent == WS)
 
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -104,11 +99,17 @@ local COL = {
     acc=Color3.fromRGB(0, 255, 120), red=Color3.fromRGB(255,0,60), off=Color3.fromRGB(60,60,60)
 }
 
-local gui = Instance.new("ScreenGui")
+local gui = Instance.new(isWorkspace and "BillboardGui" or "ScreenGui")
 gui.Name="SG_"..tostring(math.random(100000,999999))
-gui.ResetOnSpawn=false
-gui.IgnoreGuiInset=true
-gui.DisplayOrder=999999
+if isWorkspace then
+    gui.Adornee = CAM
+    gui.Size = UDim2.new(0, 650, 0, 450)
+    gui.StudsOffset = Vector3.new(0, 0, -10)
+else
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 999999
+end
 gui.Parent=guiParent
 getgenv().TGui=gui
 
@@ -116,16 +117,8 @@ local main = Instance.new("Frame")
 main.Size=UDim2.new(0,650,0,450); main.Position=UDim2.new(0.5,-325,0.5,-225)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 
-local bgImage = Instance.new("ImageLabel")
-bgImage.Size = UDim2.new(1, 0, 1, 0)
-bgImage.BackgroundTransparency = 1
-bgImage.Image = "rbxassetid://17237874293"
-bgImage.ImageTransparency = 0.85
-bgImage.ScaleType = Enum.ScaleType.Crop
-bgImage.Parent = main
-
 local ms = Instance.new("UIStroke")
-ms.Color=COL.acc; ms.Thickness=2; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
+ms.Color=COL.acc; ms.Thickness=2; ms.Parent=main
 
 local topBar = Instance.new("Frame")
 topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.BorderSizePixel=0; topBar.Parent=main
@@ -198,6 +191,20 @@ local function createBox(parent,title,y,w,h)
     tl.TextXAlignment=Enum.TextXAlignment.Left; tl.Parent=header
     return box
 end
+
+-- ==========================================
+-- LOGIKA TAB & FITUR (SAMA KAYAK SEBELUMNYA)
+-- ==========================================
+local CFG = {
+    esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
+    killer_esp=true, survivor_esp=true, gen_esp=true, pumpkin_esp=false,
+    radar=false, crosshair=false, fov_enabled=false, fov_val=70,
+    auto_parry=false, auto_skillcheck=false, no_skillcheck=false, auto_farm=false,
+    fly=false, noclip=false, proximity_alert=false,
+    bright=false, fpsboost=false,
+    ws_enabled=false, ws_speed=16,
+    keyMenu=Enum.KeyCode.RightShift
+}
 
 local function addSwitch(parent,label,key,yOffset)
     local row=Instance.new("TextButton")
@@ -286,10 +293,10 @@ addSwitch(box4, "Survivor Color (White)", "survivor_esp", 55)
 local box5 = createBox(scPlayer, "World Objects", 220, 480, 100)
 addSwitch(box5, "Generator ESP", "gen_esp", 30)
 addSwitch(box5, "Item ESP", "esp_item", 55)
-addSwitch(box5, "Pumpkin ESP (717exe)", "pumpkin_esp", 80)
+addSwitch(box5, "Pumpkin ESP", "pumpkin_esp", 80)
 
 local box6 = createBox(scUtility, "No Skillcheck & Farm", 10, 480, 110)
-addSwitch(box6, "Auto Skillcheck (Hendra)", "auto_skillcheck", 30)
+addSwitch(box6, "Auto Skillcheck", "auto_skillcheck", 30)
 addSwitch(box6, "No Skillcheck (Skip)", "no_skillcheck", 55)
 addSwitch(box6, "Auto Farm / Fast Progression", "auto_farm", 80)
 
@@ -323,6 +330,20 @@ end, 90)
 
 sideTabs[1].TextColor3=COL.acc; sideTabs[1].BackgroundTransparency=0.8; sideTabs[1].BackgroundColor3=COL.acc; sidePages[1].Visible=true
 
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size=UDim2.new(0,30,1,0); closeBtn.Position=UDim2.new(1,-30,0,0)
+closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.red
+closeBtn.Font=Enum.Font.GothamBlack; closeBtn.TextSize=14; closeBtn.Parent=topBar
+
+local openBtn = Instance.new("TextButton")
+openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
+openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc
+openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack
+openBtn.TextSize=20; openBtn.Parent=gui; openBtn.Visible=false
+
+closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visible = true end)
+openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
+
 masterBtn.MouseButton1Click:Connect(function()
     MasterEnabled = not MasterEnabled
     if MasterEnabled then
@@ -336,7 +357,7 @@ end)
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
     if i.KeyCode == CFG.keyMenu then
-        main.Visible = not main.Visible
+        main.Visible = not main.Visible; openBtn.Visible = not main.Visible
     elseif i.KeyCode == mouseUnlockKey then
         MouseLocked = not MouseLocked
         UIS.MouseBehavior = MouseLocked and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
@@ -399,6 +420,14 @@ local function isKillerSafe(p)
     return false
 end
 
+local function getHiddenFolder()
+    if hiddenFolder and hiddenFolder.Parent then return hiddenFolder end
+    hiddenFolder = Instance.new("Folder")
+    hiddenFolder.Name = "\0SpookCarrier"
+    hiddenFolder.Parent = CAM or WS
+    return hiddenFolder
+end
+
 local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
     local carrier = getHiddenFolder()
     local hl = Instance.new("Highlight")
@@ -445,10 +474,8 @@ local function doScanPlayers()
                 if hrp and hum and hum.Health > 0 then
                     destroyEspEntry(p)
                     local killer = isKillerSafe(p)
-                    
                     if killer and not CFG.killer_esp then continue end
                     if not killer and not CFG.survivor_esp then continue end
-                    
                     local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
                     buildEspEntry(p, char, hrp, color, p.Name)
                 else destroyEspEntry(p) end
@@ -485,7 +512,6 @@ task.spawn(function()
                     
                     if hrp and hum and hum.Health > 0 and d.hl and d.bg then
                         local killer = isKillerSafe(p)
-                        
                         if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 and CFG.proximity_alert then
                             d.hl.FillColor = Color3.fromRGB(255, 255, 0)
                             d.hl.OutlineColor = Color3.fromRGB(255, 255, 0)
@@ -645,4 +671,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v70.1 loaded — Fallback UI Active")
+print("[SpookingD] v70.3 loaded — Ultimate Loader")
