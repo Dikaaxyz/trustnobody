@@ -1,5 +1,5 @@
--- EggMaster V7 — Top Tier Bypass (Tween Teleport & Remote Grab)
--- Fitur: ESP, Auto Grab, Tween Teleport (Anti-Rubberband), Remote Scan.
+-- EggMaster V8 — Stable Anti-Crash (No Tween, Safe Teleport)
+-- Fitur: ESP, Auto Grab, Instant Grab, Safe Loop.
 
 pcall(function()
     for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do
@@ -12,17 +12,14 @@ local CONFIG = {
     color_egg={255,200,40}, color_player={50,180,255},
     auto_steal=false, target_eggs = "", 
     steal_dist=100, grab_dist=5,
-    tween_teleport=true, -- Teleport mulus (Bypass Rubberband)
     speed_enabled=false, speed_value=35,
 }
 
 local Players=game:GetService("Players")
 local RunService=game:GetService("RunService")
-local TweenService=game:GetService("TweenService")
 local UserInputService=game:GetService("UserInputService")
 local CoreGui=game:GetService("CoreGui")
 local Workspace=game:GetService("Workspace")
-local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local LP=Players.LocalPlayer
 local is_mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
@@ -69,19 +66,25 @@ local function update_esp()
     end
     local my_hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
     if not my_hrp then return end
+    
+    -- Pakai GetChildren biar gak lag/crash
     if CONFIG.esp_eggs then
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name:lower():find("egg") and is_target_egg(obj.Name) then
-                local d = dist(my_hrp.Position, obj.Position)
-                if d <= CONFIG.esp_max_dist then
-                    if not esp_cache[obj] then esp_cache[obj] = create_esp(obj, CONFIG.color_egg, obj.Name) end
-                    local c = esp_cache[obj]
-                    if c and c.gui then
-                        c.gui.Enabled = true
-                        c.text.Text = string.format("%s [%dm]", obj.Name, math.floor(d))
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:IsA("Model") or obj:IsA("BasePart") then
+                local n = obj.Name:lower()
+                if n:find("egg") and is_target_egg(n) then
+                    local pos = obj:IsA("Model") and obj:GetPivot().Position or obj.Position
+                    local d = dist(my_hrp.Position, pos)
+                    if d <= CONFIG.esp_max_dist then
+                        if not esp_cache[obj] then esp_cache[obj] = create_esp(obj, CONFIG.color_egg, obj.Name) end
+                        local c = esp_cache[obj]
+                        if c and c.gui then
+                            c.gui.Enabled = true
+                            c.text.Text = string.format("%s [%dm]", obj.Name, math.floor(d))
+                        end
+                    else
+                        if esp_cache[obj] and esp_cache[obj].gui then esp_cache[obj].gui.Enabled = false end
                     end
-                else
-                    if esp_cache[obj] and esp_cache[obj].gui then esp_cache[obj].gui.Enabled = false end
                 end
             end
         end
@@ -89,67 +92,41 @@ local function update_esp()
 end
 
 -- ============================================================
--- REMOTE SCAN (Buat Instant Grab)
--- ============================================================
-local grab_remotes = {}
-task.spawn(function()
-    task.wait(2)
-    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-        if obj:IsA("RemoteEvent") then
-            local n = obj.Name:lower()
-            if n:find("grab") or n:find("steal") or n:find("pick") or n:find("egg") then
-                table.insert(grab_remotes, obj)
-            end
-        end
-    end
-end)
-
--- ============================================================
--- AUTO STEAL (TWEEN TELEPORT & REMOTE GRAB)
+-- AUTO STEAL (SAFE TELEPORT)
 -- ============================================================
 local is_stealing = false
-local original_state = nil
-
-local function teleport_to(target_pos)
-    local my_hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if not my_hrp then return end
-    
-    if CONFIG.tween_teleport then
-        -- Pake Tween biar gerakan mulus (Server ngira ini lag, bukan teleport)
-        local tween_info = TweenInfo.new(0.1, Enum.EasingStyle.Linear)
-        local tween = TweenService:Create(my_hrp, tween_info, {CFrame = CFrame.new(target_pos + Vector3.new(0, 3, 0))})
-        tween:Play()
-        tween.Completed:Wait()
-    else
-        my_hrp.CFrame = CFrame.new(target_pos + Vector3.new(0, 3, 0))
-    end
-end
 
 local function auto_steal()
     if not CONFIG.auto_steal then return end
     local char = LP.Character
     local my_hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not my_hrp or not hum then return end
+    if not my_hrp then return end
 
     if is_stealing then return end
 
     local nearest, nd = nil, math.huge
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name:lower():find("egg") and is_target_egg(obj.Name) then
-            local d = dist(my_hrp.Position, obj.Position)
-            if d < nd and d <= CONFIG.steal_dist then nearest, nd = obj, d end
+    -- Pakai GetChildren buat nyari telur terdekat
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            local n = obj.Name:lower()
+            if n:find("egg") and is_target_egg(n) then
+                local pos = obj:IsA("Model") and obj:GetPivot().Position or obj.Position
+                local d = dist(my_hrp.Position, pos)
+                if d < nd and d <= CONFIG.steal_dist then nearest, nd = obj, pos end
+            end
         end
     end
 
     if nearest then
         if nd > CONFIG.grab_dist then
-            -- 1. Tween Teleport ke telur
             is_stealing = true
-            teleport_to(nearest.Position)
+            pcall(function()
+                -- Teleport instan (gak pake Tween, biar gak crash)
+                my_hrp.CFrame = CFrame.new(nearest + Vector3.new(0, 3, 0))
+            end)
             task.wait(0.1)
             
-            -- 2. Ambil telur (Prompt & Tool)
+            -- Ambil telur
             local prompt = nearest:FindFirstChildOfClass("ProximityPrompt")
             if prompt and fireproximityprompt then pcall(fireproximityprompt, prompt) end
             
@@ -162,25 +139,6 @@ local function auto_steal()
                     end
                 end
             end
-            
-            -- 3. Tembak RemoteEvent (Instant Grab)
-            for _, remote in ipairs(grab_remotes) do
-                pcall(function() remote:FireServer(nearest) end)
-            end
-
-            -- 4. Anti-Rubberband (Paksa state physics)
-            pcall(function() 
-                original_state = hum:GetState()
-                hum:ChangeState(Enum.HumanoidStateType.Physics)
-            end)
-            
-            task.wait(1.5) -- Nunggu 1.5 detik biar server ngenalin telur udah diambil
-            
-            -- 5. Kembalikan state
-            pcall(function()
-                if original_state then hum:ChangeState(original_state) end
-            end)
-            
             is_stealing = false
         end
     end
@@ -209,7 +167,7 @@ local mainStroke = Instance.new("UIStroke") mainStroke.Color = COLORS.stroke mai
 local header = Instance.new("Frame") header.Size = UDim2.new(1, 0, 0, 40) header.BackgroundColor3 = COLORS.sidebar header.BorderSizePixel = 0 header.Parent = main
 local headerCorner = Instance.new("UICorner") headerCorner.CornerRadius = UDim.new(0, 8) headerCorner.Parent = header
 local headerFix = Instance.new("Frame") headerFix.Size = UDim2.new(1, 0, 0, 10) headerFix.Position = UDim2.new(0, 0, 1, -10) headerFix.BackgroundColor3 = COLORS.sidebar headerFix.BorderSizePixel = 0 headerFix.Parent = header
-local title = Instance.new("TextLabel") title.Size = UDim2.new(1, 0, 1, 0) title.BackgroundTransparency = 1 title.Text = "EGGMASTER V7 (TOP TIER)" title.TextColor3 = COLORS.accent title.Font = FONT_BOLD title.TextSize = 14 title.Parent = header
+local title = Instance.new("TextLabel") title.Size = UDim2.new(1, 0, 1, 0) title.BackgroundTransparency = 1 title.Text = "EGGMASTER V8" title.TextColor3 = COLORS.accent title.Font = FONT_BOLD title.TextSize = 14 title.Parent = header
 
 local dragging, dragStart, startPos
 header.InputBegan:Connect(function(input)
@@ -285,8 +243,7 @@ local function make_textbox(parent, title, placeholder, get, set)
     box.FocusLost:Connect(function() set(box.Text) end)
 end
 
-make_card(pages["Main"], "Auto Steal (Tween)", "Teleport mulus, bypass anti-cheat.", function() return CONFIG.auto_steal end, function(v) CONFIG.auto_steal=v end)
-make_card(pages["Main"], "Tween Teleport", "Gunakan Tween biar server nganggep lag.", function() return CONFIG.tween_teleport end, function(v) CONFIG.tween_teleport=v end)
+make_card(pages["Main"], "Auto Steal", "Teleport & Ambil telur (Aman).", function() return CONFIG.auto_steal end, function(v) CONFIG.auto_steal=v end)
 make_card(pages["Main"], "Speed Hack", "Jalan lebih cepat", function() return CONFIG.speed_enabled end, function(v) CONFIG.speed_enabled=v apply_speed() end)
 make_textbox(pages["Main"], "Target Eggs", "Contoh: Secret, Legendary", function() return CONFIG.target_eggs end, function(v) CONFIG.target_eggs=v end)
 
@@ -300,4 +257,4 @@ RunService.RenderStepped:Connect(function()
     pcall(auto_steal)
 end)
 
-print("[EggMaster] V7 Loaded — Top Tier Tween & Remote Grab.")
+print("[EggMaster] V8 Loaded — Stable & Anti Crash.")
