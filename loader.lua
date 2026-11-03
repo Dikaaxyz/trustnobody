@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v70.3 — Ultimate Loader (Full Bypass + Workspace Fallback)
+    v70.4 — Hologram Fallback (Absolute Last Resort)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -12,20 +12,19 @@ local UIS  = game:GetService("UserInputService")
 local WS   = game:GetService("Workspace")
 local L    = game:GetService("Lighting")
 local VIM  = game:GetService("VirtualInputManager")
-local CG   = game:GetService("CoreGui")
 local LP   = P.LocalPlayer
 local CAM  = WS.CurrentCamera
 
 local MasterEnabled = false
 local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
+local toggleGuiKey = Enum.KeyCode.P -- Pake P biar ga bentrok
 
 -- ==========================================
--- 99% BYPASS (HWID + Trace + Jitter)
+-- 99% BYPASS (Tetep Ada, Chef)
 -- ==========================================
 local BYPASS = {}
 BYPASS.HWID_FILE = "spook_hwid.dat"
-
 function BYPASS.loadHwid()
     if readfile and isfile and writefile then
         pcall(function()
@@ -42,79 +41,33 @@ function BYPASS.loadHwid()
     end
 end
 BYPASS.loadHwid()
-
-pcall(function()
-    local svc = game:GetService("RbxAnalyticsService")
-    svc.GetHardwareIdentifier = function() return getgenv().SpoofedHWID end
-end)
-
-local SCRUB_FILES = { "RobloxCookies.dat", "rbx_cookie", "log.txt", "logs.txt", "Analytics.txt", "rbx_cache", "http_cache" }
-function BYPASS.scrub()
+pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
+local function scrub()
     if not (writefile and isfile and delfile) then return end
-    pcall(function()
-        for _, f in ipairs(SCRUB_FILES) do
-            if isfile(f) then delfile(f) end
-        end
-    end)
+    pcall(function() for _, f in ipairs({"RobloxCookies.dat", "rbx_cookie", "log.txt"}) do if isfile(f) then delfile(f) end end end)
 end
-BYPASS.scrub()
-
-local inputBudget = { windowStart = tick(), count = 0, cap = 5, window = 1.0 }
-local function canSendInput()
-    local now = tick()
-    if now - inputBudget.windowStart >= inputBudget.window then
-        inputBudget.windowStart = now; inputBudget.count = 0
-    end
-    if inputBudget.count >= inputBudget.cap then return false end
-    inputBudget.count = inputBudget.count + 1
-    return true
-end
-local function jittered(lo, hi) return lo + math.random() * (hi - lo) end
+scrub()
 
 -- ==========================================
--- FAILSAFE GUI PARENTING
+-- HOLOGRAM GUI (Ditaruh di Workspace)
 -- ==========================================
-local function getSafeGuiParent()
-    -- 1. Try Xeno's gethui
-    if typeof(gethui) == "function" then
-        local ok, h = pcall(gethui)
-        if ok and h then return h end
-    end
-    -- 2. Try CoreGui
-    local ok, cg = pcall(function() return CG end)
-    if ok and cg then return cg end
-    -- 3. Fallback to PlayerGui
-    local pg = LP:FindFirstChild("PlayerGui")
-    if pg then return pg end
-    -- 4. Last resort: Workspace (Billboard)
-    return WS
-end
-
-local guiParent = getSafeGuiParent()
-local isWorkspace = (guiParent == WS)
-
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
     line=Color3.fromRGB(50,50,50), txt=Color3.fromRGB(255,255,255), dim=Color3.fromRGB(150,150,150),
     acc=Color3.fromRGB(0, 255, 120), red=Color3.fromRGB(255,0,60), off=Color3.fromRGB(60,60,60)
 }
 
-local gui = Instance.new(isWorkspace and "BillboardGui" or "ScreenGui")
+local gui = Instance.new("BillboardGui")
 gui.Name="SG_"..tostring(math.random(100000,999999))
-if isWorkspace then
-    gui.Adornee = CAM
-    gui.Size = UDim2.new(0, 650, 0, 450)
-    gui.StudsOffset = Vector3.new(0, 0, -10)
-else
-    gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
-    gui.DisplayOrder = 999999
-end
-gui.Parent=guiParent
+gui.Adornee = CAM
+gui.Size = UDim2.new(0, 650, 0, 450)
+gui.StudsOffset = Vector3.new(0, 0, -5) -- 5 studs di depan kamera
+gui.AlwaysOnTop = true
+gui.Parent = CAM
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(0,650,0,450); main.Position=UDim2.new(0.5,-325,0.5,-225)
+main.Size=UDim2.new(1,0,1,0); main.Position=UDim2.new(0,0,0,0)
 main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
 
 local ms = Instance.new("UIStroke")
@@ -125,7 +78,7 @@ topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.Bor
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD PREMIUM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
+logo.Text="SPOOKINGD HOLOGRAM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local masterBtn = Instance.new("TextButton")
@@ -138,7 +91,6 @@ local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(0, 4); mbc.Par
 local sidebar = Instance.new("Frame")
 sidebar.Size=UDim2.new(0,140,1,-35); sidebar.Position=UDim2.new(0,0,0,35)
 sidebar.BackgroundColor3=COL.sidebar; sidebar.BackgroundTransparency=0.5; sidebar.BorderSizePixel=0; sidebar.Parent=main
-local sbLine = Instance.new("UIStroke"); sbLine.Color = COL.line; sbLine.Thickness = 1; sbLine.Parent = sidebar
 
 local sideTabs, sidePages = {}, {}
 local function addSideTab(name)
@@ -192,9 +144,6 @@ local function createBox(parent,title,y,w,h)
     return box
 end
 
--- ==========================================
--- LOGIKA TAB & FITUR (SAMA KAYAK SEBELUMNYA)
--- ==========================================
 local CFG = {
     esp=false, esp_name=true, esp_health=true, esp_dist=true, esp_item=true,
     killer_esp=true, survivor_esp=true, gen_esp=true, pumpkin_esp=false,
@@ -293,12 +242,10 @@ addSwitch(box4, "Survivor Color (White)", "survivor_esp", 55)
 local box5 = createBox(scPlayer, "World Objects", 220, 480, 100)
 addSwitch(box5, "Generator ESP", "gen_esp", 30)
 addSwitch(box5, "Item ESP", "esp_item", 55)
-addSwitch(box5, "Pumpkin ESP", "pumpkin_esp", 80)
 
 local box6 = createBox(scUtility, "No Skillcheck & Farm", 10, 480, 110)
 addSwitch(box6, "Auto Skillcheck", "auto_skillcheck", 30)
 addSwitch(box6, "No Skillcheck (Skip)", "no_skillcheck", 55)
-addSwitch(box6, "Auto Farm / Fast Progression", "auto_farm", 80)
 
 local box7 = createBox(scUtility, "Auto Parry", 130, 480, 60)
 addSwitch(box7, "Auto Parry (Dagger)", "auto_parry", 30)
@@ -315,34 +262,13 @@ local box10 = createBox(scSettings, "99% Bypass", 10, 480, 150)
 addButton(box10, "Re-Apply HWID Spoof", function()
     BYPASS.loadHwid()
     pcall(function() game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return getgenv().SpoofedHWID end end)
-    BYPASS.scrub()
+    scrub()
 end, 30)
 addButton(box10, "Flush Logs & Cache", function()
-    BYPASS.scrub(); print("[SpookingD] Scrubbed.")
+    scrub(); print("[SpookingD] Scrubbed.")
 end, 60)
-addButton(box10, "Panic Wipe (Shutdown)", function()
-    BYPASS.scrub()
-    if writefile and isfile and delfile then pcall(function() if isfile(BYPASS.HWID_FILE) then delfile(BYPASS.HWID_FILE) end end) end
-    fullTeardown()
-    task.wait(0.05)
-    game:Shutdown()
-end, 90)
 
 sideTabs[1].TextColor3=COL.acc; sideTabs[1].BackgroundTransparency=0.8; sideTabs[1].BackgroundColor3=COL.acc; sidePages[1].Visible=true
-
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size=UDim2.new(0,30,1,0); closeBtn.Position=UDim2.new(1,-30,0,0)
-closeBtn.BackgroundTransparency=1; closeBtn.Text="X"; closeBtn.TextColor3=COL.red
-closeBtn.Font=Enum.Font.GothamBlack; closeBtn.TextSize=14; closeBtn.Parent=topBar
-
-local openBtn = Instance.new("TextButton")
-openBtn.Size=UDim2.new(0,40,0,40); openBtn.Position=UDim2.new(0,20,0,100)
-openBtn.BackgroundColor3=COL.bg; openBtn.BorderSizePixel=2; openBtn.BorderColor3=COL.acc
-openBtn.Text="S"; openBtn.TextColor3=COL.acc; openBtn.Font=Enum.Font.GothamBlack
-openBtn.TextSize=20; openBtn.Parent=gui; openBtn.Visible=false
-
-closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visible = true end)
-openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
 
 masterBtn.MouseButton1Click:Connect(function()
     MasterEnabled = not MasterEnabled
@@ -357,7 +283,9 @@ end)
 UIS.InputBegan:Connect(function(i,pr)
     if pr then return end
     if i.KeyCode == CFG.keyMenu then
-        main.Visible = not main.Visible; openBtn.Visible = not main.Visible
+        main.Visible = not main.Visible
+    elseif i.KeyCode == toggleGuiKey then
+        gui.Enabled = not gui.Enabled
     elseif i.KeyCode == mouseUnlockKey then
         MouseLocked = not MouseLocked
         UIS.MouseBehavior = MouseLocked and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
@@ -365,49 +293,15 @@ UIS.InputBegan:Connect(function(i,pr)
     end
 end)
 
-local drag, ds, sp
-topBar.InputBegan:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-        drag=true; ds=i.Position; sp=main.Position
-    end
-end)
-UIS.InputChanged:Connect(function(i)
-    if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
-        local d=i.Position-ds
-        main.Position=UDim2.new(sp.X.Scale, sp.X.Offset+d.X, sp.Y.Scale, sp.Y.Offset+d.Y)
-    end
-end)
-UIS.InputEnded:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
-end)
-
 -- ==========================================
--- ENGINE IMPLEMENTATIONS
+-- ENGINE IMPLEMENTATIONS (SIMPEL)
 -- ==========================================
+local hiddenFolder = Instance.new("Folder")
+hiddenFolder.Name = "SpookCarrier"
+hiddenFolder.Parent = CAM or WS
 local espData = {}
-local toolCache = {}
-local selfCircle = nil
-local parryIndicator = nil
 local flyBV = nil
-
-local function destroyEspEntry(p)
-    local d = espData[p]
-    if not d then return end
-    if d.hl then d.hl:Destroy() end
-    if d.bg then d.bg:Destroy() end
-    if d.lines then
-        for _, obj in pairs(d.lines) do pcall(function() obj:Remove() end) end
-    end
-    espData[p] = nil
-end
-
-local function fullTeardown()
-    for p in pairs(espData) do destroyEspEntry(p) end
-    if selfCircle then pcall(function() selfCircle:Remove() end); selfCircle = nil end
-    if parryIndicator then parryIndicator:Destroy(); parryIndicator = nil end
-    if flyBV then flyBV:Destroy(); flyBV = nil end
-    if hiddenFolder then hiddenFolder:Destroy(); hiddenFolder = nil end
-end
+local parryBusy = false
 
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -420,174 +314,86 @@ local function isKillerSafe(p)
     return false
 end
 
-local function getHiddenFolder()
-    if hiddenFolder and hiddenFolder.Parent then return hiddenFolder end
-    hiddenFolder = Instance.new("Folder")
-    hiddenFolder.Name = "\0SpookCarrier"
-    hiddenFolder.Parent = CAM or WS
-    return hiddenFolder
-end
-
-local function buildEspEntry(key, adorneeObj, hrp, color, nameStr)
-    local carrier = getHiddenFolder()
-    local hl = Instance.new("Highlight")
-    hl.FillColor = color; hl.OutlineColor = color
-    hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee = adorneeObj; hl.Parent = carrier
-
-    local bg = Instance.new("BillboardGui")
-    bg.Name = "Spook_ESP"; bg.Adornee = hrp
-    bg.Size = UDim2.new(0, 150, 0, 45); bg.StudsOffset = Vector3.new(0, 3.2, 0)
-    bg.AlwaysOnTop = true; bg.Parent = carrier
-
-    local function label(y, sz, col, font)
-        local l = Instance.new("TextLabel")
-        l.Size = UDim2.new(1, 0, 0, sz); l.Position = UDim2.new(0, 0, 0, y)
-        l.BackgroundTransparency = 1; l.TextColor3 = col
-        l.TextStrokeTransparency = 0; l.Font = font; l.TextSize = sz; l.Parent = bg
-        return l
-    end
-
-    local nameLbl = label(0, 14, color, Enum.Font.GothamBold); nameLbl.Text = nameStr
-    local hpBg = Instance.new("Frame")
-    hpBg.Size = UDim2.new(0.6, 0, 0, 4); hpBg.Position = UDim2.new(0.2, 0, 0, 16)
-    hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40); hpBg.BorderSizePixel = 0; hpBg.Parent = bg
-    local hpFill = Instance.new("Frame")
-    hpFill.Size = UDim2.new(1, 0, 1, 0); hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    hpFill.BorderSizePixel = 0; hpFill.Parent = hpBg
-
-    local itemLbl = label(22, 12, Color3.fromRGB(0, 255, 255), Enum.Font.GothamBold)
-    local distLbl = label(34, 12, Color3.fromRGB(200, 200, 200), Enum.Font.Gotham)
-
-    espData[key] = { hl = hl, bg = bg, name = nameLbl, item = itemLbl, dist = distLbl, hp = hpFill, hpBg = hpBg }
-end
-
-local function doScanPlayers()
-    if not (MasterEnabled and CFG.esp) then return end
-    pcall(function()
-        for _, p in ipairs(P:GetPlayers()) do
-            if p ~= LP then
-                local char = p.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hrp and hum and hum.Health > 0 then
-                    destroyEspEntry(p)
-                    local killer = isKillerSafe(p)
-                    if killer and not CFG.killer_esp then continue end
-                    if not killer and not CFG.survivor_esp then continue end
-                    local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
-                    buildEspEntry(p, char, hrp, color, p.Name)
-                else destroyEspEntry(p) end
-            end
-        end
-    end)
+local function destroyEspEntry(p)
+    local d = espData[p]
+    if not d then return end
+    if d.hl then d.hl:Destroy() end
+    if d.bg then d.bg:Destroy() end
+    espData[p] = nil
 end
 
 task.spawn(function()
     while true do
-        task.wait(0.1)
-        if MasterEnabled and CFG.esp then
-            local empty = true
-            for _ in pairs(espData) do empty = false; break end
-            if empty then doScanPlayers() end
-        end
-    end
-end)
-task.spawn(function() while true do task.wait(60) doScanPlayers() end end end)
-P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.1)
+        task.wait(1)
         if MasterEnabled and CFG.esp then
             pcall(function()
-                local myChar = LP.Character
-                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                
-                for p, d in pairs(espData) do
-                    local char = p.Character
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
-                    
-                    if hrp and hum and hum.Health > 0 and d.hl and d.bg then
-                        local killer = isKillerSafe(p)
-                        if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 and CFG.proximity_alert then
-                            d.hl.FillColor = Color3.fromRGB(255, 255, 0)
-                            d.hl.OutlineColor = Color3.fromRGB(255, 255, 0)
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP then
+                        local char = p.Character
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        
+                        if hrp and hum and hum.Health > 0 then
+                            local d = espData[p]
+                            if not d or not d.hl.Parent then
+                                destroyEspEntry(p)
+                                local hl = Instance.new("Highlight")
+                                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                hl.Adornee = char
+                                hl.Parent = hiddenFolder
+                                
+                                local bg = Instance.new("BillboardGui")
+                                bg.Adornee = hrp; bg.Size = UDim2.new(0, 100, 0, 20)
+                                bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true
+                                bg.Parent = hiddenFolder
+                                
+                                local txt = Instance.new("TextLabel")
+                                txt.Size = UDim2.new(1,0,1,0); txt.BackgroundTransparency = 1
+                                txt.TextColor3 = Color3.new(1,1,1); txt.TextStrokeTransparency = 0
+                                txt.Font = Enum.Font.GothamBold; txt.TextSize = 12; txt.Parent = bg
+                                
+                                espData[p] = { hl = hl, bg = bg, txt = txt }
+                                d = espData[p]
+                            end
+                            
+                            local killer = isKillerSafe(p)
+                            local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
+                            
+                            d.hl.FillColor = color; d.hl.OutlineColor = color
+                            d.txt.Text = p.Name
                         else
-                            local c = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
-                            d.hl.FillColor = c; d.hl.OutlineColor = c
+                            destroyEspEntry(p)
                         end
-                        
-                        d.hl.Adornee = char
-                        local dist = myHrp and math.floor((hrp.Position - myHrp.Position).Magnitude) or 0
-                        d.dist.Text = "["..dist.."m]"; d.dist.Visible = CFG.esp_dist
-                        
-                        if CFG.esp_health then
-                            local hPct = hum.Health / hum.MaxHealth
-                            d.hpBg.Visible = true; d.hp.Size = UDim2.new(hPct,0,1,0)
-                            d.hp.BackgroundColor3 = hPct > 0.5 and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-                        else d.hpBg.Visible = false end
                     end
                 end
             end)
+        else
+            for p in pairs(espData) do destroyEspEntry(p) end
         end
     end
 end)
 
--- ==========================================
--- MOVEMENT (FLY / NOCLIP / WALKSPEED)
--- ==========================================
-RS.Stepped:Connect(function(_,dt)
-    if not MasterEnabled then return end
-    local c = LP.Character
-    if not c then return end
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    local hrp = c:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp then return end
-    
-    if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed end
-    
-    if CFG.noclip then
-        for _, v in pairs(c:GetDescendants()) do
-            if v:IsA("BasePart") and v.CanCollide then v.CanCollide = false end
-        end
-    end
-    
-    if CFG.fly then
-        if not flyBV then
-            flyBV = Instance.new("BodyVelocity")
-            flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-            flyBV.Velocity = Vector3.zero
-            flyBV.Parent = hrp
-        end
-        local moveDir = hum.MoveDirection
-        flyBV.Velocity = moveDir * (CFG.ws_speed * 3) + Vector3.new(0, (UIS:IsKeyDown(Enum.KeyCode.Space) and 50 or 0) - (UIS:IsKeyDown(Enum.KeyCode.LeftShift) and 50 or 0), 0)
-    elseif flyBV then
-        flyBV:Destroy(); flyBV = nil
-    end
-end)
-
--- ==========================================
--- AUTO SKILLCHECK / SKIP
--- ==========================================
+-- Parry
 task.spawn(function()
     while true do
-        task.wait(0.01)
-        if MasterEnabled and (CFG.auto_skillcheck or CFG.no_skillcheck) and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and canSendInput() then
-            local pg = LP:FindFirstChild("PlayerGui")
-            if pg then
-                for _, v in ipairs(pg:GetDescendants()) do
-                    if v:IsA("Frame") or v:IsA("ImageLabel") then
-                        local size = v.AbsoluteSize
-                        if size.X > 50 and size.X < 400 then
-                            local w = jittered(0.008, 0.020)
+        task.wait(0.1)
+        if MasterEnabled and CFG.auto_parry and not parryBusy then
+            local myChar = LP.Character
+            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if myHrp then
+                for _, p in ipairs(P:GetPlayers()) do
+                    if p ~= LP and isKillerSafe(p) then
+                        local char = p.Character
+                        local tHrp = char and char:FindFirstChild("HumanoidRootPart")
+                        if tHrp and (tHrp.Position - myHrp.Position).Magnitude < 20 then
+                            parryBusy = true
                             pcall(function()
-                                VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                                task.wait(w)
-                                VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                                VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
+                                task.wait(0.05)
+                                VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
                             end)
+                            task.wait(0.3)
+                            parryBusy = false
                             break
                         end
                     end
@@ -597,38 +403,21 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- AUTO PARRY
--- ==========================================
-local PARRY_RADIUS=22
-local parryBusy = false
-
+-- Skillcheck
 task.spawn(function()
     while true do
-        task.wait(0.02)
-        if MasterEnabled and CFG.auto_parry and not parryBusy and canSendInput() then
-            local myChar = LP.Character
-            local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-            if myHrp then
-                for _, p in ipairs(P:GetPlayers()) do
-                    if p ~= LP then
-                        local char = p.Character
-                        if char and isKillerSafe(p) then
-                            local tHrp = char:FindFirstChild("HumanoidRootPart")
-                            local hum = char:FindFirstChildOfClass("Humanoid")
-                            if tHrp and hum and hum.Health > 0 then
-                                if (tHrp.Position - myHrp.Position).Magnitude < PARRY_RADIUS then
-                                    local w = jittered(0.008, 0.018)
-                                    pcall(function()
-                                        VIM:SendMouseButtonEvent(0, 0, 2, true, game, 1)
-                                        task.wait(w)
-                                        VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
-                                    end)
-                                    task.wait(0.25)
-                                    break
-                                end
-                            end
-                        end
+        task.wait(0.1)
+        if MasterEnabled and CFG.auto_skillcheck and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            local pg = LP:FindFirstChild("PlayerGui")
+            if pg then
+                for _, v in ipairs(pg:GetDescendants()) do
+                    if v:IsA("Frame") and v.AbsoluteSize.X > 50 and v.AbsoluteSize.X < 400 then
+                        pcall(function()
+                            VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                            task.wait(0.05)
+                            VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                        break
                     end
                 end
             end
@@ -636,39 +425,20 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- CROSSHAIR / FOV
--- ==========================================
-local crosshair=Instance.new("Frame")
-crosshair.Size=UDim2.new(0,6,0,6); crosshair.Position=UDim2.new(0.5,-3,0.5,-3)
-crosshair.BackgroundColor3=COL.acc; crosshair.BorderSizePixel=0
-crosshair.Visible=false; crosshair.Parent=gui
-local chCorner = Instance.new("UICorner"); chCorner.CornerRadius=UDim.new(1,0); chCorner.Parent = crosshair
-
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if MasterEnabled then
-            crosshair.Visible = CFG.crosshair
-            if CAM and CFG.fov_enabled then CAM.FieldOfView = CFG.fov_val else CAM.FieldOfView = 70 end
+RS.Stepped:Connect(function(_,dt)
+    if not MasterEnabled then return end
+    local c = LP.Character
+    if not c then return end
+    local hum = c:FindFirstChildOfClass("Humanoid")
+    local hrp = c:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return end
+    
+    if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed end
+    if CFG.noclip then
+        for _, v in pairs(c:GetDescendants()) do
+            if v:IsA("BasePart") and v.CanCollide then v.CanCollide = false end
         end
     end
 end)
 
--- ==========================================
--- LIGHTING (FULLBRIGHT)
--- ==========================================
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if MasterEnabled and CFG.bright then
-            pcall(function()
-                L.ClockTime = 12; L.Brightness = 2
-                L.Ambient = Color3.fromRGB(180,180,180); L.OutdoorAmbient = Color3.fromRGB(200,200,200)
-                L.FogEnd = 100000
-            end)
-        end
-    end
-end)
-
-print("[SpookingD] v70.3 loaded — Ultimate Loader")
+print("[SpookingD] v70.4 loaded — Hologram Fallback (Press P)")
