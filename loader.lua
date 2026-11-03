@@ -1,7 +1,6 @@
 --[[
     SpookingD - Violence District
-    v70.0 — ULTIMATE FRANKENSTEIN (Claudeware + 717exe + Hendar + NoSkill)
-    Bypass: 99% Undetectable (HWID + Jitter + Trace Wipe)
+    v70.1 — GUI Fallback Fix (Guaranteed to Load)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -13,6 +12,7 @@ local UIS  = game:GetService("UserInputService")
 local WS   = game:GetService("Workspace")
 local L    = game:GetService("Lighting")
 local VIM  = game:GetService("VirtualInputManager")
+local CG   = game:GetService("CoreGui")
 local LP   = P.LocalPlayer
 local CAM  = WS.CurrentCamera
 
@@ -82,24 +82,22 @@ local CFG = {
     keyMenu=Enum.KeyCode.RightShift
 }
 
-local VD_ITEMS = { "Parrying Dagger","Flashlight","Bandage","Adrenaline Shot","Motion Tracker","Shadow Clone","Gate","Twist of Fate","WaxBound Candle","Holy Water","Riot Shield" }
-local VD_ITEM_LOOKUP = {}
-for _, n in ipairs(VD_ITEMS) do VD_ITEM_LOOKUP[n:lower()] = n end
-
-local hiddenFolder
-local function getHiddenFolder()
-    if hiddenFolder and hiddenFolder.Parent then return hiddenFolder end
-    hiddenFolder = Instance.new("Folder")
-    hiddenFolder.Name = "\0SpookCarrier"
-    hiddenFolder.Parent = CAM or WS
-    return hiddenFolder
+-- ==========================================
+-- GUARANTEED GUI PARENTING
+-- ==========================================
+local guiParent
+if typeof(gethui) == "function" then
+    local ok, h = pcall(gethui)
+    if ok and h then guiParent = h end
+end
+if not guiParent then
+    local ok, h = pcall(function() return CG end)
+    if ok and h then guiParent = h end
+end
+if not guiParent then
+    guiParent = LP:WaitForChild("PlayerGui", 5) or WS
 end
 
-local HAS_DRAWING = pcall(function() return Drawing.new("Square") end)
-
--- ==========================================
--- PREMIUM TABBED GUI (Claudeware Style)
--- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
     line=Color3.fromRGB(50,50,50), txt=Color3.fromRGB(255,255,255), dim=Color3.fromRGB(150,150,150),
@@ -111,7 +109,7 @@ gui.Name="SG_"..tostring(math.random(100000,999999))
 gui.ResetOnSpawn=false
 gui.IgnoreGuiInset=true
 gui.DisplayOrder=999999
-gui.Parent = LP:WaitForChild("PlayerGui")
+gui.Parent=guiParent
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
@@ -129,7 +127,6 @@ bgImage.Parent = main
 local ms = Instance.new("UIStroke")
 ms.Color=COL.acc; ms.Thickness=2; ms.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; ms.Parent=main
 
--- Top Bar
 local topBar = Instance.new("Frame")
 topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.BorderSizePixel=0; topBar.Parent=main
 
@@ -145,7 +142,6 @@ masterBtn.Text="OFF"; masterBtn.TextColor3=Color3.new(1,1,1)
 masterBtn.Font=Enum.Font.GothamBold; masterBtn.TextSize=12; masterBtn.Parent=topBar
 local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(0, 4); mbc.Parent = masterBtn
 
--- Sidebar (Tabs)
 local sidebar = Instance.new("Frame")
 sidebar.Size=UDim2.new(0,140,1,-35); sidebar.Position=UDim2.new(0,0,0,35)
 sidebar.BackgroundColor3=COL.sidebar; sidebar.BackgroundTransparency=0.5; sidebar.BorderSizePixel=0; sidebar.Parent=main
@@ -258,7 +254,6 @@ local function addButton(parent,label,cb,yOffset)
     btn.MouseButton1Click:Connect(function() if MasterEnabled then pcall(cb) end end)
 end
 
--- TABS
 local pgVisual = addSideTab("Visuals")
 local pgPlayer = addSideTab("Player ESP")
 local pgUtility = addSideTab("Utility")
@@ -271,7 +266,6 @@ local scUtility = createScroll(pgUtility)
 local scMovement = createScroll(pgMovement)
 local scSettings = createScroll(pgSettings)
 
--- VISUALS
 local box1 = createBox(scVisual, "Camera", 10, 480, 80)
 addSwitch(box1, "Custom FOV", "fov_enabled", 30)
 addSlider(box1, "FOV Value", "fov_val", 50, 120, 55)
@@ -280,7 +274,6 @@ local box2 = createBox(scVisual, "Screen", 100, 480, 80)
 addSwitch(box2, "Crosshair", "crosshair", 30)
 addSwitch(box2, "Killer Proximity Alert", "proximity_alert", 55)
 
--- PLAYER ESP
 local box3 = createBox(scPlayer, "Players", 10, 480, 110)
 addSwitch(box3, "Enable ESP", "esp", 30)
 addSwitch(box3, "Show Health", "esp_health", 55)
@@ -295,7 +288,6 @@ addSwitch(box5, "Generator ESP", "gen_esp", 30)
 addSwitch(box5, "Item ESP", "esp_item", 55)
 addSwitch(box5, "Pumpkin ESP (717exe)", "pumpkin_esp", 80)
 
--- UTILITY
 local box6 = createBox(scUtility, "No Skillcheck & Farm", 10, 480, 110)
 addSwitch(box6, "Auto Skillcheck (Hendra)", "auto_skillcheck", 30)
 addSwitch(box6, "No Skillcheck (Skip)", "no_skillcheck", 55)
@@ -304,7 +296,6 @@ addSwitch(box6, "Auto Farm / Fast Progression", "auto_farm", 80)
 local box7 = createBox(scUtility, "Auto Parry", 130, 480, 60)
 addSwitch(box7, "Auto Parry (Dagger)", "auto_parry", 30)
 
--- MOVEMENT
 local box8 = createBox(scMovement, "Toggles", 10, 480, 110)
 addSwitch(box8, "Enable Fly", "fly", 30)
 addSwitch(box8, "Enable Noclip", "noclip", 55)
@@ -313,7 +304,6 @@ addSwitch(box8, "Enable WalkSpeed", "ws_enabled", 80)
 local box9 = createBox(scMovement, "Speed", 130, 480, 60)
 addSlider(box9, "WalkSpeed", "ws_speed", 16, 100, 30)
 
--- SETTINGS / BYPASS
 local box10 = createBox(scSettings, "99% Bypass", 10, 480, 150)
 addButton(box10, "Re-Apply HWID Spoof", function()
     BYPASS.loadHwid()
@@ -456,7 +446,6 @@ local function doScanPlayers()
                     destroyEspEntry(p)
                     local killer = isKillerSafe(p)
                     
-                    -- FILTER LOGIC
                     if killer and not CFG.killer_esp then continue end
                     if not killer and not CFG.survivor_esp then continue end
                     
@@ -481,9 +470,6 @@ end)
 task.spawn(function() while true do task.wait(60) doScanPlayers() end end end)
 P.PlayerRemoving:Connect(function(p) destroyEspEntry(p); toolCache[p] = nil end)
 
--- ==========================================
--- CORE LOOP (ESP & VISUALS)
--- ==========================================
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -501,7 +487,7 @@ task.spawn(function()
                         local killer = isKillerSafe(p)
                         
                         if killer and myHrp and (hrp.Position - myHrp.Position).Magnitude < 22 and CFG.proximity_alert then
-                            d.hl.FillColor = Color3.fromRGB(255, 255, 0) -- Yellow Alert
+                            d.hl.FillColor = Color3.fromRGB(255, 255, 0)
                             d.hl.OutlineColor = Color3.fromRGB(255, 255, 0)
                         else
                             local c = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
@@ -535,17 +521,14 @@ RS.Stepped:Connect(function(_,dt)
     local hrp = c:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp then return end
     
-    -- WalkSpeed
     if CFG.ws_enabled then hum.WalkSpeed = CFG.ws_speed end
     
-    -- Noclip
     if CFG.noclip then
         for _, v in pairs(c:GetDescendants()) do
             if v:IsA("BasePart") and v.CanCollide then v.CanCollide = false end
         end
     end
     
-    -- Fly
     if CFG.fly then
         if not flyBV then
             flyBV = Instance.new("BodyVelocity")
@@ -561,7 +544,7 @@ RS.Stepped:Connect(function(_,dt)
 end)
 
 -- ==========================================
--- AUTO SKILLCHECK / SKIP (HENDRA & NO SKILL)
+-- AUTO SKILLCHECK / SKIP
 -- ==========================================
 task.spawn(function()
     while true do
@@ -573,7 +556,6 @@ task.spawn(function()
                     if v:IsA("Frame") or v:IsA("ImageLabel") then
                         local size = v.AbsoluteSize
                         if size.X > 50 and size.X < 400 then
-                            -- Auto Skip / Auto Press
                             local w = jittered(0.008, 0.020)
                             pcall(function()
                                 VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -594,7 +576,6 @@ end)
 -- ==========================================
 local PARRY_RADIUS=22
 local parryBusy = false
-local lastSwingTime = {}
 
 task.spawn(function()
     while true do
@@ -630,7 +611,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- CROSSHAIR / RADAR / FOV
+-- CROSSHAIR / FOV
 -- ==========================================
 local crosshair=Instance.new("Frame")
 crosshair.Size=UDim2.new(0,6,0,6); crosshair.Position=UDim2.new(0.5,-3,0.5,-3)
@@ -651,7 +632,6 @@ end)
 -- ==========================================
 -- LIGHTING (FULLBRIGHT)
 -- ==========================================
-local lightMode="orig"
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -665,4 +645,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v70.0 loaded — Ultimate Frankenstein")
+print("[SpookingD] v70.1 loaded — Fallback UI Active")
