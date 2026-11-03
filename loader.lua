@@ -1,6 +1,6 @@
 --[[
     SpookingD - Violence District
-    v999.9 — Premium Clone (100% Mechanism)
+    v999.10 — Errorless & Memory-Safe (Anti Crash)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -10,7 +10,6 @@ local P    = game:GetService("Players")
 local RS   = game:GetService("RunService")
 local UIS  = game:GetService("UserInputService")
 local WS   = game:GetService("Workspace")
-local L    = game:GetService("Lighting")
 local VIM  = game:GetService("VirtualInputManager")
 local LP   = P.LocalPlayer
 local CAM  = WS.CurrentCamera
@@ -19,42 +18,32 @@ local MouseLocked = true
 local mouseUnlockKey = Enum.KeyCode.RightControl
 
 -- ==========================================
--- GHOST PROTOCOL (99% BYPASS)
+-- BYPASS
 -- ==========================================
-local function GhostInit()
-    if writefile and readfile and isfile then
-        pcall(function()
-            local f = "ghost_hwid.dat"
-            if isfile(f) then getgenv().GhostHWID = readfile(f)
-            else local v = tostring(math.random(10000000, 99999999)) .. "_G"; writefile(f, v); getgenv().GhostHWID = v end
-        end)
-    end
-    pcall(function()
-        local svc = game:GetService("RbxAnalyticsService")
-        svc.GetHardwareIdentifier = function() return getgenv().GhostHWID or "G" end
-        if svc.GetSessionId then svc.GetSessionId = function() return tostring(math.random(100000000, 999999999)) end end
-    end)
-end
-GhostInit()
+pcall(function()
+    game:GetService("RbxAnalyticsService").GetHardwareIdentifier = function() return "SAFE_MODE_99" end
+end)
 
 -- ==========================================
 -- CONFIG
 -- ==========================================
 local CFG = {
-    esp=false, killer_esp=true, survivor_esp=true, gen_esp=true,
-    crosshair=false, fly=false, noclip=false, godmode=false,
+    esp=false, killer_esp=true, survivor_esp=true,
     parry=false, perfect_gen=false, no_skillcheck=false, 
-    ws_enabled=false, ws_speed=30, keyMenu=Enum.KeyCode.RightShift
+    fly=false, noclip=false, godmode=false, ws_enabled=false, ws_speed=30, 
+    keyMenu=Enum.KeyCode.RightShift
 }
 
 local espData = {}
 local flyBV = nil
+
+-- Pake Camera sebagai parent (Anti-Lag & Ga nge-lag Workspace)
 local hiddenFolder = Instance.new("Folder")
 hiddenFolder.Name = "GhostCarrier"
-hiddenFolder.Parent = CAM or WS
+hiddenFolder.Parent = CAM
 
 -- ==========================================
--- PREMIUM UI (Tabs)
+-- UI (Simple & Clean)
 -- ==========================================
 local COL = {
     bg=Color3.fromRGB(15,15,15), panel=Color3.fromRGB(25,25,25), sidebar=Color3.fromRGB(10,10,10),
@@ -63,15 +52,15 @@ local COL = {
 }
 
 local gui = Instance.new("ScreenGui")
-gui.Name="SG_Premium"
+gui.Name="SG_SafeMode"
 gui.ResetOnSpawn=false
 gui.DisplayOrder=999999
 gui.Parent=LP:WaitForChild("PlayerGui")
 getgenv().TGui=gui
 
 local main = Instance.new("Frame")
-main.Size=UDim2.new(0,600,0,400); main.Position=UDim2.new(0.5,-300,0.5,-200)
-main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.ClipsDescendants=true; main.Parent=gui
+main.Size=UDim2.new(0,500,0,350); main.Position=UDim2.new(0.5,-250,0.5,-175)
+main.BackgroundColor3=COL.bg; main.BorderSizePixel=0; main.Active=true; main.Parent=gui
 local ms = Instance.new("UIStroke"); ms.Color=COL.acc; ms.Thickness=2; ms.Parent=main
 
 local topBar = Instance.new("Frame")
@@ -79,7 +68,7 @@ topBar.Size=UDim2.new(1,0,0,35); topBar.BackgroundColor3=COL.sidebar; topBar.Bor
 
 local logo = Instance.new("TextLabel")
 logo.Size=UDim2.new(0,200,1,0); logo.Position=UDim2.new(0,10,0,0); logo.BackgroundTransparency=1
-logo.Text="SPOOKINGD PREMIUM"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
+logo.Text="SAFE MODE v999.10"; logo.TextColor3=COL.acc; logo.Font=Enum.Font.GothamBlack
 logo.TextSize=16; logo.TextXAlignment=Enum.TextXAlignment.Left; logo.Parent=topBar
 
 local closeBtn = Instance.new("TextButton")
@@ -97,7 +86,7 @@ closeBtn.MouseButton1Click:Connect(function() main.Visible = false; openBtn.Visi
 openBtn.MouseButton1Click:Connect(function() main.Visible = true; openBtn.Visible = false end)
 
 local sidebar = Instance.new("Frame")
-sidebar.Size=UDim2.new(0,140,1,-35); sidebar.Position=UDim2.new(0,0,0,35)
+sidebar.Size=UDim2.new(0,130,1,-35); sidebar.Position=UDim2.new(0,0,0,35)
 sidebar.BackgroundColor3=COL.sidebar; sidebar.BorderSizePixel=0; sidebar.Parent=main
 
 local sideTabs, sidePages = {}, {}
@@ -111,7 +100,7 @@ local function addTab(name)
     table.insert(sideTabs, btn)
     
     local pg=Instance.new("ScrollingFrame")
-    pg.Size=UDim2.new(1,-150,1,-50); pg.Position=UDim2.new(0,150,0,45)
+    pg.Size=UDim2.new(1,-140,1,-50); pg.Position=UDim2.new(0,140,0,45)
     pg.BackgroundTransparency=1; pg.BorderSizePixel=0
     pg.ScrollBarThickness=2; pg.ScrollBarImageColor3=COL.acc
     pg.CanvasSize=UDim2.new(0,0,0,400); pg.Visible=false; pg.Parent=main
@@ -184,7 +173,7 @@ UIS.InputBegan:Connect(function(i,pr)
 end)
 
 -- ==========================================
--- ENGINES
+-- ENGINES (Super Lightweight)
 -- ==========================================
 local function isKillerSafe(p)
     if p.Team and p.Team.Name:lower():find("killer") then return true end
@@ -197,10 +186,10 @@ local function isKillerSafe(p)
     return false
 end
 
--- 1. ESP (Billboard Method, Anti-Lag)
+-- ESP (Cuma nge-scan 2 detik sekali, tanpa Highlight)
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(2)
         if CFG.esp then
             pcall(function()
                 for _, p in ipairs(P:GetPlayers()) do
@@ -210,27 +199,27 @@ task.spawn(function()
                         local hum = char and char:FindFirstChildOfClass("Humanoid")
                         if hrp and hum and hum.Health > 0 then
                             local killer = isKillerSafe(p)
-                            if (killer and not CFG.killer_esp) or (not killer and not CFG.survivor_esp) then
-                            else
+                            if (killer and CFG.killer_esp) or (not killer and CFG.survivor_esp) then
                                 local d = espData[p]
                                 if not d or not d.bg.Parent then
                                     if d and d.bg then d.bg:Destroy() end
                                     local bg = Instance.new("BillboardGui")
-                                    bg.Adornee = hrp; bg.Size = UDim2.new(0, 150, 0, 30)
+                                    bg.Adornee = hrp; bg.Size = UDim2.new(0, 100, 0, 20)
                                     bg.StudsOffset = Vector3.new(0, 3, 0); bg.AlwaysOnTop = true
                                     bg.Parent = hiddenFolder
                                     
                                     local txt = Instance.new("TextLabel")
                                     txt.Size = UDim2.new(1,0,1,0); txt.BackgroundTransparency = 1
-                                    txt.TextColor3 = Color3.new(1,1,1); txt.TextStrokeTransparency = 0
+                                    txt.TextColor3 = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
+                                    txt.TextStrokeTransparency = 0
                                     txt.Font = Enum.Font.GothamBold; txt.TextSize = 12; txt.Parent = bg
+                                    txt.Text = p.Name
                                     
-                                    espData[p] = { bg = bg, txt = txt }
+                                    espData[p] = { bg = bg }
                                     d = espData[p]
                                 end
-                                local color = killer and Color3.fromRGB(255,0,0) or Color3.fromRGB(255,255,255)
-                                d.txt.Text = p.Name
-                                d.txt.TextColor3 = color
+                            elseif espData[p] then
+                                espData[p].bg:Destroy(); espData[p] = nil
                             end
                         elseif espData[p] then
                             espData[p].bg:Destroy(); espData[p] = nil
@@ -242,7 +231,7 @@ task.spawn(function()
     end
 end)
 
--- 2. Movement (Fly, Noclip, WS, Godmode)
+-- Movement
 RS.Stepped:Connect(function(_,dt)
     local c = LP.Character
     if not c then return end
@@ -273,7 +262,7 @@ RS.Stepped:Connect(function(_,dt)
     end
 end)
 
--- 3. Auto Parry (Raycast Method - Anti-Lag)
+-- Parry (Raycast)
 local parryBusy = false
 task.spawn(function()
     while true do
@@ -303,7 +292,7 @@ task.spawn(function()
                                         task.wait(0.05)
                                         VIM:SendMouseButtonEvent(0, 0, 2, false, game, 1)
                                     end)
-                                    task.wait(0.4) -- Cooldown
+                                    task.wait(0.4)
                                     parryBusy = false
                                     break
                                 end
@@ -316,11 +305,10 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Perfect Gen (Event Listener - Zero Stutter)
+-- Perfect Gen
 local function setupGenListener()
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return end
-    
     pg.DescendantAdded:Connect(function(child)
         if CFG.perfect_gen then
             if child:IsA("TextLabel") and child.Text:lower():find("perfect") then
@@ -336,7 +324,7 @@ end
 task.wait(2)
 setupGenListener()
 
--- 5. No Skillcheck (Skip)
+-- No Skillcheck
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -358,4 +346,4 @@ task.spawn(function()
     end
 end)
 
-print("[SpookingD] v999.9 loaded — Premium Clone Active")
+print("[SpookingD] v999.10 loaded — Errorless Mode")
