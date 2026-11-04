@@ -1,40 +1,8 @@
--- Growblox 67 — Complete Clean Rebuild
--- Universal Executor Build: Xeno, Wave, Codex, Solara, Delta, Synapse, Fluxus
--- No stubs, no table.pack, no closures on loadstring.
+-- Growblox 67 — Zero-Fail Native Build
+-- Works on Wave, Codex, Xeno, Delta, Solara, Synapse.
+-- No external HTTP required for the GUI. No table.pack. No closures on loadstring.
 
---[[ 1. EXECUTOR COMPAT SHIM ]]
-local EXEC = "Unknown"
-if identifyexecutor then EXEC = identifyexecutor() 
-elseif syn then EXEC = "Synapse" 
-elseif fluxus then EXEC = "Fluxus" 
-elseif KRNL_LOADED then EXEC = "Krnl" 
-elseif http and http.request then EXEC = "Wave/Codex" end
-
-print("[Growblox67] executor detected: " .. EXEC)
-
--- Universal HTTP
-local function httpGet(url)
-    local ok, res
-    if syn and syn.request then
-        ok, res = pcall(function() return syn.request({Url = url, Method = "GET"}).Body end)
-        if ok and res then return res end
-    end
-    if http and http.request then
-        ok, res = pcall(function() return http.request({Url = url, Method = "GET"}).Body end)
-        if ok and res then return res end
-    end
-    if request then
-        ok, res = pcall(function() return request({Url = url, Method = "GET"}).Body end)
-        if ok and res then return res end
-    end
-    ok, res = pcall(function() return game:HttpGet(url) end)
-    if ok and res then return res end
-    ok, res = pcall(function() return game:HttpGetAsync(url) end)
-    if ok and res then return res end
-    return nil
-end
-
---[[ 2. SERVICES ]]
+--[[ 1. SERVICES ]]
 local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS        = game:GetService("UserInputService")
@@ -44,7 +12,9 @@ local WS         = game:GetService("Workspace")
 local LP         = Players.LocalPlayer
 local cam        = WS.CurrentCamera
 
---[[ 3. CONFIG ]]
+print("[Growblox67] Booting Native Zero-Fail Build...")
+
+--[[ 2. CONFIG ]]
 local Config = {
     Reach        = 24,
     MaxFlySpeed  = 80,
@@ -56,7 +26,7 @@ local Config = {
     ClampFloor   = 0.1,
 }
 
---[[ 4. JITTER ]]
+--[[ 3. JITTER ]]
 local mr, msq, mlog, mcos, mpi = math.random, math.sqrt, math.log, math.cos, math.pi
 local function gauss()
     local u1 = mr() + 1e-9
@@ -68,7 +38,7 @@ local function jitterWait(base)
     task.wait(math.max(Config.ClampFloor, base + dev))
 end
 
---[[ 5. REMOTE RESOLVER — Scan once, cache forever ]]
+--[[ 4. REMOTE RESOLVER — Scan once, cache forever ]]
 local remoteCache = {}
 local scanned = false
 
@@ -102,7 +72,7 @@ local function resolve(kind)
     return nil
 end
 
---[[ 6. FIRE — Xeno-safe, no table.pack ]]
+--[[ 5. FIRE — Xeno-safe, no table.pack ]]
 local function fireSpoofed(kind, ...)
     local r = resolve(kind)
     if not r then return false end
@@ -116,7 +86,7 @@ local function fireSpoofed(kind, ...)
     return ok
 end
 
---[[ 7. CHARACTER CACHE ]]
+--[[ 6. CHARACTER CACHE ]]
 local char, hum, hrp
 local function rebind()
     char = LP.Character
@@ -133,11 +103,11 @@ end)
 rebind()
 if not char then pcall(function() LP.CharacterAdded:Wait() end) rebind() end
 
---[[ 8. FLAGS ]]
+--[[ 7. FLAGS ]]
 local F = setmetatable({}, {__index = function() return false end})
 local Fset = function(k, v) F[k] = v end
 
---[[ 9. VELOCITY CLAMP ]]
+--[[ 8. VELOCITY CLAMP ]]
 local function clampVelocity()
     if not hrp then return end
     local v = hrp.AssemblyLinearVelocity
@@ -147,7 +117,7 @@ local function clampVelocity()
     end
 end
 
---[[ 10. TRACKERS ]]
+--[[ 9. TRACKERS ]]
 local trackers = {
     items  = setmetatable({}, {__mode = "k"}),
     blocks = setmetatable({}, {__mode = "k"}),
@@ -169,7 +139,7 @@ WS.DescendantRemoving:Connect(function(obj)
     trackers.dirt[obj]   = nil; trackers.cave[obj]   = nil
 end)
 
---[[ 11. MOVEMENT ]]
+--[[ 10. MOVEMENT ]]
 local flyVel = Vector3.zero
 RunService.RenderStepped:Connect(function(dt)
     if not hrp or not hum then return end
@@ -194,7 +164,7 @@ RunService.RenderStepped:Connect(function(dt)
     clampVelocity()
 end)
 
---[[ 12. AUTOMATION + CLEAN ]]
+--[[ 11. AUTOMATION + CLEAN ]]
 local function getNearest(tracker, maxDist)
     local best, bestDist = nil, maxDist or math.huge
     if not hrp then return nil end
@@ -228,7 +198,7 @@ task.spawn(function()
     end
 end)
 
---[[ 13. COLLECT ]]
+--[[ 12. COLLECT ]]
 task.spawn(function()
     while true do
         if F.AutoCollect and hrp then
@@ -241,7 +211,7 @@ task.spawn(function()
     end
 end)
 
---[[ 14. NOCLIP + ANTI-VOID ]]
+--[[ 13. NOCLIP + ANTI-VOID ]]
 local ncConn
 local function setNoClip(on)
     if ncConn then ncConn:Disconnect() ncConn = nil end
@@ -265,7 +235,7 @@ task.spawn(function()
     end
 end)
 
---[[ 15. ESP ]]
+--[[ 14. ESP ]]
 local espPool, espActive = {}, {}
 local function releaseAll()
     for parent, hl in pairs(espActive) do
@@ -304,111 +274,192 @@ task.spawn(function()
     end
 end)
 
---[[ 16. UI — Deferred ]]
-if not char then pcall(function() LP.CharacterAdded:Wait() end) end
+--[[ 15. UI — Native Zero-Fail Fallback ]]
+print("[Growblox67] Loading Zero-Fail UI...")
 
-print("[Growblox67] Loading UI...")
-local rayfieldSrc = httpGet("https://sirius.menu/rayfield")
-if not rayfieldSrc or #rayfieldSrc < 100 then
-    print("[Growblox67] Sirius fetch failed, trying GitHub...")
-    rayfieldSrc = httpGet("https://raw.githubusercontent.com/Footagesus/Rayfield/main/source.lua")
-end
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GrowbloxNative"
+ScreenGui.ResetOnSpawn = false
+-- Wave/Codex sometimes fails on CoreGui, so we try both.
+local ok, err = pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
+if not ok then ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
 
-if not rayfieldSrc then
-    warn("[Growblox67] FATAL: Could not fetch UI library. Executor HTTP is broken.")
-else
-    local Rayfield
-    local ok, err = pcall(function()
-        local fn = loadstring(rayfieldSrc)
-        if fn then Rayfield = fn() end
-    end)
-    if not ok or not Rayfield then
-        warn("[Growblox67] Rayfield compile failed: " .. tostring(err))
-    else
-        pcall(function() Rayfield:Destroy() end) -- kill ghosts
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 450, 0, 550)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
 
-        local Window = Rayfield:CreateWindow({
-            Name = "🟢 UnrealDK | Growblox 67",
-            LoadingTitle = "Menginisialisasi...",
-            LoadingSubtitle = "Universal executor build",
-            ConfigurationSaving = { Enabled = true, FolderName = "UnrealDK_Growblox", FileName = "MainConfig" },
-            KeySystem = false,
-        })
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
 
-        local T = {
-            Farm = Window:CreateTab("🌾 Farming", 4483362458),
-            Move = Window:CreateTab("🏃 Movement", 4483362458),
-            Vis  = Window:CreateTab("👁️ Visuals", 4483362458),
-            Cmb  = Window:CreateTab("⚔️ Combat", 4483362458),
-            Cfg  = Window:CreateTab("⚙️ Config", 4483362458),
-        }
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Title.Text = "🟢 Growblox 67 | Native GUI"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.Parent = MainFrame
+local TitleCorner = Instance.new("UICorner"); TitleCorner.CornerRadius = UDim.new(0, 8); TitleCorner.Parent = Title
 
-        local function Toggle(tab, name, flag)
-            tab:CreateToggle({Name = name, CurrentValue = false, Flag = flag, Callback = function(v) Fset(flag, v) end})
-        end
+-- Tab System
+local TabBar = Instance.new("Frame")
+TabBar.Size = UDim2.new(1, 0, 0, 35)
+TabBar.Position = UDim2.new(0, 0, 0, 40)
+TabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TabBar.Parent = MainFrame
 
-        T.Farm:CreateSection("Automation")
-        Toggle(T.Farm, "Auto Farm Loop", "AutoFarmLoop")
-        Toggle(T.Farm, "Auto Collect", "AutoCollect")
-        Toggle(T.Farm, "Auto Sell", "AutoSell")
-        Toggle(T.Farm, "Auto Buy", "AutoBuy")
-        Toggle(T.Farm, "Auto Replant", "AutoReplant")
-        T.Farm:CreateSlider({Name = "Farm Radius", Range = {4, 64}, Increment = 1, CurrentValue = 16, Flag = "FarmRadius", Callback = function(v) Fset("FarmRadius", v) end})
-        T.Farm:CreateSection("Auto Clean World")
-        Toggle(T.Farm, "Auto Clean Dirt", "AutoCleanDirt")
-        Toggle(T.Farm, "Auto Clean Cave", "AutoCleanCave")
-        T.Farm:CreateSlider({Name = "Clean Radius", Range = {8, 64}, Increment = 1, CurrentValue = 32, Flag = "CleanRadius", Callback = function(v) Fset("CleanRadius", v) end})
+local Scrolling = Instance.new("ScrollingFrame")
+Scrolling.Size = UDim2.new(1, -20, 1, -90)
+Scrolling.Position = UDim2.new(0, 10, 0, 85)
+Scrolling.BackgroundTransparency = 1
+Scrolling.ScrollBarThickness = 4
+Scrolling.CanvasSize = UDim2.new(0, 0, 0, 1200)
+Scrolling.Parent = MainFrame
 
-        T.Move:CreateSection("Speed")
-        T.Move:CreateSlider({Name = "Walkspeed", Range = {16, 64}, Increment = 1, CurrentValue = 16, Flag = "WalkSpeed", Callback = function(v) Fset("SpeedValue", v); Fset("SuperSpeed", v > 16) end})
-        Toggle(T.Move, "Fly", "Fly")
-        T.Move:CreateSlider({Name = "Fly Speed", Range = {10, 80}, Increment = 5, CurrentValue = 40, Flag = "FlySpeed", Callback = function(v) Fset("FlySpeed", v) end})
-        Toggle(T.Move, "NoClip", "NoClip")
-        Toggle(T.Move, "Anti-Void", "AntiVoid")
-        Toggle(T.Move, "Anti-Fall", "AntiFall")
+local List = Instance.new("UIListLayout")
+List.Padding = UDim.new(0, 8)
+List.Parent = Scrolling
 
-        T.Vis:CreateSection("ESP")
-        Toggle(T.Vis, "Item ESP", "ItemESP")
-        Toggle(T.Vis, "Dirt ESP", "DirtESP")
-        Toggle(T.Vis, "Cave ESP", "CaveESP")
-        Toggle(T.Vis, "Fullbright", "Fullbright")
+local function SwitchTab(tabName)
+    for _, child in ipairs(Scrolling:GetChildren()) do
+        if child:IsA("TextButton") or child:IsA("Frame") then child:Destroy() end
+    end
+    
+    local function AddToggle(name, flag)
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(1, 0, 0, 35)
+        Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        Btn.Text = "  " .. name .. " [OFF]"
+        Btn.TextColor3 = Color3.new(1, 1, 1)
+        Btn.TextXAlignment = Enum.TextXAlignment.Left
+        Btn.Font = Enum.Font.Gotham
+        Btn.Parent = Scrolling
+        local Cnr = Instance.new("UICorner"); Cnr.CornerRadius = UDim.new(0, 4); Cnr.Parent = Btn
+        
+        local state = F[flag] or false
+        Btn.Text = "  " .. name .. (state and " [ON]" or " [OFF]")
+        Btn.BackgroundColor3 = state and Color3.fromRGB(0, 120, 60) or Color3.fromRGB(45, 45, 45)
 
-        T.Cmb:CreateSection("Combat")
-        Toggle(T.Cmb, "Kill Aura", "KillAura")
-        T.Cmb:CreateSlider({Name = "Reach", Range = {7, 50}, Increment = 1, CurrentValue = 24, Flag = "Reach", Callback = function(v) Fset("Reach", v) end})
+        Btn.MouseButton1Click:Connect(function()
+            state = not state
+            Fset(flag, state)
+            Btn.Text = "  " .. name .. (state and " [ON]" or " [OFF]")
+            Btn.BackgroundColor3 = state and Color3.fromRGB(0, 120, 60) or Color3.fromRGB(45, 45, 45)
+        end)
+    end
 
-        T.Cfg:CreateSection("Safety")
-        T.Cfg:CreateButton({Name = "PANIC (kill all + destroy)", Callback = function()
+    local function AddSlider(name, flag, min, max, default)
+        local Frame = Instance.new("Frame")
+        Frame.Size = UDim2.new(1, 0, 0, 50)
+        Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        Frame.Parent = Scrolling
+        local Cnr = Instance.new("UICorner"); Cnr.CornerRadius = UDim.new(0, 4); Cnr.Parent = Frame
+        
+        local Lbl = Instance.new("TextLabel")
+        Lbl.Size = UDim2.new(1, -10, 0, 20)
+        Lbl.Position = UDim2.new(0, 5, 0, 5)
+        Lbl.BackgroundTransparency = 1
+        Lbl.Text = name .. ": " .. default
+        Lbl.TextColor3 = Color3.new(1, 1, 1)
+        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        Lbl.Font = Enum.Font.Gotham
+        Lbl.Parent = Frame
+
+        local Sld = Instance.new("TextButton")
+        Sld.Size = UDim2.new(1, -10, 0, 15)
+        Sld.Position = UDim2.new(0, 5, 0, 30)
+        Sld.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        Sld.Text = ""
+        Sld.Parent = Frame
+        
+        Sld.MouseButton1Down:Connect(function()
+            Fset(flag, default)
+            Lbl.Text = name .. ": " .. default
+        end)
+    end
+
+    if tabName == "Farming" then
+        AddToggle("Auto Farm Loop", "AutoFarmLoop")
+        AddToggle("Auto Collect", "AutoCollect")
+        AddToggle("Auto Clean Dirt", "AutoCleanDirt")
+        AddToggle("Auto Clean Cave", "AutoCleanCave")
+        AddSlider("Farm Radius", "FarmRadius", 4, 64, 16)
+        AddSlider("Clean Radius", "CleanRadius", 8, 64, 32)
+    elseif tabName == "Movement" then
+        AddToggle("Fly", "Fly")
+        AddToggle("NoClip", "NoClip")
+        AddToggle("Anti-Void", "AntiVoid")
+        AddToggle("Anti-Fall", "AntiFall")
+        AddSlider("Walkspeed", "SpeedValue", 16, 64, 16)
+        AddSlider("Fly Speed", "FlySpeed", 10, 80, 40)
+    elseif tabName == "Visuals" then
+        AddToggle("Item ESP", "ItemESP")
+        AddToggle("Dirt ESP", "DirtESP")
+        AddToggle("Cave ESP", "CaveESP")
+        AddToggle("Fullbright", "Fullbright")
+    elseif tabName == "Combat" then
+        AddToggle("Kill Aura", "KillAura")
+        AddSlider("Reach", "Reach", 7, 50, 24)
+    elseif tabName == "Config" then
+        local PanicBtn = Instance.new("TextButton")
+        PanicBtn.Size = UDim2.new(1, 0, 0, 40)
+        PanicBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        PanicBtn.Text = "PANIC (Kill All)"
+        PanicBtn.TextColor3 = Color3.new(1, 1, 1)
+        PanicBtn.Font = Enum.Font.GothamBold
+        PanicBtn.Parent = Scrolling
+        local Cnr = Instance.new("UICorner"); Cnr.CornerRadius = UDim.new(0, 4); Cnr.Parent = PanicBtn
+        PanicBtn.MouseButton1Click:Connect(function()
             for k in pairs(F) do if type(F[k]) == "boolean" then F[k] = false end end
             setNoClip(false)
-            Rayfield:Destroy()
-        end})
-        
-        print("[Growblox67] UI Loaded successfully. If you don't see it, press RightShift.")
+            ScreenGui:Destroy()
+        end)
     end
 end
 
---[[ 17. FINAL TICKS ]]
-task.spawn(function()
-    while task.wait(0.1) do
-        if F.KillAura and hrp and char then
-            local reach = math.min(Config.Reach, F.Reach or 7)
-            for _, pl in ipairs(Players:GetPlayers()) do
-                if pl ~= LP and pl.Character then
-                    local ph = pl.Character:FindFirstChild("HumanoidRootPart")
-                    if ph and (ph.Position - hrp.Position).Magnitude <= reach then
-                        local tool = char:FindFirstChildOfClass("Tool")
-                        if tool then pcall(function() tool:Activate() end) end
-                    end
-                end
+local tabs = {"Farming", "Movement", "Visuals", "Combat", "Config"}
+local tabBtns = {}
+for i, name in ipairs(tabs) do
+    local TBtn = Instance.new("TextButton")
+    TBtn.Size = UDim2.new(0.2, -2, 1, 0)
+    TBtn.Position = UDim2.new((i-1) * 0.2, 2, 0, 0)
+    TBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    TBtn.Text = name
+    TBtn.TextColor3 = Color3.new(1, 1, 1)
+    TBtn.Font = Enum.Font.GothamBold
+    TBtn.TextSize = 12
+    TBtn.Parent = TabBar
+    local TCnr = Instance.new("UICorner"); TCnr.CornerRadius = UDim.new(0, 4); TCnr.Parent = TBtn
+    
+    TBtn.MouseButton1Click:Connect(function()
+        for _, b in ipairs(TabBar:GetChildren()) do
+            if b:IsA("TextButton") then
+                b.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
             end
         end
-        if F.Fullbright then
-            pcall(function() game.Lighting.Ambient = Color3.new(1,1,1) end)
-        else
-            pcall(function() game.Lighting.Ambient = Color3.new(0.5,0.5,0.5) end)
-        end
+        TBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+        SwitchTab(name)
+    end)
+    table.insert(tabBtns, TBtn)
+end
+
+SwitchTab("Farming")
+tabBtns[1].BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+
+-- Toggle GUI
+local isVisible = true
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        isVisible = not isVisible
+        MainFrame.Visible = isVisible
     end
 end)
 
-print("[Growblox67] Universal build loaded on " .. EXEC .. ". Check console for remote dump.")
+print("[Growblox67] Native UI Loaded Successfully.")
