@@ -1,18 +1,15 @@
--- Growblox 67 — Universal Executor Build
--- Works on: Xeno, Delta, Solara, Wave, Codex, Fluxus, AWP, Synapse
--- Feature-detects everything, no Xeno-fatal calls.
+-- Growblox 67 — Complete Clean Rebuild
+-- Universal Executor Build: Xeno, Wave, Codex, Solara, Delta, Synapse, Fluxus
+-- No stubs, no table.pack, no closures on loadstring.
 
---[[ 1. COMPAT SHIM ]]
-local function getExecutor()
-    if syn and syn.request then return "Synapse" end
-    if http and http.request then return "Wave/Codex" end
-    if fluxus then return "Fluxus" end
-    if KRNL_LOADED then return "Krnl" end
-    if identifyexecutor then return identifyexecutor() end
-    return "Unknown"
-end
+--[[ 1. EXECUTOR COMPAT SHIM ]]
+local EXEC = "Unknown"
+if identifyexecutor then EXEC = identifyexecutor() 
+elseif syn then EXEC = "Synapse" 
+elseif fluxus then EXEC = "Fluxus" 
+elseif KRNL_LOADED then EXEC = "Krnl" 
+elseif http and http.request then EXEC = "Wave/Codex" end
 
-local EXEC = getExecutor()
 print("[Growblox67] executor detected: " .. EXEC)
 
 -- Universal HTTP
@@ -20,39 +17,22 @@ local function httpGet(url)
     local ok, res
     if syn and syn.request then
         ok, res = pcall(function() return syn.request({Url = url, Method = "GET"}).Body end)
-        if ok then return res end
+        if ok and res then return res end
     end
     if http and http.request then
         ok, res = pcall(function() return http.request({Url = url, Method = "GET"}).Body end)
-        if ok then return res end
+        if ok and res then return res end
     end
     if request then
         ok, res = pcall(function() return request({Url = url, Method = "GET"}).Body end)
-        if ok then return res end
+        if ok and res then return res end
     end
-    -- fallback: game.HttpGet (works in Xeno with ContentProvider)
     ok, res = pcall(function() return game:HttpGet(url) end)
-    if ok then return res end
+    if ok and res then return res end
+    ok, res = pcall(function() return game:HttpGetAsync(url) end)
+    if ok and res then return res end
     return nil
 end
-
--- Universal loadstring (no closures, direct eval)
-local function eval(src, chunk)
-    if not src then return nil end
-    if loadstring then
-        local ok, fn = pcall(loadstring, src, chunk or "chunk")
-        if ok and fn then
-            local eok, err = pcall(fn)
-            if not eok then warn("[Growblox] eval error: " .. tostring(err)) end
-            return true
-        end
-    end
-    warn("[Growblox] no loadstring available")
-    return false
-end
-
--- Universal getgenv
-local genv = getgenv and getgenv() or _G
 
 --[[ 2. SERVICES ]]
 local Players    = game:GetService("Players")
@@ -88,7 +68,7 @@ local function jitterWait(base)
     task.wait(math.max(Config.ClampFloor, base + dev))
 end
 
---[[ 5. REMOTE RESOLVER — Xeno-safe, scan once ]]
+--[[ 5. REMOTE RESOLVER — Scan once, cache forever ]]
 local remoteCache = {}
 local scanned = false
 
@@ -96,22 +76,19 @@ local function scanRemotes()
     if scanned then return end
     scanned = true
     local containers = {RS, WS}
+    print("=== GROWBLOX REMOTE DUMP ===")
     for _, container in ipairs(containers) do
         for _, obj in ipairs(container:GetDescendants()) do
             if obj:IsA("RemoteEvent") then
                 local key = obj.Name:lower()
                 if not remoteCache[key] then
                     remoteCache[key] = obj
+                    if key:find("break") or key:find("place") or key:find("hit")
+                       or key:find("clean") or key:find("dig") or key:find("collect") then
+                        print("[TARGET] " .. obj:GetFullName())
+                    end
                 end
             end
-        end
-    end
-    -- dump to console
-    print("=== GROWBLOX REMOTE DUMP ===")
-    for name, obj in pairs(remoteCache) do
-        if name:find("break") or name:find("place") or name:find("hit")
-           or name:find("clean") or name:find("dig") or name:find("collect") then
-            print("[TARGET] " .. obj:GetFullName())
         end
     end
     print("=== END DUMP ===")
@@ -132,19 +109,14 @@ local function fireSpoofed(kind, ...)
     local argc = select("#", ...)
     local args = {...}
     local ok = pcall(function()
-        -- Xeno rejects tables with `n` field; use varargs directly
-        if argc >= 2 then
-            r:FireServer(args[1], args[2], LP)
-        elseif argc == 1 then
-            r:FireServer(args[1], LP)
-        else
-            r:FireServer(LP)
-        end
+        if argc >= 2 then r:FireServer(args[1], args[2], LP)
+        elseif argc == 1 then r:FireServer(args[1], LP)
+        else r:FireServer(LP) end
     end)
     return ok
 end
 
---[[ 7. CHARACTER CACHE — universal, waits for HRP ]]
+--[[ 7. CHARACTER CACHE ]]
 local char, hum, hrp
 local function rebind()
     char = LP.Character
@@ -153,17 +125,13 @@ local function rebind()
         hrp = char:FindFirstChild("HumanoidRootPart")
     end
 end
-
 LP.CharacterAdded:Connect(function(c)
     char = c
     hum = c:WaitForChild("Humanoid", 10)
     hrp = c:WaitForChild("HumanoidRootPart", 10)
 end)
 rebind()
-if not char then
-    pcall(function() LP.CharacterAdded:Wait() end)
-    rebind()
-end
+if not char then pcall(function() LP.CharacterAdded:Wait() end) rebind() end
 
 --[[ 8. FLAGS ]]
 local F = setmetatable({}, {__index = function() return false end})
@@ -186,27 +154,19 @@ local trackers = {
     dirt   = setmetatable({}, {__mode = "k"}),
     cave   = setmetatable({}, {__mode = "k"}),
 }
-
 local function classify(obj)
     if not obj:IsA("BasePart") then return end
     local n = obj.Name:lower()
-    if n:find("dirt") then
-        trackers.dirt[obj] = true
-    elseif n:find("cave") then
-        trackers.cave[obj] = true
-    elseif n:find("item") or n:find("drop") or n:find("seed") then
-        trackers.items[obj] = true
-    elseif n:find("block") then
-        trackers.blocks[obj] = true
-    end
+    if n:find("dirt") then trackers.dirt[obj] = true
+    elseif n:find("cave") then trackers.cave[obj] = true
+    elseif n:find("item") or n:find("drop") or n:find("seed") then trackers.items[obj] = true
+    elseif n:find("block") then trackers.blocks[obj] = true end
 end
 for _, v in ipairs(WS:GetDescendants()) do classify(v) end
 WS.DescendantAdded:Connect(classify)
 WS.DescendantRemoving:Connect(function(obj)
-    trackers.items[obj]  = nil
-    trackers.blocks[obj] = nil
-    trackers.dirt[obj]   = nil
-    trackers.cave[obj]   = nil
+    trackers.items[obj]  = nil; trackers.blocks[obj] = nil
+    trackers.dirt[obj]   = nil; trackers.cave[obj]   = nil
 end)
 
 --[[ 11. MOVEMENT ]]
@@ -229,11 +189,8 @@ RunService.RenderStepped:Connect(function(dt)
         hum.PlatformStand = false
         flyVel = Vector3.zero
     end
-    if F.SuperSpeed then
-        hum.WalkSpeed = math.min(F.SpeedValue or 16, Config.MaxWalkSpeed)
-    else
-        hum.WalkSpeed = 16
-    end
+    if F.SuperSpeed then hum.WalkSpeed = math.min(F.SpeedValue or 16, Config.MaxWalkSpeed)
+    else hum.WalkSpeed = 16 end
     clampVelocity()
 end)
 
@@ -261,23 +218,13 @@ task.spawn(function()
             jitterWait(Config.FarmDelay)
         elseif F.AutoCleanDirt and hrp then
             local best = getNearest(trackers.dirt, F.CleanRadius or 32)
-            if best then
-                fireSpoofed("break", best)
-                jitterWait(Config.CleanDelay)
-            else
-                jitterWait(0.5)
-            end
+            if best then fireSpoofed("break", best); jitterWait(Config.CleanDelay)
+            else jitterWait(0.5) end
         elseif F.AutoCleanCave and hrp then
             local best = getNearest(trackers.cave, F.CleanRadius or 32)
-            if best then
-                fireSpoofed("break", best)
-                jitterWait(Config.CleanDelay)
-            else
-                jitterWait(0.5)
-            end
-        else
-            jitterWait(0.3)
-        end
+            if best then fireSpoofed("break", best); jitterWait(Config.CleanDelay)
+            else jitterWait(0.5) end
+        else jitterWait(0.3) end
     end
 end)
 
@@ -290,9 +237,7 @@ task.spawn(function()
                 hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(best.Position + Vector3.new(0,3,0)), 0.22)
             end
             jitterWait(0.12)
-        else
-            jitterWait(0.4)
-        end
+        else jitterWait(0.4) end
     end
 end)
 
@@ -324,9 +269,7 @@ end)
 local espPool, espActive = {}, {}
 local function releaseAll()
     for parent, hl in pairs(espActive) do
-        hl.Parent = nil
-        espPool[#espPool + 1] = hl
-        espActive[parent] = nil
+        hl.Parent = nil; espPool[#espPool + 1] = hl; espActive[parent] = nil
     end
 end
 
@@ -357,21 +300,22 @@ task.spawn(function()
                     end
                 end
             end
-        else
-            releaseAll()
-        end
+        else releaseAll() end
     end
 end)
 
---[[ 16. UI — Deferred, Xeno-safe ]]
--- Xeno's Rayfield load requires character to be spawned. Wait for it.
-if not char then
-    pcall(function() LP.CharacterAdded:Wait() end)
+--[[ 16. UI — Deferred ]]
+if not char then pcall(function() LP.CharacterAdded:Wait() end) end
+
+print("[Growblox67] Loading UI...")
+local rayfieldSrc = httpGet("https://sirius.menu/rayfield")
+if not rayfieldSrc or #rayfieldSrc < 100 then
+    print("[Growblox67] Sirius fetch failed, trying GitHub...")
+    rayfieldSrc = httpGet("https://raw.githubusercontent.com/Footagesus/Rayfield/main/source.lua")
 end
 
-local rayfieldSrc = httpGet("https://sirius.menu/rayfield")
 if not rayfieldSrc then
-    warn("[Growblox67] Rayfield fetch failed — executing headless mode")
+    warn("[Growblox67] FATAL: Could not fetch UI library. Executor HTTP is broken.")
 else
     local Rayfield
     local ok, err = pcall(function()
@@ -379,8 +323,10 @@ else
         if fn then Rayfield = fn() end
     end)
     if not ok or not Rayfield then
-        warn("[Growblox67] Rayfield load failed: " .. tostring(err))
+        warn("[Growblox67] Rayfield compile failed: " .. tostring(err))
     else
+        pcall(function() Rayfield:Destroy() end) -- kill ghosts
+
         local Window = Rayfield:CreateWindow({
             Name = "🟢 UnrealDK | Growblox 67",
             LoadingTitle = "Menginisialisasi...",
@@ -437,6 +383,8 @@ else
             setNoClip(false)
             Rayfield:Destroy()
         end})
+        
+        print("[Growblox67] UI Loaded successfully. If you don't see it, press RightShift.")
     end
 end
 
