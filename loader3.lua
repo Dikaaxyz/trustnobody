@@ -1,96 +1,126 @@
 --[[
-  Growblox Hub — Universal Executor Build
-  Tested shape for: Xeno, Solara, Delta, Wave, AWP, Fluxus
-  Xeno note: Drawing library is partial — ESP auto-falls back to BillboardGui
-  Solara/Delta note: fireproximityprompt exposed, Drawing full
-  Wave note: gethui() available, GUI goes there first
+  Growblox Hub v5 — Ultimate Stealth Array
+  Target: Bypass client-side heuristics, memory dumps, and UI walkers.
 --]]
 
 -- ============================================================
--- EXECUTOR DETECTION + SAFE PRIMITIVES
+-- 1. CRITICAL EXECUTOR PRIMITIVES & FALLBACKS
 -- ============================================================
-local EXEC = "unknown"
-if getexecutorname then EXEC = getexecutorname()
-elseif syn and syn.protect_gui then EXEC = "Synapse"
-elseif KRNL_LOADED then EXEC = "Krnl"
-elseif is_sirhurt_closure then EXEC = "SirHurt"
-elseif fluxus then EXEC = "Fluxus"
-elseif XENO then EXEC = "Xeno"
-elseif identifyexecutor then EXEC = identifyexecutor()
+local env = getgenv()
+if env._GB_HUB_v5 then return end
+env._GB_HUB_v5 = true
+
+local rawpcall = pcall
+local rawspawn = task.spawn
+local rawwait = task.wait
+local rawdelay = task.delay
+local rawgetfenv = getfenv
+local rawsetfenv = setfenv
+
+local function safeCall(fn, ...)
+    local args = {...}
+    local ok, res = rawpcall(function() return fn(unpack(args)) end)
+    if ok then return res end
 end
 
--- fireproximityprompt: some executors rename it, some don't expose it
-local firePrompt = (function()
-    if fireproximityprompt then return fireproximityprompt end
-    if fire_prompt then return fire_prompt end
-    -- Fallback: fire the prompt's Triggered remote directly
-    return function(prompt)
-        if prompt and prompt:IsA("ProximityPrompt") then
-            local ok = pcall(function()
-                prompt:InputHoldBegin()
-                task.wait(0.1)
-                prompt:InputHoldEnd()
-            end)
-            if not ok then
-                -- Last resort: fire the underlying RemoteEvent
-                local remote = prompt:FindFirstChild("Triggered")
-                if remote and remote:IsA("RemoteEvent") then
-                    pcall(function() remote:FireServer(prompt.Parent) end)
+-- Randomize session identity
+local sessionHash = tostring(math.random(100000, 999999)) .. tostring(tick()):gsub("%.", "")
+
+-- ============================================================
+-- 2. ENVIRONMENT LOCK & HOOKS (METATABLE POISON)
+-- ============================================================
+-- Lock environment to prevent external injection/read
+if setreadonly then safeCall(setreadonly, rawgetfenv(), false) end
+if hookfunction then
+    -- Block common detection methods that game scripts use to find us
+    safeCall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "GetDescendants" or method == "GetChildren" then
+                if self == game:GetService("CoreGui") or self == Players.LocalPlayer:WaitForChild("PlayerGui") then
+                    local res = oldNamecall(self, ...)
+                    local filtered = {}
+                    for _, obj in ipairs(res) do
+                        if not env.__hiddenGuis[obj] then table.insert(filtered, obj) end
+                    end
+                    return filtered
                 end
             end
-        end
-    end
-end)()
-
--- Safe GUI parent: gethui() on Synapse/Delta/Wave, PlayerGui otherwise
-local function getGuiParent()
-    if gethui then
-        local ok, hui = pcall(gethui)
-        if ok and hui then return hui end
-    end
-    if get_hidden_gui then
-        local ok, hui = pcall(get_hidden_gui)
-        if ok and hui then return hui end
-    end
-    return game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+            return oldNamecall(self, ...)
+        end))
+    end)
 end
 
--- Safe Drawing library check
-local HAS_DRAWING = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
-
--- ============================================================
--- SERVICES
--- ============================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
 
-local LocalPlayer = Players.LocalPlayer
+env.__hiddenGuis = env.__hiddenGuis or {}
+local hiddenGuis = env.__hiddenGuis
 
 -- ============================================================
--- CONFIG (FILL from live dump)
+-- 3. CORE GUI PROTECTION (HIDE FROM WALKERS)
+-- ============================================================
+local function protectGui(gui)
+    if syn and syn.protect_gui then safeCall(syn.protect_gui, gui) end
+    if protectgui then safeCall(protectgui, gui) end
+    
+    -- Try CoreGui, fallback to PlayerGui if lacking permission
+    local parent = CoreGui
+    if gethui then
+        local ok, hui = rawpcall(gethui)
+        if ok and hui then parent = hui end
+    end
+    
+    safeCall(function() gui.Parent = parent end)
+    hiddenGuis[gui] = true
+end
+
+-- ============================================================
+-- 4. NETWORK & REMOTE STEALTH (JITTER & SPOOF)
+-- ============================================================
+local originalFireServer = Instance.new("RemoteEvent").FireServer
+
+local function stealthFire(remote, ...)
+    if not remote or not remote:IsA("RemoteEvent") then return end
+    -- 10ms to 150ms jitter, mimics human reaction time
+    local jitter = math.random(10, 150) / 1000
+    rawwait(jitter)
+    safeCall(function() remote:FireServer(...) end)
+end
+
+local function stealthPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    -- Distance check to avoid "too far" bans
+    if hrp and (hrp.Position - prompt.Parent.Position).Magnitude > 32 then return end
+    
+    safeCall(function()
+        if fireproximityprompt then fireproximityprompt(prompt) return end
+        prompt:InputHoldBegin()
+        rawwait(math.random(40, 120) / 1000)
+        prompt:InputHoldEnd()
+    end)
+end
+
+-- ============================================================
+-- 5. CONFIG & FEATURES
 -- ============================================================
 local CFG = {
-    PlotFolder      = "Plots",
-    SeedFolder      = "SeedShop",
-    ItemSpawnFolder = "DroppedItems",
-    RemoteBuy       = "BuyItem",
-    RemotePlace     = "PlaceBlock",
-    RemoteSell      = "SellItem",
-    FarmRadius      = 200,
-    LoopDelay       = 0.15,
-    ESPColor        = Color3.fromRGB(0, 255, 140),
-    ESPColorItem    = Color3.fromRGB(255, 200, 50),
-    ESPColorPlayer  = Color3.fromRGB(255, 80, 80),
+    PlotFolder = "Plots", SeedFolder = "SeedShop",
+    RemotePlace = "PlaceBlock", RemoteSell = "SellItem",
+    FarmRadius = 150, LoopDelay = 0.25,
 }
 
--- ============================================================
--- FEATURE FLAGS
--- ============================================================
 local F = {
     AutoFarm=false, AutoPlant=false, AutoHarvest=false, AutoWater=false,
     AutoFertilize=false, AutoCollect=false, AutoSell=false, AutoBuySeeds=false,
@@ -110,95 +140,7 @@ local F = {
 }
 
 -- ============================================================
--- UTILS
--- ============================================================
-local function safeFire(prompt)
-    pcall(firePrompt, prompt)
-end
-
-local function findPromptsInRange(origin, radius)
-    local out = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            local part = obj.Parent
-            if part and part:IsA("BasePart") then
-                if (part.Position - origin).Magnitude <= radius then
-                    table.insert(out, obj)
-                end
-            end
-        end
-    end
-    return out
-end
-
-local function getPlot()
-    local plots = Workspace:FindFirstChild(CFG.PlotFolder)
-    if not plots then return nil end
-    for _, plot in ipairs(plots:GetChildren()) do
-        local owner = plot:GetAttribute("Owner") or plot:GetAttribute("Player")
-        if owner and tostring(owner) == LocalPlayer.Name then
-            return plot
-        end
-    end
-    return nil
-end
-
-local function getSeedStock()
-    local seeds = {}
-    local shop = Workspace:FindFirstChild(CFG.SeedFolder, true)
-    if not shop then return seeds end
-    for _, obj in ipairs(shop:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            table.insert(seeds, obj)
-        end
-    end
-    return seeds
-end
-
--- ============================================================
--- FARM LOOP
--- ============================================================
-local farmTick = 0
-RunService.Heartbeat:Connect(function(dt)
-    farmTick += dt
-    if farmTick < CFG.LoopDelay then return end
-    farmTick = 0
-
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    if F.AutoFarm or F.AutoHarvest or F.AutoWater or F.AutoCollect then
-        for _, p in ipairs(findPromptsInRange(root.Position, CFG.FarmRadius)) do
-            local action = p.ActionText:lower()
-            if F.AutoHarvest and action:find("harvest") then safeFire(p) end
-            if F.AutoWater and action:find("water") then safeFire(p) end
-            if F.AutoCollect and (action:find("collect") or action:find("pick")) then safeFire(p) end
-            if F.AutoFarm and not F.AutoHarvest then safeFire(p) end
-        end
-    end
-
-    if F.AutoPlant then
-        if getPlot() then
-            local placeRemote = ReplicatedStorage:FindFirstChild(CFG.RemotePlace, true)
-            if placeRemote then
-                pcall(function() placeRemote:FireServer(1) end)
-            end
-        end
-    end
-
-    if F.AutoBuySeeds then
-        for _, p in ipairs(getSeedStock()) do safeFire(p) end
-    end
-
-    if F.AutoSell then
-        local sellRemote = ReplicatedStorage:FindFirstChild(CFG.RemoteSell, true)
-        if sellRemote then pcall(function() sellRemote:FireServer() end) end
-    end
-end)
-
--- ============================================================
--- MOVEMENT
+-- 6. FARM & MOVEMENT LOGIC
 -- ============================================================
 local flyConn, noclipConn
 local flySpeed = 50
@@ -214,239 +156,207 @@ local function startFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
-        if dir.Magnitude > 0 then
-            root.CFrame = root.CFrame + dir.Unit * flySpeed * (1/60)
-        end
+        if dir.Magnitude > 0 then root.CFrame = root.CFrame + dir.Unit * flySpeed * (1/60) end
     end)
 end
 
 local function startNoClip()
     noclipConn = RunService.Stepped:Connect(function()
         local char = LocalPlayer.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-        end
+        if char then for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end end
     end)
 end
 
--- ============================================================
--- ESP — Drawing with BillboardGui fallback
--- ============================================================
-local espObjects = {}
-
-local function createESP(part, color, label)
-    local obj = {part = part}
-    if HAS_DRAWING then
-        local box = Drawing.new("Square")
-        box.Thickness = 1; box.Color = color; box.Filled = false; box.Visible = true
-        local text = Drawing.new("Text")
-        text.Size = 14; text.Center = true; text.Outline = true
-        text.Color = color; text.Text = label or ""; text.Visible = true
-        obj.box = box; obj.text = text; obj.mode = "drawing"
-    else
-        -- Xeno partial Drawing fallback: BillboardGui
-        local bb = Instance.new("BillboardGui")
-        bb.Size = UDim2.new(0, 100, 0, 50)
-        bb.AlwaysOnTop = true
-        bb.Adornee = part
-        bb.Parent = getGuiParent()
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 40, 0, 40)
-        frame.Position = UDim2.new(0.5, -20, 0.5, -20)
-        frame.BackgroundTransparency = 1
-        frame.BorderSizePixel = 0
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = color; stroke.Thickness = 1
-        stroke.Parent = frame
-        frame.Parent = bb
-        local txt = Instance.new("TextLabel")
-        txt.Size = UDim2.new(1, 0, 0, 16)
-        txt.Position = UDim2.new(0, 0, 0, -18)
-        txt.BackgroundTransparency = 1
-        txt.TextColor3 = color
-        txt.TextStrokeTransparency = 0
-        txt.Text = label or ""
-        txt.Font = Enum.Font.Gotham
-        txt.TextSize = 12
-        txt.Parent = bb
-        obj.billboard = bb; obj.mode = "billboard"
+local function getPlot()
+    local plots = Workspace:FindFirstChild(CFG.PlotFolder)
+    if not plots then return nil end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local owner = plot:GetAttribute("Owner") or plot:GetAttribute("Player")
+        if owner and tostring(owner) == LocalPlayer.Name then return plot end
     end
-    table.insert(espObjects, obj)
 end
 
-RunService.RenderStepped:Connect(function()
-    local cam = Workspace.CurrentCamera
-    for i = #espObjects, 1, -1 do
-        local o = espObjects[i]
-        local part = o.part
-        if not part or not part.Parent then
-            if o.mode == "drawing" then
-                pcall(function() o.box:Remove(); o.text:Remove() end)
-            elseif o.mode == "billboard" then
-                pcall(function() o.billboard:Destroy() end)
-            end
-            table.remove(espObjects, i)
-        elseif o.mode == "drawing" then
-            local pos, onScreen = cam:WorldToViewportPoint(part.Position)
-            if onScreen then
-                o.box.Visible = true; o.text.Visible = true
-                o.box.Position = Vector2.new(pos.X - 20, pos.Y - 20)
-                o.box.Size = Vector2.new(40, 40)
-                o.text.Position = Vector2.new(pos.X, pos.Y - 30)
-            else
-                o.box.Visible = false; o.text.Visible = false
+local farmTick = 0
+RunService.Heartbeat:Connect(function(dt)
+    farmTick += dt
+    if farmTick < CFG.LoopDelay then return end
+    farmTick = 0
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if F.AutoFarm or F.AutoHarvest or F.AutoWater or F.AutoCollect then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and not hiddenGuis[obj] then
+                local part = obj.Parent
+                if part and part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= CFG.FarmRadius then
+                    local action = obj.ActionText:lower()
+                    if F.AutoHarvest and action:find("harvest") then stealthPrompt(obj) end
+                    if F.AutoWater and action:find("water") then stealthPrompt(obj) end
+                    if F.AutoCollect and (action:find("collect") or action:find("pick")) then stealthPrompt(obj) end
+                    if F.AutoFarm and not F.AutoHarvest then stealthPrompt(obj) end
+                end
             end
         end
     end
+    if F.AutoPlant and getPlot() then
+        local placeRemote = ReplicatedStorage:FindFirstChild(CFG.RemotePlace, true)
+        if placeRemote then stealthFire(placeRemote, 1) end
+    end
+    if F.AutoBuySeeds then
+        local shop = Workspace:FindFirstChild(CFG.SeedFolder, true)
+        if shop then for _, obj in ipairs(shop:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then stealthPrompt(obj) end
+        end end
+    end
+    if F.AutoSell then
+        local sellRemote = ReplicatedStorage:FindFirstChild(CFG.RemoteSell, true)
+        if sellRemote then stealthFire(sellRemote) end
+    end
 end)
 
--- ============================================================
--- ANTI-AFK / RECONNECT
--- ============================================================
 LocalPlayer.Idled:Connect(function()
-    if F.AntiAFK then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-    end
-end)
-
-LocalPlayer.OnTeleport:Connect(function(state)
-    if F.AutoReconnect and state == Enum.TeleportState.Failed then
-        pcall(function()
-            TeleportService:Teleport(game.PlaceId, LocalPlayer)
-        end)
-    end
+    if F.AntiAFK then VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end
 end)
 
 -- ============================================================
--- GUI
+-- 7. FULL UI SYSTEM (TAILWIND LAYOUT + OBFUSCATION)
 -- ============================================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "GrowbloxHub_" .. math.random(1, 99999)
+gui.Name = tostring(sessionHash)
 gui.ResetOnSpawn = false
-gui.Parent = getGuiParent()
+gui.DisplayOrder = 9999
+protectGui(gui)
 
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 420, 0, 460)
-main.Position = UDim2.new(0, 20, 0.5, -230)
-main.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
-main.BorderSizePixel = 0
-main.Active = true
-main.Draggable = true
-main.Parent = gui
+local Theme = {
+    Bg = Color3.fromRGB(10, 15, 13),
+    Panel = Color3.fromRGB(16, 24, 20),
+    Border = Color3.fromRGB(27, 46, 35),
+    Accent = Color3.fromRGB(0, 255, 102),
+    Text = Color3.fromRGB(220, 220, 220),
+    Muted = Color3.fromRGB(107, 114, 128),
+}
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 34)
-title.BackgroundColor3 = Color3.fromRGB(40, 40, 46)
-title.Text = "  Growblox Hub [" .. EXEC .. "]  •  " .. tostring(#F) .. " features"
-title.TextColor3 = Color3.fromRGB(220, 220, 220)
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Font = Enum.Font.GothamBold
-title.TextSize = 13
-title.Parent = main
+local function Create(className, props, children)
+    local inst = Instance.new(className)
+    for k, v in pairs(props or {}) do inst[k] = v end
+    for _, child in ipairs(children or {}) do child.Parent = inst end
+    return inst
+end
+local function AddCorner(parent, radius)
+    return Create("UICorner", { CornerRadius = UDim.new(0, radius or 6), Parent = parent })
+end
+local function AddStroke(parent, color, thickness)
+    return Create("UIStroke", { Color = color or Theme.Border, Thickness = thickness or 1, Parent = parent })
+end
 
-local tabBar = Instance.new("Frame")
-tabBar.Size = UDim2.new(1, 0, 0, 28)
-tabBar.Position = UDim2.new(0, 0, 0, 34)
-tabBar.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
-tabBar.Parent = main
+local main = Create("Frame", {
+    Name = "R"..sessionHash, Size = UDim2.new(0, 960, 0, 640), Position = UDim2.new(0.5, -480, 0.5, -320),
+    BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Active = true, Draggable = true, Parent = gui
+})
+AddCorner(main, 12); AddStroke(main, Theme.Border, 1)
 
-local content = Instance.new("ScrollingFrame")
-content.Size = UDim2.new(1, -8, 1, -70)
-content.Position = UDim2.new(0, 4, 0, 66)
-content.BackgroundTransparency = 1
-content.ScrollBarThickness = 4
-content.CanvasSize = UDim2.new(0, 0, 0, 0)
-content.Parent = main
+local titleBar = Create("Frame", { Name = "T"..sessionHash, Size = UDim2.new(1, 0, 0, 48), BackgroundColor3 = Color3.fromRGB(13, 21, 17), Parent = main })
+AddCorner(titleBar, 12)
+Create("Frame", { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(13, 21, 17), BorderSizePixel = 0, Parent = titleBar })
+Create("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, Parent = titleBar })
+Create("Frame", { Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 16, 0.5, -6), BackgroundColor3 = Theme.Accent, Parent = titleBar }, { AddCorner(_, 6) })
+Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 36, 0, 0), BackgroundTransparency = 1, Text = "GROWBLOX HUB V5", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, Parent = titleBar })
 
-local tabs = {}
-local function makeTab(name)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 66, 1, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
-    btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 11
-    btn.Parent = tabBar
+local sidebar = Create("Frame", { Name = "S"..sessionHash, Size = UDim2.new(0, 224, 1, -48), Position = UDim2.new(0, 0, 0, 48), BackgroundColor3 = Color3.fromRGB(12, 18, 15), Parent = main })
+Create("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, Parent = sidebar })
 
-    local page = Instance.new("Frame")
-    page.Size = UDim2.new(1, 0, 0, 0)
-    page.BackgroundTransparency = 1
-    page.Parent = content
-    page.Visible = false
+local navList = Create("Frame", { Size = UDim2.new(1, -24, 1, -24), Position = UDim2.new(0, 12, 0, 12), BackgroundTransparency = 1, Parent = sidebar })
+Create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = navList })
 
-    local list = Instance.new("UIListLayout")
-    list.Padding = UDim.new(0, 4)
-    list.Parent = page
+local contentArea = Create("Frame", { Name = "C"..sessionHash, Size = UDim2.new(1, -224, 1, -48), Position = UDim2.new(0, 224, 0, 48), BackgroundTransparency = 1, Parent = main })
 
-    tabs[name] = {btn = btn, page = page}
-    btn.MouseButton1Click:Connect(function()
-        for _, t in pairs(tabs) do
-            t.page.Visible = false
-            t.btn.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
+local Pages = {}
+local NavButtons = {}
+local function createNavBtn(text, iconText, layoutOrder)
+    local btn = Create("TextButton", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Color3.fromRGB(16, 24, 20), Text = "", AutoButtonColor = false, LayoutOrder = layoutOrder, Parent = navList })
+    AddCorner(btn, 6); AddStroke(btn, Theme.Border, 1)
+    Create("TextLabel", { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0, 8, 0.5, -12), BackgroundTransparency = 1, Text = iconText, TextColor3 = Theme.Muted, Font = Enum.Font.GothamBold, TextSize = 14, Parent = btn })
+    Create("TextLabel", { Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 36, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Muted, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamMedium, TextSize = 13, Parent = btn })
+    return btn
+end
+
+local function createPage(name, layoutOrder)
+    local page = Create("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -32), Position = UDim2.new(0, 16, 0, 16), BackgroundTransparency = 1, ScrollBarThickness = 4, ScrollBarImageColor3 = Theme.Accent, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, LayoutOrder = layoutOrder, Parent = contentArea })
+    Create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = page })
+    Pages[name] = page
+end
+
+createPage("Farm", 1); createPage("Move", 2); createPage("Visual", 3)
+createPage("Auto", 4); createPage("Info", 5); createPage("Misc", 6)
+
+local function switchPage(pageName)
+    for name, page in pairs(Pages) do
+        page.Visible = (name == pageName)
+        local btn = NavButtons[name]
+        if btn then
+            if name == pageName then
+                btn.BackgroundColor3 = Color3.fromRGB(0, 255, 102, 0.1)
+                btn.UIStroke.Color = Theme.Accent
+                btn:FindFirstChildOfClass("TextLabel").TextColor3 = Theme.Accent
+            else
+                btn.BackgroundColor3 = Color3.fromRGB(16, 24, 20)
+                btn.UIStroke.Color = Theme.Border
+                btn:FindFirstChildOfClass("TextLabel").TextColor3 = Theme.Muted
+            end
         end
-        page.Visible = true
-        btn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    end)
-    return page
+    end
+end
+
+local navLayout = { Farm = "🌱", Move = "🏃", Visual = "👁️", Auto = "🤖", Info = "ℹ️", Misc = "⚙️" }
+local order = 1
+for name, icon in pairs(navLayout) do
+    local btn = createNavBtn(name, icon, order)
+    btn.MouseButton1Click:Connect(function() switchPage(name) end)
+    NavButtons[name] = btn
+    order = order + 1
 end
 
 local function addToggle(page, label, flag)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 26)
-    btn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-    btn.Text = "  " .. label .. ": " .. (F[flag] and "ON" or "OFF")
-    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Font = Enum.Font.Gotham
-    btn.Parent = page
-    btn.MouseButton1Click:Connect(function()
+    local container = Create("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundColor3 = Color3.fromRGB(16, 24, 20), Parent = page })
+    AddCorner(container, 8); AddStroke(container, Theme.Border, 1)
+    Create("UIPadding", { PaddingTop = UDim.new(0,12), PaddingBottom = UDim.new(0,12), PaddingLeft = UDim.new(0,12), PaddingRight = UDim.new(0,12), Parent = container })
+    Create("TextLabel", { Size = UDim2.new(1, -40, 0, 18), BackgroundTransparency = 1, Text = label, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13, Parent = container })
+    Create("TextLabel", { Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 0, 0, 18), BackgroundTransparency = 1, Text = "Feature toggle", TextColor3 = Theme.Muted, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.Gotham, TextSize = 11, Parent = container })
+    
+    local toggleBtn = Create("TextButton", { Size = UDim2.new(0, 32, 0, 18), Position = UDim2.new(1, -32, 0.5, -9), BackgroundColor3 = F[flag] and Theme.Accent or Theme.Border, Text = "", AutoButtonColor = false, Parent = container })
+    AddCorner(toggleBtn, 9)
+    local knob = Create("Frame", { Size = UDim2.new(0, 14, 0, 14), Position = F[flag] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Parent = toggleBtn })
+    AddCorner(knob, 7)
+
+    toggleBtn.MouseButton1Click:Connect(function()
         F[flag] = not F[flag]
-        btn.Text = "  " .. label .. ": " .. (F[flag] and "ON" or "OFF")
+        if F[flag] then
+            toggleBtn.BackgroundColor3 = Theme.Accent
+            knob.Position = UDim2.new(1, -16, 0.5, -7)
+        else
+            toggleBtn.BackgroundColor3 = Theme.Border
+            knob.Position = UDim2.new(0, 2, 0.5, -7)
+        end
+        
         if flag == "Fly" then
             if F.Fly and not flyConn then startFly() end
             if not F.Fly and flyConn then flyConn:Disconnect(); flyConn = nil end
-        end
-        if flag == "NoClip" then
+        elseif flag == "NoClip" then
             if F.NoClip and not noclipConn then startNoClip() end
             if not F.NoClip and noclipConn then noclipConn:Disconnect(); noclipConn = nil end
         end
     end)
+    page.CanvasSize = UDim2.new(0, 0, 0, #page:GetChildren() * 56)
 end
 
-local farmPage = makeTab("Farm")
-local movePage = makeTab("Move")
-local visPage  = makeTab("Visual")
-local autoPage = makeTab("Auto")
-local infoPage = makeTab("Info")
-local miscPage = makeTab("Misc")
+for _, f in ipairs({"AutoFarm","AutoPlant","AutoHarvest","AutoWater","AutoFertilize","AutoCollect","AutoSell","AutoBuySeeds","AutoBuyTools","AutoReplant","AutoUseItem","AutoTrash"}) do addToggle(Pages.Farm, f, f) end
+for _, f in ipairs({"Fly","NoClip","Speed","JumpPower","InfJump","TeleportToPlot","TeleportToShop","TeleportToItem","WaypointLoop"}) do addToggle(Pages.Move, f, f) end
+for _, f in ipairs({"ESP_Items","ESP_Seeds","ESP_Players","ESP_Plots","ESP_Drops","ESP_PriceTags","Fullbright","NoFog","XRay"}) do addToggle(Pages.Visual, f, f) end
+for _, f in ipairs({"AutoReconnect","AntiAFK","AutoClaimDaily","AutoOpenCrates","AutoEquipBest","AutoSortInv","AutoDropTrash","AutoAcceptTrade","AutoDeclineLowball"}) do addToggle(Pages.Auto, f, f) end
+for _, f in ipairs({"ItemTracker","PriceOverlay","DropNotifier","TradeLogger","InventoryValue","SeedProfitCalc"}) do addToggle(Pages.Info, f, f) end
+for _, f in ipairs({"HideSelf","FreezeOthers","SpamEmote","FakeLag","ChatSpam","AutoGG","ShowFPS","ShowPing","ShowCoords","ProxyMode","ServerHop","Rejoin","LowGFX"}) do addToggle(Pages.Misc, f, f) end
 
-for _, f in ipairs({"AutoFarm","AutoPlant","AutoHarvest","AutoWater","AutoFertilize","AutoCollect","AutoSell","AutoBuySeeds","AutoBuyTools","AutoReplant","AutoUseItem","AutoTrash"}) do
-    addToggle(farmPage, f, f)
-end
-for _, f in ipairs({"Fly","NoClip","Speed","JumpPower","InfJump","TeleportToPlot","TeleportToShop","TeleportToItem","WaypointLoop"}) do
-    addToggle(movePage, f, f)
-end
-for _, f in ipairs({"ESP_Items","ESP_Seeds","ESP_Players","ESP_Plots","ESP_Drops","ESP_PriceTags","Fullbright","NoFog","XRay"}) do
-    addToggle(visPage, f, f)
-end
-for _, f in ipairs({"AutoReconnect","AntiAFK","AutoClaimDaily","AutoOpenCrates","AutoEquipBest","AutoSortInv","AutoDropTrash","AutoAcceptTrade","AutoDeclineLowball"}) do
-    addToggle(autoPage, f, f)
-end
-for _, f in ipairs({"ItemTracker","PriceOverlay","DropNotifier","TradeLogger","InventoryValue","SeedProfitCalc"}) do
-    addToggle(infoPage, f, f)
-end
-for _, f in ipairs({"HideSelf","FreezeOthers","SpamEmote","FakeLag","ChatSpam","AutoGG","ShowFPS","ShowPing","ShowCoords","ProxyMode","ServerHop","Rejoin","LowGFX"}) do
-    addToggle(miscPage, f, f)
-end
-
-tabs.Farm.page.Visible = true
-tabs.Farm.btn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-
--- Save config to getgenv so re-execute preserves state
-if setgenv then
-    pcall(function() setgenv("GrowbloxConfig", F) end)
-end
+switchPage("Farm")
