@@ -1,85 +1,61 @@
--- Growblox_BruteForce_Duper.lua
--- Target: Spam Clicking Confirmation Popup & Drop Button
--- Executor: Xeno / Solara
+-- Growblox_Blind_Duper.lua
+-- Target: Blind Spam Click on Confirmation Popup + Hard Network Desync
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 local isRunning = false
 local loopConnection = nil
-local CLICK_DELAY = 0.01
-local LAG_HITCH_CHANCE = 10
+local CLICK_DELAY = 0.05
+local FREEZE_CHANCE = 3 -- 1 in 3 chance to freeze the game
 
 -- ==========================================
--- BRUTE FORCE SCANNER (Nembak semua tombol)
+-- BLIND UI SCANNER
 -- ==========================================
-local function findTargetButtons()
+local function blindClick()
     local gui = LocalPlayer:FindFirstChild("PlayerGui")
     if not gui then return end
     
-    local dropBtn = nil
-    local okBtn = nil
-    
+    -- Loop semua tombol di layar
     for _, obj in pairs(gui:GetDescendants()) do
         if obj:IsA("TextButton") or obj:IsA("ImageButton") then
-            local text = obj.Text and obj.Text:upper() or ""
-            local name = obj.Name:upper() or ""
+            -- Abaikan GUI script kita
+            if obj:FindFirstAncestor("RootmanBlindDuper") then continue end
             
-            -- Skip our own GUI
-            if obj:FindFirstAncestor("RootmanBruteForce") then continue end
-            
-            -- Cari tombol OK (Popup)
-            if text == "OK" or name == "OK" or text:find("CONFIRM") then
-                okBtn = obj
-            end
-            
-            -- Cari tombol DROP (Inventory)
-            if text == "DROP" or name == "DROP" then
-                dropBtn = obj
-            end
+            -- Paksa klik tanpa peduli namanya apa
+            pcall(function()
+                obj:Click()
+            end)
         end
     end
-    
-    return dropBtn, okBtn
 end
 
 -- ==========================================
--- LAG HITCH
+-- HARD NETWORK DESYNC
 -- ==========================================
-local function triggerLagHitch()
+local function triggerHardFreeze()
+    -- Freeze frame 0.5 detik. Bikin server mikir kita disconnect.
     local start = tick()
-    while tick() - start < 0.15 do end
+    while tick() - start < 0.5 do end
 end
 
 -- ==========================================
--- THE BRUTE FORCE LOOP
+-- THE MAIN ENGINE
 -- ==========================================
 local function startEngine()
     isRunning = true
-    print("[Rootman] BruteForce Engine Active. Menunggu popup...")
+    print("[Rootman] Blind Duper Active. Mempersiapkan desync...")
     
     loopConnection = RunService.Heartbeat:Connect(function()
         if not isRunning then return end
         
-        local dropBtn, okBtn = findTargetButtons()
+        -- 1. Klik semua tombol yang ada (termasuk OK dan Cancel, kita paksa)
+        blindClick()
         
-        -- Prioritas 1: Kalo popup muncul (ada tombol OK), spam OK sampai hancur
-        if okBtn then
-            pcall(function()
-                okBtn:Click()
-            end)
-            
-            -- Trigger lag biar inventory gagal ke-save
-            if math.random(1, LAG_HITCH_CHANCE) == 1 then
-                task.spawn(triggerLagHitch)
-            end
-        -- Prioritas 2: Kalo nggak ada popup, spam tombol Drop
-        elseif dropBtn then
-            pcall(function()
-                dropBtn:Click()
-            end)
+        -- 2. Hard Freeze
+        if math.random(1, FREEZE_CHANCE) == 1 then
+            task.spawn(triggerHardFreeze)
         end
         
         task.wait(CLICK_DELAY)
@@ -98,12 +74,12 @@ end
 -- ==========================================
 -- UI
 -- ==========================================
-if LocalPlayer.PlayerGui:FindFirstChild("RootmanBruteForce") then
-    LocalPlayer.PlayerGui.RootmanBruteForce:Destroy()
+if LocalPlayer.PlayerGui:FindFirstChild("RootmanBlindDuper") then
+    LocalPlayer.PlayerGui.RootmanBlindDuper:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RootmanBruteForce"
+ScreenGui.Name = "RootmanBlindDuper"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -114,17 +90,17 @@ ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 200, 40)
 ToggleBtn.Font = Enum.Font.GothamBold
 ToggleBtn.TextSize = 14
-ToggleBtn.Text = "START BRUTE-FORCE"
+ToggleBtn.Text = "START BLIND DUPER"
 ToggleBtn.Parent = ScreenGui
 
 ToggleBtn.MouseButton1Click:Connect(function()
     if isRunning then
         stopEngine()
-        ToggleBtn.Text = "START BRUTE-FORCE"
+        ToggleBtn.Text = "START BLIND DUPER"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     else
         startEngine()
-        ToggleBtn.Text = "STOP BRUTE-FORCE"
+        ToggleBtn.Text = "STOP BLIND DUPER"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
     end
 end)
