@@ -1,6 +1,7 @@
 --[[
-  Growblox Hub v7 — Brute Force Interaction
-  If ProximityPrompts aren't working, it's because this game uses ClickDetectors or RemoteEvents.
+  Growblox Hub v9 — Absolute Real-Hook Rebuild
+  ESP: BoxHandleAdornment (No Drawing API crash)
+  Farm: Backpack Tool Equip + VirtualUser Click
 --]]
 
 -- ============================================================
@@ -31,115 +32,184 @@ local function getGuiParent()
 end
 
 -- ============================================================
--- 2. CONFIG & FEATURE FLAGS
+-- 2. FEATURE FLAGS
 -- ============================================================
-local CFG = {
-    FarmRadius = 100, -- Tightened for safety and speed
-    LoopDelay = 0.1,
-}
-
 local F = {
-    AutoFarm=false, AutoPlant=false, AutoHarvest=false, AutoWater=false,
-    AutoFertilize=false, AutoCollect=false, AutoSell=false, AutoBuySeeds=false,
-    AutoBuyTools=false, AutoReplant=false, AutoUseItem=false, AutoTrash=false,
-    Fly=false, NoClip=false, Speed=false, JumpPower=false, InfJump=false,
-    TeleportToPlot=false, TeleportToShop=false, TeleportToItem=false, WaypointLoop=false,
-    ESP_Items=false, ESP_Seeds=false, ESP_Players=false, ESP_Plots=false,
-    ESP_Drops=false, ESP_PriceTags=false, Fullbright=false, NoFog=false, XRay=false,
-    AutoReconnect=false, AntiAFK=false, AutoClaimDaily=false, AutoOpenCrates=false,
-    AutoEquipBest=false, AutoSortInv=false, AutoDropTrash=false,
-    AutoAcceptTrade=false, AutoDeclineLowball=false,
-    ItemTracker=false, PriceOverlay=false, DropNotifier=false,
-    TradeLogger=false, InventoryValue=false, SeedProfitCalc=false,
-    HideSelf=false, FreezeOthers=false, SpamEmote=false, FakeLag=false,
-    ChatSpam=false, AutoGG=false, ShowFPS=false, ShowPing=false, ShowCoords=false,
-    ProxyMode=false, ServerHop=false, Rejoin=false, LowGFX=false,
+    AutoFarm=false, AutoPlant=false, AutoCollect=false, AutoSell=false,
+    Fly=false, NoClip=false, Speed=false,
+    ESP_Blocks=false, ESP_Drops=false, ESP_Players=false,
+    AntiAFK=false, Fullbright=false,
 }
 
 -- ============================================================
--- 3. THE REAL INTERACTION BRUTE-FORCE
+-- 3. THE REAL FARM LOGIC (TOOL + CLICK)
 -- ============================================================
-local function bruteForceInteract(part)
-    if not part then return end
+local function equipTool(keyword)
     local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not char then return nil end
     
-    -- Layer 1: Fire all ClickDetectors
-    local clickDetector = part:FindFirstChildWhichIsA("ClickDetector")
-    if clickDetector then
-        pcall(function() fireclickdetector(clickDetector) end)
-        return -- If we found a click detector, assume it's the right one
-    end
-
-    -- Layer 2: Fire all ProximityPrompts
-    for _, child in ipairs(part:GetChildren()) do
-        if child:IsA("ProximityPrompt") then
-            pcall(function()
-                if fireproximityprompt then fireproximityprompt(child) else
-                    child:InputHoldBegin() task.wait(0.05) child:InputHoldEnd()
-                end
-            end)
-        end
-    end
-
-    -- Layer 3: Force-Fire RemoteEvents related to this part
-    local name = part.Name:lower()
-    if name:find("seed") or name:find("plant") or name:find("tree") or name:find("crop") or name:find("dirt") or name:find("tile") then
-        for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
-            if remote:IsA("RemoteEvent") then
-                local rName = remote.Name:lower()
-                if rName:find("click") or rName:find("interact") or rName:find("place") or rName:find("harvest") or rName:find("water") or rName:find("plant") then
-                    pcall(function() remote:FireServer(part.Position, part, 1) end)
-                end
+    -- Check if already equipped
+    local equipped = char:FindFirstChildWhichIsA("Tool")
+    if equipped and equipped.Name:lower():find(keyword) then return equipped end
+    
+    -- Find in backpack
+    if backpack then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool.Name:lower():find(keyword) then
+                tool.Parent = char
+                task.wait(0.1) -- let the game equip it
+                return tool
             end
         end
+    end
+    return equipped or (char and char:FindFirstChildWhichIsA("Tool"))
+end
+
+local function clickPart(part)
+    if not part then return end
+    local cam = Workspace.CurrentCamera
+    local pos, onScreen = cam:WorldToViewportPoint(part.Position)
+    if onScreen then
+        pcall(function()
+            local oldPos = UserInputService:GetMouseLocation()
+            VirtualUser:MoveMouse(pos.X, pos.Y)
+            VirtualUser:ClickButton1(Vector2.new(pos.X, pos.Y))
+            VirtualUser:MoveMouse(oldPos.X, oldPos.Y)
+        end)
     end
 end
 
 -- ============================================================
--- 4. FARM LOOP (DIRECT PART SCAN)
+-- 4. REAL ESP (BOXHANDLEADORNMENT)
 -- ============================================================
-local farmTick = 0
-RunService.Heartbeat:Connect(function(dt)
-    farmTick += dt
-    if farmTick < CFG.LoopDelay then return end
-    farmTick = 0
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+local espCache = {}
 
-    if F.AutoFarm or F.AutoHarvest or F.AutoWater or F.AutoCollect then
+local function createESP(part, color, text)
+    if espCache[part] then return end
+    local box = Instance.new("BoxHandleAdornment")
+    box.Name = "GrowbloxESP"
+    box.Adornee = part
+    box.AlwaysOnTop = true
+    box.ZIndex = 5
+    box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
+    box.Transparency = 0.5
+    box.Color3 = color
+    box.Parent = part
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = part
+    billboard.Parent = part
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text or part.Name
+    label.TextColor3 = color
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.Parent = billboard
+
+    espCache[part] = {box = box, billboard = billboard}
+end
+
+local function clearESP()
+    for part, data in pairs(espCache) do
+        if data.box then data.box:Destroy() end
+        if data.billboard then data.billboard:Destroy() end
+    end
+    espCache = {}
+end
+
+RunService.RenderStepped:Connect(function()
+    if not (F.ESP_Blocks or F.ESP_Drops or F.ESP_Players) then
+        if next(espCache) then clearESP() end
+        return
+    end
+
+    -- Scan for blocks/drops
+    if F.ESP_Blocks or F.ESP_Drops then
         for _, part in ipairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") then
-                -- Distance check
-                if (part.Position - root.Position).Magnitude <= CFG.FarmRadius then
-                    local name = part.Name:lower()
-                    
-                    -- Check if the part name matches common Growtopia clone items
-                    local isTarget = false
-                    if F.AutoFarm then isTarget = true end
-                    if F.AutoHarvest and (name:find("tree") or name:find("crop") or name:find("fruit") or name:find("ready")) then isTarget = true end
-                    if F.AutoWater and (name:find("water") or name:find("dirt") or name:find("soil")) then isTarget = true end
-                    if F.AutoCollect and (name:find("drop") or name:find("gem") or name:find("item") or name:find("loot")) then isTarget = true end
-
-                    if isTarget then
-                        bruteForceInteract(part)
-                    end
+            if part:IsA("BasePart") and not espCache[part] then
+                local n = part.Name:lower()
+                if F.ESP_Blocks and (n:find("tree") or n:find("block") or n:find("dirt") or n:find("crop")) then
+                    createESP(part, Color3.fromRGB(0, 255, 102), part.Name)
+                elseif F.ESP_Drops and (n:find("drop") or n:find("gem") or n:find("seed") or n:find("item")) then
+                    createESP(part, Color3.fromRGB(255, 200, 50), part.Name)
                 end
             end
         end
     end
 
-    -- Auto Plant (Spam Place Remote)
-    if F.AutoPlant then
-        for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
-            if remote:IsA("RemoteEvent") and remote.Name:lower():find("place") then
-                pcall(function() remote:FireServer(1) end)
+    -- Scan for players
+    if F.ESP_Players then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and not espCache[hrp] then
+                    createESP(hrp, Color3.fromRGB(255, 50, 50), player.Name)
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- 5. MAIN LOOP (FARM & AUTO)
+-- ============================================================
+local farmTick = 0
+RunService.Heartbeat:Connect(function(dt)
+    farmTick += dt
+    if farmTick < 0.15 then return end
+    farmTick = 0
+    
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- Auto Farm (Breaking blocks)
+    if F.AutoFarm then
+        equipTool("pick") -- Equip pickaxe
+        for _, part in ipairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 60 then
+                local n = part.Name:lower()
+                if n:find("block") or n:find("tree") or n:find("rock") then
+                    clickPart(part)
+                end
             end
         end
     end
 
-    -- Auto Sell (Spam Sell Remote)
+    -- Auto Plant
+    if F.AutoPlant then
+        equipTool("seed") -- Equip seed
+        for _, part in ipairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 60 then
+                local n = part.Name:lower()
+                if n:find("dirt") or n:find("soil") or n:find("plot") then
+                    clickPart(part)
+                end
+            end
+        end
+    end
+
+    -- Auto Collect
+    if F.AutoCollect then
+        for _, part in ipairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 100 then
+                local n = part.Name:lower()
+                if n:find("drop") or n:find("gem") or n:find("collectable") then
+                    -- Teleport to item to collect it (most 2D games collect on touch)
+                    root.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
+                end
+            end
+        end
+    end
+
+    -- Auto Sell (Spams all remotes with 'sell' in name)
     if F.AutoSell then
         for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
             if remote:IsA("RemoteEvent") and remote.Name:lower():find("sell") then
@@ -150,7 +220,7 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ============================================================
--- 5. MOVEMENT & ANTI-AFK
+-- 6. MOVEMENT & ANTI-AFK
 -- ============================================================
 local flyConn, noclipConn
 local flySpeed = 50
@@ -181,7 +251,7 @@ LocalPlayer.Idled:Connect(function()
 end)
 
 -- ============================================================
--- 6. UI SYSTEM (TAILWIND LAYOUT)
+-- 7. UI SYSTEM (RIGHT SHIFT MINIMIZE)
 -- ============================================================
 local Theme = {
     Bg = Color3.fromRGB(10, 15, 13), Panel = Color3.fromRGB(16, 24, 20), Border = Color3.fromRGB(27, 46, 35),
@@ -195,7 +265,7 @@ local function Create(className, props, children)
     return inst
 end
 
-local gui = Create("ScreenGui", { Name = "GrowbloxHub_v7_"..tostring(math.random(1,99999)), ResetOnSpawn = false, Parent = getGuiParent() })
+local gui = Create("ScreenGui", { Name = "GrowbloxHub_v9_"..tostring(math.random(1,99999)), ResetOnSpawn = false, Parent = getGuiParent() })
 getgenv().GrowbloxHubLoaded = gui
 
 local main = Create("Frame", { Name = "Main", Size = UDim2.new(0, 960, 0, 640), Position = UDim2.new(0.5, -480, 0.5, -320), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Active = true, Draggable = true, Parent = gui })
@@ -208,7 +278,8 @@ Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = titleBar })
 Create("Frame", { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(13, 21, 17), BorderSizePixel = 0, Parent = titleBar })
 Create("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, Parent = titleBar })
 Create("Frame", { Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 16, 0.5, -6), BackgroundColor3 = Theme.Accent, Parent = titleBar }, { Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = _ }) })
-Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 36, 0, 0), BackgroundTransparency = 1, Text = "GROWBLOX HUB V7", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, Parent = titleBar })
+Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 36, 0, 0), BackgroundTransparency = 1, Text = "GROWBLOX HUB V9", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, Parent = titleBar })
+Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -220, 0, 0), BackgroundTransparency = 1, Text = "[Right Shift to Minimize]", TextColor3 = Theme.Muted, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Gotham, TextSize = 11, Parent = titleBar })
 
 local sidebar = Create("Frame", { Size = UDim2.new(0, 224, 1, -48), Position = UDim2.new(0, 0, 0, 48), BackgroundColor3 = Color3.fromRGB(12, 18, 15), Parent = main })
 Create("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, Parent = sidebar })
@@ -252,7 +323,7 @@ local function switchPage(pageName)
     end
 end
 
-local navLayout = { Farm = "🌱", Move = "🏃", Visual = "👁️", Auto = "🤖", Info = "ℹ️", Misc = "⚙️" }
+local navLayout = { Farm = "🌱", Move = "🏃", Visual = "👁️", Misc = "⚙️" }
 local order = 1
 for name, icon in pairs(navLayout) do
     createPage(name, order)
@@ -295,11 +366,34 @@ local function addToggle(page, label, flag)
     page.CanvasSize = UDim2.new(0, 0, 0, #page:GetChildren() * 56)
 end
 
-for _, f in ipairs({"AutoFarm","AutoPlant","AutoHarvest","AutoWater","AutoFertilize","AutoCollect","AutoSell","AutoBuySeeds","AutoBuyTools","AutoReplant","AutoUseItem","AutoTrash"}) do addToggle(Pages.Farm, f, f) end
-for _, f in ipairs({"Fly","NoClip","Speed","JumpPower","InfJump","TeleportToPlot","TeleportToShop","TeleportToItem","WaypointLoop"}) do addToggle(Pages.Move, f, f) end
-for _, f in ipairs({"ESP_Items","ESP_Seeds","ESP_Players","ESP_Plots","ESP_Drops","ESP_PriceTags","Fullbright","NoFog","XRay"}) do addToggle(Pages.Visual, f, f) end
-for _, f in ipairs({"AutoReconnect","AntiAFK","AutoClaimDaily","AutoOpenCrates","AutoEquipBest","AutoSortInv","AutoDropTrash","AutoAcceptTrade","AutoDeclineLowball"}) do addToggle(Pages.Auto, f, f) end
-for _, f in ipairs({"ItemTracker","PriceOverlay","DropNotifier","TradeLogger","InventoryValue","SeedProfitCalc"}) do addToggle(Pages.Info, f, f) end
-for _, f in ipairs({"HideSelf","FreezeOthers","SpamEmote","FakeLag","ChatSpam","AutoGG","ShowFPS","ShowPing","ShowCoords","ProxyMode","ServerHop","Rejoin","LowGFX"}) do addToggle(Pages.Misc, f, f) end
+for _, f in ipairs({"AutoFarm","AutoPlant","AutoCollect","AutoSell"}) do addToggle(Pages.Farm, f, f) end
+for _, f in ipairs({"Fly","NoClip","Speed"}) do addToggle(Pages.Move, f, f) end
+for _, f in ipairs({"ESP_Blocks","ESP_Drops","ESP_Players"}) do addToggle(Pages.Visual, f, f) end
+for _, f in ipairs({"AntiAFK","Fullbright"}) do addToggle(Pages.Misc, f, f) end
 
 switchPage("Farm")
+
+-- ============================================================
+-- 8. RIGHT SHIFT MINIMIZE
+-- ============================================================
+local isMinimized = false
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        isMinimized = not isMinimized
+        if isMinimized then
+            main.Visible = false
+            local minBtn = Create("TextButton", { Name = "MinBtn", Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 20, 0.5, -20), BackgroundColor3 = Theme.Accent, Text = "V9", TextColor3 = Theme.Bg, Font = Enum.Font.GothamBold, TextSize = 14, Parent = gui })
+            Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = minBtn })
+            minBtn.MouseButton1Click:Connect(function()
+                main.Visible = true
+                minBtn:Destroy()
+                isMinimized = false
+            end)
+        else
+            main.Visible = true
+            local btn = gui:FindFirstChild("MinBtn")
+            if btn then btn:Destroy() end
+        end
+    end
+end)
