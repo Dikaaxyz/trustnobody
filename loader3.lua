@@ -1,19 +1,26 @@
 --[[
-  Growblox Hub v9 — Absolute Real-Hook Rebuild
-  ESP: BoxHandleAdornment (No Drawing API crash)
-  Farm: Backpack Tool Equip + VirtualUser Click
+  Growblox Hub v10 — Absolute Fix
+  Engine: Roblox Luau
+  Features: Highlight ESP, ContextActionService RightShift Minimize, ClickDetector Farm.
 --]]
 
 -- ============================================================
--- 0. CACHE BUSTER & CLEANUP
+-- 0. NUCLEAR CACHE BUSTER
 -- ============================================================
-if getgenv().GrowbloxHubLoaded then pcall(function() getgenv().GrowbloxHubLoaded:Destroy() end) end
-for _, gui in pairs(game:GetService("CoreGui"):GetChildren()) do
-    if gui.Name:find("GrowbloxHub") or gui.Name:find("GrowbloxV") then pcall(function() gui:Destroy() end) end
+local function destroyOldHubs()
+    local CoreGui = game:GetService("CoreGui")
+    local PlayerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+    for _, parent in ipairs({CoreGui, PlayerGui}) do
+        if parent then
+            for _, gui in ipairs(parent:GetChildren()) do
+                if gui.Name:find("GrowbloxHub") or gui.Name:find("GrowbloxV") or gui.Name:find("Growblox") then
+                    pcall(function() gui:Destroy() end)
+                end
+            end
+        end
+    end
 end
-for _, gui in pairs(game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"):GetChildren()) do
-    if gui.Name:find("GrowbloxHub") or gui.Name:find("GrowbloxV") then pcall(function() gui:Destroy() end) end
-end
+destroyOldHubs()
 
 -- ============================================================
 -- 1. EXECUTOR PRIMITIVES
@@ -24,6 +31,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
+local ContextActionService = game:GetService("ContextActionService")
 local LocalPlayer = Players.LocalPlayer
 
 local function getGuiParent()
@@ -36,29 +44,26 @@ end
 -- ============================================================
 local F = {
     AutoFarm=false, AutoPlant=false, AutoCollect=false, AutoSell=false,
-    Fly=false, NoClip=false, Speed=false,
     ESP_Blocks=false, ESP_Drops=false, ESP_Players=false,
     AntiAFK=false, Fullbright=false,
 }
 
 -- ============================================================
--- 3. THE REAL FARM LOGIC (TOOL + CLICK)
+-- 3. THE REAL FARM LOGIC (CLICKDETECTOR & TOOLS)
 -- ============================================================
 local function equipTool(keyword)
     local char = LocalPlayer.Character
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not char then return nil end
     
-    -- Check if already equipped
     local equipped = char:FindFirstChildWhichIsA("Tool")
     if equipped and equipped.Name:lower():find(keyword) then return equipped end
     
-    -- Find in backpack
     if backpack then
         for _, tool in ipairs(backpack:GetChildren()) do
             if tool:IsA("Tool") and tool.Name:lower():find(keyword) then
                 tool.Parent = char
-                task.wait(0.1) -- let the game equip it
+                task.wait(0.1)
                 return tool
             end
         end
@@ -66,37 +71,44 @@ local function equipTool(keyword)
     return equipped or (char and char:FindFirstChildWhichIsA("Tool"))
 end
 
-local function clickPart(part)
+local function interactPart(part)
     if not part then return end
-    local cam = Workspace.CurrentCamera
-    local pos, onScreen = cam:WorldToViewportPoint(part.Position)
-    if onScreen then
+    -- 1. Fire ClickDetector
+    local cd = part:FindFirstChildWhichIsA("ClickDetector")
+    if cd then
+        pcall(function() fireclickdetector(cd) end)
+        return
+    end
+    -- 2. Fire ProximityPrompt
+    local prompt = part:FindFirstChildWhichIsA("ProximityPrompt")
+    if prompt then
         pcall(function()
-            local oldPos = UserInputService:GetMouseLocation()
-            VirtualUser:MoveMouse(pos.X, pos.Y)
-            VirtualUser:ClickButton1(Vector2.new(pos.X, pos.Y))
-            VirtualUser:MoveMouse(oldPos.X, oldPos.Y)
+            if fireproximityprompt then fireproximityprompt(prompt) else
+                prompt:InputHoldBegin() task.wait(0.05) prompt:InputHoldEnd()
+            end
         end)
+        return
     end
 end
 
 -- ============================================================
--- 4. REAL ESP (BOXHANDLEADORNMENT)
+-- 4. REAL ESP (HIGHLIGHT & BILLBOARD)
 -- ============================================================
 local espCache = {}
 
-local function createESP(part, color, text)
+local function addHighlight(part, color, name)
     if espCache[part] then return end
-    local box = Instance.new("BoxHandleAdornment")
-    box.Name = "GrowbloxESP"
-    box.Adornee = part
-    box.AlwaysOnTop = true
-    box.ZIndex = 5
-    box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
-    box.Transparency = 0.5
-    box.Color3 = color
-    box.Parent = part
     
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "GrowESP"
+    highlight.Adornee = part
+    highlight.FillColor = color
+    highlight.OutlineColor = color
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = part
+
     local billboard = Instance.new("BillboardGui")
     billboard.Size = UDim2.new(0, 100, 0, 50)
     billboard.AlwaysOnTop = true
@@ -106,60 +118,58 @@ local function createESP(part, color, text)
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = text or part.Name
+    label.Text = name
     label.TextColor3 = color
     label.TextStrokeTransparency = 0
     label.Font = Enum.Font.GothamBold
     label.TextSize = 12
     label.Parent = billboard
 
-    espCache[part] = {box = box, billboard = billboard}
+    espCache[part] = {highlight = highlight, billboard = billboard}
 end
 
 local function clearESP()
     for part, data in pairs(espCache) do
-        if data.box then data.box:Destroy() end
+        if data.highlight then data.highlight:Destroy() end
         if data.billboard then data.billboard:Destroy() end
     end
     espCache = {}
 end
 
+-- ============================================================
+-- 5. MAIN LOOPS (ESP & FARM)
+-- ============================================================
 RunService.RenderStepped:Connect(function()
     if not (F.ESP_Blocks or F.ESP_Drops or F.ESP_Players) then
         if next(espCache) then clearESP() end
         return
     end
 
-    -- Scan for blocks/drops
     if F.ESP_Blocks or F.ESP_Drops then
         for _, part in ipairs(Workspace:GetDescendants()) do
             if part:IsA("BasePart") and not espCache[part] then
                 local n = part.Name:lower()
-                if F.ESP_Blocks and (n:find("tree") or n:find("block") or n:find("dirt") or n:find("crop")) then
-                    createESP(part, Color3.fromRGB(0, 255, 102), part.Name)
+                if F.ESP_Blocks and (n:find("tree") or n:find("block") or n:find("dirt") or n:find("rock") or n:find("crop")) then
+                    addHighlight(part, Color3.fromRGB(0, 255, 102), part.Name)
                 elseif F.ESP_Drops and (n:find("drop") or n:find("gem") or n:find("seed") or n:find("item")) then
-                    createESP(part, Color3.fromRGB(255, 200, 50), part.Name)
+                    addHighlight(part, Color3.fromRGB(255, 200, 50), part.Name)
                 end
             end
         end
     end
 
-    -- Scan for players
     if F.ESP_Players then
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
                 local hrp = player.Character:FindFirstChild("HumanoidRootPart")
                 if hrp and not espCache[hrp] then
-                    createESP(hrp, Color3.fromRGB(255, 50, 50), player.Name)
+                    addHighlight(hrp, Color3.fromRGB(255, 50, 50), player.Name)
                 end
             end
         end
     end
 end)
 
--- ============================================================
--- 5. MAIN LOOP (FARM & AUTO)
--- ============================================================
 local farmTick = 0
 RunService.Heartbeat:Connect(function(dt)
     farmTick += dt
@@ -170,88 +180,44 @@ RunService.Heartbeat:Connect(function(dt)
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    -- Auto Farm (Breaking blocks)
     if F.AutoFarm then
-        equipTool("pick") -- Equip pickaxe
+        equipTool("pick") 
         for _, part in ipairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 60 then
+            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 80 then
                 local n = part.Name:lower()
                 if n:find("block") or n:find("tree") or n:find("rock") then
-                    clickPart(part)
+                    interactPart(part)
                 end
             end
         end
     end
 
-    -- Auto Plant
     if F.AutoPlant then
-        equipTool("seed") -- Equip seed
+        equipTool("seed")
         for _, part in ipairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 60 then
+            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 80 then
                 local n = part.Name:lower()
                 if n:find("dirt") or n:find("soil") or n:find("plot") then
-                    clickPart(part)
+                    interactPart(part)
                 end
             end
         end
     end
 
-    -- Auto Collect
     if F.AutoCollect then
         for _, part in ipairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 100 then
+            if part:IsA("BasePart") and (part.Position - root.Position).Magnitude <= 150 then
                 local n = part.Name:lower()
                 if n:find("drop") or n:find("gem") or n:find("collectable") then
-                    -- Teleport to item to collect it (most 2D games collect on touch)
                     root.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
                 end
             end
         end
     end
-
-    -- Auto Sell (Spams all remotes with 'sell' in name)
-    if F.AutoSell then
-        for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
-            if remote:IsA("RemoteEvent") and remote.Name:lower():find("sell") then
-                pcall(function() remote:FireServer() end)
-            end
-        end
-    end
 end)
 
 -- ============================================================
--- 6. MOVEMENT & ANTI-AFK
--- ============================================================
-local flyConn, noclipConn
-local flySpeed = 50
-local function startFly()
-    flyConn = RunService.RenderStepped:Connect(function()
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        local dir = Vector3.zero
-        local cam = Workspace.CurrentCamera
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
-        if dir.Magnitude > 0 then root.CFrame = root.CFrame + dir.Unit * flySpeed * (1/60) end
-    end)
-end
-local function startNoClip()
-    noclipConn = RunService.Stepped:Connect(function()
-        local char = LocalPlayer.Character
-        if char then for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end end
-    end)
-end
-LocalPlayer.Idled:Connect(function()
-    if F.AntiAFK then VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end
-end)
-
--- ============================================================
--- 7. UI SYSTEM (RIGHT SHIFT MINIMIZE)
+-- 6. UI SYSTEM
 -- ============================================================
 local Theme = {
     Bg = Color3.fromRGB(10, 15, 13), Panel = Color3.fromRGB(16, 24, 20), Border = Color3.fromRGB(27, 46, 35),
@@ -265,21 +231,18 @@ local function Create(className, props, children)
     return inst
 end
 
-local gui = Create("ScreenGui", { Name = "GrowbloxHub_v9_"..tostring(math.random(1,99999)), ResetOnSpawn = false, Parent = getGuiParent() })
-getgenv().GrowbloxHubLoaded = gui
+local gui = Create("ScreenGui", { Name = "GrowbloxHub_v10_"..tostring(math.random(1,99999)), ResetOnSpawn = false, Parent = getGuiParent() })
 
 local main = Create("Frame", { Name = "Main", Size = UDim2.new(0, 960, 0, 640), Position = UDim2.new(0.5, -480, 0.5, -320), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, Active = true, Draggable = true, Parent = gui })
 Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = main })
 Create("UIStroke", { Color = Theme.Border, Thickness = 1, Parent = main })
-Create("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Theme.Panel), ColorSequenceKeypoint.new(1, Theme.Bg) }), Rotation = 45, Parent = main })
 
 local titleBar = Create("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundColor3 = Color3.fromRGB(13, 21, 17), Parent = main })
 Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = titleBar })
 Create("Frame", { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -12), BackgroundColor3 = Color3.fromRGB(13, 21, 17), BorderSizePixel = 0, Parent = titleBar })
 Create("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, Parent = titleBar })
 Create("Frame", { Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 16, 0.5, -6), BackgroundColor3 = Theme.Accent, Parent = titleBar }, { Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = _ }) })
-Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 36, 0, 0), BackgroundTransparency = 1, Text = "GROWBLOX HUB V9", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, Parent = titleBar })
-Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(1, -220, 0, 0), BackgroundTransparency = 1, Text = "[Right Shift to Minimize]", TextColor3 = Theme.Muted, TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Gotham, TextSize = 11, Parent = titleBar })
+Create("TextLabel", { Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 36, 0, 0), BackgroundTransparency = 1, Text = "GROWBLOX HUB V10", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, Parent = titleBar })
 
 local sidebar = Create("Frame", { Size = UDim2.new(0, 224, 1, -48), Position = UDim2.new(0, 0, 0, 48), BackgroundColor3 = Color3.fromRGB(12, 18, 15), Parent = main })
 Create("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, Parent = sidebar })
@@ -323,7 +286,7 @@ local function switchPage(pageName)
     end
 end
 
-local navLayout = { Farm = "🌱", Move = "🏃", Visual = "👁️", Misc = "⚙️" }
+local navLayout = { Farm = "🌱", Visual = "👁️", Misc = "⚙️" }
 local order = 1
 for name, icon in pairs(navLayout) do
     createPage(name, order)
@@ -355,45 +318,41 @@ local function addToggle(page, label, flag)
             toggleBtn.BackgroundColor3 = Theme.Border
             knob.Position = UDim2.new(0, 2, 0.5, -7)
         end
-        if flag == "Fly" then
-            if F.Fly and not flyConn then startFly() end
-            if not F.Fly and flyConn then flyConn:Disconnect(); flyConn = nil end
-        elseif flag == "NoClip" then
-            if F.NoClip and not noclipConn then startNoClip() end
-            if not F.NoClip and noclipConn then noclipConn:Disconnect(); noclipConn = nil end
-        end
     end)
     page.CanvasSize = UDim2.new(0, 0, 0, #page:GetChildren() * 56)
 end
 
 for _, f in ipairs({"AutoFarm","AutoPlant","AutoCollect","AutoSell"}) do addToggle(Pages.Farm, f, f) end
-for _, f in ipairs({"Fly","NoClip","Speed"}) do addToggle(Pages.Move, f, f) end
 for _, f in ipairs({"ESP_Blocks","ESP_Drops","ESP_Players"}) do addToggle(Pages.Visual, f, f) end
 for _, f in ipairs({"AntiAFK","Fullbright"}) do addToggle(Pages.Misc, f, f) end
 
 switchPage("Farm")
 
 -- ============================================================
--- 8. RIGHT SHIFT MINIMIZE
+-- 7. RIGHT SHIFT MINIMIZE (CONTEXT ACTION SERVICE)
 -- ============================================================
 local isMinimized = false
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        isMinimized = not isMinimized
-        if isMinimized then
-            main.Visible = false
-            local minBtn = Create("TextButton", { Name = "MinBtn", Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 20, 0.5, -20), BackgroundColor3 = Theme.Accent, Text = "V9", TextColor3 = Theme.Bg, Font = Enum.Font.GothamBold, TextSize = 14, Parent = gui })
-            Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = minBtn })
-            minBtn.MouseButton1Click:Connect(function()
-                main.Visible = true
-                minBtn:Destroy()
-                isMinimized = false
-            end)
-        else
+local minBtn
+
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    if isMinimized then
+        main.Visible = false
+        minBtn = Create("TextButton", { Name = "MinBtn", Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 20, 0.5, -20), BackgroundColor3 = Theme.Accent, Text = "V10", TextColor3 = Theme.Bg, Font = Enum.Font.GothamBold, TextSize = 14, Parent = gui })
+        Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = minBtn })
+        minBtn.MouseButton1Click:Connect(function()
             main.Visible = true
-            local btn = gui:FindFirstChild("MinBtn")
-            if btn then btn:Destroy() end
-        end
+            if minBtn then minBtn:Destroy() end
+            isMinimized = false
+        end)
+    else
+        main.Visible = true
+        if minBtn then minBtn:Destroy() end
     end
-end)
+end
+
+ContextActionService:BindAction("GrowbloxMinimize", function(_, state)
+    if state == Enum.UserInputState.Begin then
+        toggleMinimize()
+    end
+end, false, Enum.KeyCode.RightShift)
