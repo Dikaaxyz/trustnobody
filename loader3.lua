@@ -1,5 +1,5 @@
 --[[
-    Growblox God Mode v17 | Stealth Rate-Limiter (No Metatable)
+    Growblox God Mode v18 | TRUE OVERPOWERED BYPASS
     Target: Growblox (Roblox) / Xeno Executor
 ]]
 
@@ -11,30 +11,68 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- 1. STEALTH RATE LIMITER (TANPA METATABLE)
+-- 1. OVERPOWERED BYPASS LAYER (ANTI 267)
 -- ============================================================
-local last_fire_time = 0
-local min_delay = 0.15 -- 150ms
-local max_delay = 0.35 -- 350ms
+-- Mencegah kick pas execute dengan nge-hold metatable
+local bypass_loaded = pcall(function()
+    local old_index
+    old_index = hookmetamethod(game, "__index", function(self, key)
+        if not checkcaller() and self == game then
+            -- Ngeblokir server ngecek executor
+            if key == "Kick" then return nil end
+            if key == "GetNetworkPing" then return 0.01 end
+        end
+        return old_index(self, key)
+    end)
+end)
 
-local function SafeFire(remote, ...)
-    if not remote then return end
+local FireServer_Spoof, FireServer_Check
+FireServer_Spoof = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
     
-    -- Hitung waktu sekarang
-    local now = tick()
-    local elapsed = now - last_fire_time
+    -- Cegah Kick Server-Side
+    if method == "Kick" then return nil end
     
-    -- Kalau kecepetan, tunggu (pake detik biasa, bukan task.wait)
-    if elapsed < min_delay then
-        local target = last_fire_time + math.random(min_delay * 1000, max_delay * 1000) / 1000
-        repeat until tick() >= target
+    -- Spoof ping
+    if method == "GetNetworkPing" then return 0.01 end
+    
+    -- Bypass spesifik buat Remote Punch / Place
+    if method == "FireServer" and not checkcaller() then
+        local remoteName = self.Name:lower()
+        
+        if remoteName:find("punch") or remoteName:find("break") or remoteName:find("place") then
+            -- TELEPORT INVISIBLE: Pindahin karakter lo ke tile yang mau di-break
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp and #args >= 2 then
+                local old_pos = hrp.CFrame
+                -- Pura-pura lo ada di tile itu
+                local tx, tz = tonumber(args[1]), tonumber(args[2])
+                if tx and tz then
+                    hrp.CFrame = CFrame.new(tx * 3, hrp.Position.Y, tz * 3)
+                    task.wait(0.05) -- Tunggu server sync posisi
+                end
+                
+                -- Acak argumen dikit
+                if #args >= 1 then args[1] = args[1] + math.random(-1, 1) end
+                
+                local result = FireServer_Check(self, unpack(args))
+                
+                -- Balikin posisi
+                if hrp then hrp.CFrame = old_pos end
+                return result
+            end
+        end
     end
     
-    -- Update timer
-    last_fire_time = tick()
-    
-    -- Tembak remote
-    pcall(function() remote:FireServer(...) end)
+    return FireServer_Check(self, ...)
+end)
+
+-- Anti-Desync Timer
+local old_tick = tick
+tick = function()
+    return old_tick() + math.random(-0.5, 0.5)
 end
 
 -- ============================================================
@@ -43,10 +81,7 @@ end
 local State = {
     Spam = false, PutBreak = true, Collect = false, Drop = false, Geiger = false, Ghost = false, Fishing = false,
     AutoFarm = false, AutoClear = false, AutoCollect = false, FastDrop = false, AutoAvoid = true, SpoofName = false, SpoofSkin = false,
-    Delay = 300, 
-    SelectedBlocks = {15}, 
-    BreakHit = 3,
-    TileSize = 3, CollectRadius = 25, CustomName = "GrowbloxGod", SafeWorld = "STORAGE_WORLD",
+    Delay = 300, SelectedBlocks = {15}, BreakHit = 3,
 }
 
 -- ============================================================
@@ -57,35 +92,23 @@ for _, v in pairs(ReplicatedStorage:GetDescendants()) do
     if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then Remotes[string.lower(v.Name)] = v end
 end
 
-local function R(keyword)
-    for k, v in pairs(Remotes) do if string.find(k, keyword) then return v end end
-    return nil
-end
-
+local function R(k) for key, v in pairs(Remotes) do if string.find(key, k) then return v end end return nil end
 local R_Place = R("place") or R("build") or R("set")
 local R_Punch = R("punch") or R("break") or R("hit")
-local R_Warp = R("warp") or R("join") or R("world") or R("travel")
-local R_Drop = R("drop") or R("trash")
 local R_Collect = R("collect") or R("pickup") or R("grab")
+local R_Drop = R("drop") or R("trash")
+local R_Warp = R("warp") or R("join") or R("world")
 local R_Leave = R("leave") or R("exit")
 
-local function IsStaff(player)
-    local name, dName = player.Name:lower(), player.DisplayName:lower()
-    if name:find("admin") or name:find("mod") or name:find("staff") then return true end
-    if dName:find("admin") or dName:find("mod") or dName:find("staff") then return true end
-    return false
-end
-
-local function RunAway()
-    if R_Leave then SafeFire(R_Leave) end
-    if R_Warp then SafeFire(R_Warp, State.SafeWorld) end
+local function SafeFire(remote, ...)
+    if remote then pcall(function() remote:FireServer(...) end) end
 end
 
 -- ============================================================
--- 4. GUI CREATION
+-- 4. GUI CREATION (FIXED POSITION)
 -- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GrowbloxV17"
+ScreenGui.Name = "GrowbloxV18"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = game:GetService("CoreGui")
@@ -109,7 +132,6 @@ local LeftScroll = Instance.new("ScrollingFrame")
 LeftScroll.Size = UDim2.new(1, 0, 1, 0)
 LeftScroll.BackgroundTransparency = 1
 LeftScroll.ScrollBarThickness = 2
-LeftScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
 LeftScroll.Parent = LeftPanel
 Instance.new("UIListLayout", LeftScroll).SortOrder = Enum.SortOrder.LayoutOrder
 
@@ -123,9 +145,7 @@ local function CreateLeftBtn(text, varName, defaultState, order)
     Btn.Font = Enum.Font.Gotham
     Btn.TextXAlignment = Enum.TextXAlignment.Left
     Btn.LayoutOrder = order
-    Btn.BorderSizePixel = 0
     Btn.Parent = LeftScroll
-    
     Btn.MouseButton1Click:Connect(function()
         State[varName] = not State[varName]
         Btn.BackgroundColor3 = State[varName] and Color3.fromRGB(255, 20, 20) or Color3.fromRGB(28, 28, 28)
@@ -147,7 +167,6 @@ CreateLeftBtn("Auto-Avoid Mod", "AutoAvoid", true, 12)
 CreateLeftBtn("Spoof Name", "SpoofName", false, 13)
 CreateLeftBtn("Spoof Skin", "SpoofSkin", false, 14)
 
--- Garis Pemisah 1
 local Sep1 = Instance.new("Frame", Main)
 Sep1.Size = UDim2.new(0, 1, 1, 0)
 Sep1.Position = UDim2.new(0, 150, 0, 0)
@@ -160,7 +179,6 @@ MidPanel.Position = UDim2.new(0, 151, 0, 0)
 MidPanel.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 MidPanel.Parent = Main
 
--- STOP
 local StopBtn = Instance.new("TextButton", MidPanel)
 StopBtn.Size = UDim2.new(0, 65, 0, 28)
 StopBtn.Position = UDim2.new(0, 15, 0, 15)
@@ -168,7 +186,6 @@ StopBtn.BackgroundColor3 = Color3.fromRGB(255, 20, 20)
 StopBtn.Text = "STOP"
 StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 StopBtn.Font = Enum.Font.GothamBold
-StopBtn.TextSize = 13
 Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 4)
 StopBtn.MouseButton1Click:Connect(function()
     for k, v in pairs(State) do if type(v) == "boolean" then State[k] = false end end
@@ -177,7 +194,6 @@ StopBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Warning
 local Warn = Instance.new("TextLabel", MidPanel)
 Warn.Size = UDim2.new(0, 230, 0, 28)
 Warn.Position = UDim2.new(0, 85, 0, 15)
@@ -188,7 +204,6 @@ Warn.TextSize = 13
 Warn.Font = Enum.Font.Gotham
 Warn.TextXAlignment = Enum.TextXAlignment.Left
 
--- Slider
 local SliderBg = Instance.new("Frame", MidPanel)
 SliderBg.Size = UDim2.new(0, 180, 0, 30)
 SliderBg.Position = UDim2.new(0, 15, 0, 55)
@@ -213,7 +228,6 @@ DelayLabel.Text = "Delay"
 DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 DelayLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- Block Name
 local NameBox = Instance.new("TextBox", MidPanel)
 NameBox.Size = UDim2.new(0, 180, 0, 30)
 NameBox.Position = UDim2.new(0, 15, 0, 95)
@@ -226,7 +240,6 @@ NameBox.Font = Enum.Font.Gotham
 Instance.new("UICorner", NameBox).CornerRadius = UDim.new(0, 4)
 Instance.new("UIPadding", NameBox).PaddingLeft = UDim.new(0, 10)
 
--- Selected Count
 local SelectedBox = Instance.new("TextLabel", MidPanel)
 SelectedBox.Size = UDim2.new(0, 110, 0, 30)
 SelectedBox.Position = UDim2.new(0, 205, 0, 95)
@@ -238,7 +251,6 @@ SelectedBox.Font = Enum.Font.Gotham
 SelectedBox.TextXAlignment = Enum.TextXAlignment.Center
 Instance.new("UICorner", SelectedBox).CornerRadius = UDim.new(0, 4)
 
--- Break Hit
 local BreakFrame = Instance.new("Frame", MidPanel)
 BreakFrame.Size = UDim2.new(0, 180, 0, 30)
 BreakFrame.Position = UDim2.new(0, 15, 0, 135)
@@ -275,28 +287,23 @@ BreakLabel.TextSize = 14
 BreakLabel.Font = Enum.Font.Gotham
 BreakLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- Garis Pemisah 2
 local Sep2 = Instance.new("Frame", Main)
 Sep2.Size = UDim2.new(0, 1, 1, 0)
 Sep2.Position = UDim2.new(0, 471, 0, 0)
 Sep2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 
--- RIGHT PANEL (MULTI-SELECT GRID)
 local RightPanel = Instance.new("Frame", Main)
 RightPanel.Size = UDim2.new(0, 228, 1, 0)
 RightPanel.Position = UDim2.new(0, 472, 0, 0)
 RightPanel.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-
 local GridFrame = Instance.new("Frame", RightPanel)
 GridFrame.Size = UDim2.new(0, 180, 0, 200)
 GridFrame.Position = UDim2.new(0, 25, 0, 20)
 GridFrame.BackgroundTransparency = 1
-
 local Grid = Instance.new("UIGridLayout", GridFrame)
 Grid.CellSize = UDim2.new(0, 30, 0, 30)
 Grid.CellPadding = UDim2.new(0, 4, 0, 4)
 Grid.SortOrder = Enum.SortOrder.LayoutOrder
-
 local Slots = {}
 for i = 1, 25 do
     local Slot = Instance.new("Frame", GridFrame)
@@ -305,20 +312,14 @@ for i = 1, 25 do
     Slot.LayoutOrder = i
     Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 2)
     Slots[i] = Slot
-    
     local Btn = Instance.new("TextButton", Slot)
     Btn.Size = UDim2.new(1, 0, 1, 0)
     Btn.BackgroundTransparency = 1
     Btn.Text = ""
-    
     Btn.MouseButton1Click:Connect(function()
         local found = false
         for idx, val in ipairs(State.SelectedBlocks) do
-            if val == i then
-                table.remove(State.SelectedBlocks, idx)
-                found = true
-                break
-            end
+            if val == i then table.remove(State.SelectedBlocks, idx); found = true; break end
         end
         if not found then table.insert(State.SelectedBlocks, i) end
         Slot.BackgroundColor3 = found and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(255, 20, 20)
@@ -354,7 +355,6 @@ Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 4)
 MinBtn.MouseButton1Click:Connect(function() Main.Visible = false; LogoBtn.Visible = true end)
 LogoBtn.MouseButton1Click:Connect(function() Main.Visible = true; LogoBtn.Visible = false end)
 
--- UI LOGIC
 local dragging = false
 local function updateDelay(input)
     local pos = math.clamp(input.Position.X - SliderBg.AbsolutePosition.X, 0, SliderBg.AbsoluteSize.X)
@@ -383,7 +383,7 @@ task.spawn(function()
     while task.wait(0.2) do
         if State.PutBreak or State.AutoFarm then
             local pos = GetPos()
-            local tx, tz = math.floor(pos.X/State.TileSize), math.floor(pos.Z/State.TileSize)
+            local tx, tz = math.floor(pos.X/3), math.floor(pos.Z/3)
             
             for _, blockID in ipairs(State.SelectedBlocks) do
                 if R_Place then SafeFire(R_Place, tx, tz, blockID) end
@@ -391,7 +391,6 @@ task.spawn(function()
                     if R_Punch then SafeFire(R_Punch, tx, tz) end
                 end
             end
-            
             task.wait(State.Delay / 1000)
         end
         
@@ -401,7 +400,7 @@ task.spawn(function()
         
         if State.AutoClear then
             local pos = GetPos()
-            local tx, tz = math.floor(pos.X/State.TileSize), math.floor(pos.Z/State.TileSize)
+            local tx, tz = math.floor(pos.X/3), math.floor(pos.Z/3)
             for x=-2,2 do for z=-2,2 do
                 if R_Punch then SafeFire(R_Punch, tx+x, tz+z) end
             end end
@@ -413,10 +412,16 @@ task.spawn(function()
         
         if State.AutoAvoid then
             for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and IsStaff(p) then RunAway(); break end
+                if p ~= LocalPlayer then
+                    local name, dName = p.Name:lower(), p.DisplayName:lower()
+                    if name:find("admin") or name:find("mod") or dName:find("admin") or dName:find("mod") then
+                        if R_Leave then SafeFire(R_Leave) end
+                        break
+                    end
+                end
             end
         end
     end
 end)
 
-print("[Growblox V17] Stealth Rate-Limiter Loaded. Execute aman, tidak akan langsung kick.")
+print("[Growblox V18] OVERPOWERED BYPASS LOADED.")
