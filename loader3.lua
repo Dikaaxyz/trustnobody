@@ -1,5 +1,5 @@
 --[[
-    Growblox God Mode v16 | Real Server-Side Bypass (99% Undetected)
+    Growblox God Mode v17 | Stealth Rate-Limiter (No Metatable)
     Target: Growblox (Roblox) / Xeno Executor
 ]]
 
@@ -11,71 +11,31 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- 1. REAL BYPASS LAYER (SERVER-SIDE SAFE)
+-- 1. STEALTH RATE LIMITER (TANPA METATABLE)
 -- ============================================================
-local last_remote_time = 0
-local min_delay_ms = 150 -- Minimal jeda 150ms antar remote
-local max_delay_ms = 350 -- Maksimal jeda 350ms (Lebih natural)
+local last_fire_time = 0
+local min_delay = 0.15 -- 150ms
+local max_delay = 0.35 -- 350ms
 
-local bypass_success = pcall(function()
-    local mt = getrawmetatable(game)
-    local old_namecall = mt.__namecall
-    setreadonly(mt, false)
+local function SafeFire(remote, ...)
+    if not remote then return end
     
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        
-        -- Blokir Kick Lokal
-        if method == "Kick" and self == LocalPlayer then return nil end
-        
-        -- Spoofing Ping (Biar server longgar)
-        if method == "GetNetworkPing" then return 0.02 end
-        
-        -- JIKA YANG DIPANGGIL ADALAH REMOTE EVENT (Anti-Detect Server)
-        if method == "FireServer" then
-            -- Hitung jeda waktu berdasarkan CPU tick (Lebih susah dideteksi daripada task.wait)
-            local current_time = tick() * 1000
-            local time_passed = current_time - last_remote_time
-            
-            -- Kalau terlalu cepat, paksa nunggu (Rate Limiter)
-            if time_passed < min_delay_ms then
-                local sleep_time = math.random(min_delay_ms, max_delay_ms) / 1000
-                -- Pake while loop biar nge-block thread, bukan task.wait yang bisa di-detect
-                local target_time = tick() + sleep_time
-                repeat until tick() >= target_time 
-            end
-            
-            last_remote_time = tick() * 1000
-            
-            -- Human Jitter (Randomizer)
-            local jitter = math.random(10, 45) / 1000
-            local target_jitter = tick() + jitter
-            repeat until tick() >= target_jitter
-
-            -- Manipulasi Argumen (Kirim sebagai tabel acak, bukan urutan statis)
-            if #args >= 2 then
-                -- Tukar posisi argumen 1 dan 2 secara acak biar server bingung
-                if math.random(1, 100) > 50 then
-                    local temp = args[1]
-                    args[1] = args[2]
-                    args[2] = temp
-                end
-            end
-            
-            -- Kirim paket yang udah dimanipulasi
-            return old_namecall(self, unpack(args))
-        end
-        
-        return old_namecall(self, ...)
-    end)
-    setreadonly(mt, true)
+    -- Hitung waktu sekarang
+    local now = tick()
+    local elapsed = now - last_fire_time
     
-    if getidentity and hookfunction then
-        hookfunction(getidentity, function(...) return 8 end)
-        hookfunction(trustcheck, function(...) return true end)
+    -- Kalau kecepetan, tunggu (pake detik biasa, bukan task.wait)
+    if elapsed < min_delay then
+        local target = last_fire_time + math.random(min_delay * 1000, max_delay * 1000) / 1000
+        repeat until tick() >= target
     end
-end)
+    
+    -- Update timer
+    last_fire_time = tick()
+    
+    -- Tembak remote
+    pcall(function() remote:FireServer(...) end)
+end
 
 -- ============================================================
 -- 2. STATE CONFIGURATION
@@ -109,15 +69,6 @@ local R_Drop = R("drop") or R("trash")
 local R_Collect = R("collect") or R("pickup") or R("grab")
 local R_Leave = R("leave") or R("exit")
 
--- ============================================================
--- 4. HUMANIZED EXECUTOR (No Queue, Direct Call with Jitter)
--- ============================================================
-local function Fire(remote, ...)
-    if not remote then return end
-    -- Ini bakal kena hook __namecall di atas, jadi udah aman & di-delay otomatis
-    pcall(function() remote:FireServer(...) end)
-end
-
 local function IsStaff(player)
     local name, dName = player.Name:lower(), player.DisplayName:lower()
     if name:find("admin") or name:find("mod") or name:find("staff") then return true end
@@ -126,15 +77,15 @@ local function IsStaff(player)
 end
 
 local function RunAway()
-    if R_Leave then Fire(R_Leave) end
-    if R_Warp then Fire(R_Warp, State.SafeWorld) end
+    if R_Leave then SafeFire(R_Leave) end
+    if R_Warp then SafeFire(R_Warp, State.SafeWorld) end
 end
 
 -- ============================================================
--- 5. GUI CREATION
+-- 4. GUI CREATION
 -- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GrowbloxV16"
+ScreenGui.Name = "GrowbloxV17"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = game:GetService("CoreGui")
@@ -421,7 +372,7 @@ MinusBtn.MouseButton1Click:Connect(function() State.BreakHit = math.max(1, State
 PlusBtn.MouseButton1Click:Connect(function() State.BreakHit = math.min(10, State.BreakHit + 1); BreakNum.Text = tostring(State.BreakHit) end)
 
 -- ============================================================
--- 6. MAIN LOOP (SERVER-SIDE SAFE GHOST BREAK)
+-- 5. MAIN LOOP
 -- ============================================================
 local function GetPos()
     local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -435,33 +386,29 @@ task.spawn(function()
             local tx, tz = math.floor(pos.X/State.TileSize), math.floor(pos.Z/State.TileSize)
             
             for _, blockID in ipairs(State.SelectedBlocks) do
-                -- Place block (pake delay internal hook)
-                if R_Place then Fire(R_Place, tx, tz, blockID) end
-                
-                -- Punch barengan
+                if R_Place then SafeFire(R_Place, tx, tz, blockID) end
                 for i=1, State.BreakHit do
-                    if R_Punch then Fire(R_Punch, tx, tz) end
+                    if R_Punch then SafeFire(R_Punch, tx, tz) end
                 end
             end
             
-            -- Delay antar sesi multi-break (Slider)
             task.wait(State.Delay / 1000)
         end
         
         if State.Collect or State.AutoCollect then
-            if R_Collect then Fire(R_Collect, math.floor(GetPos().X/3), math.floor(GetPos().Z/3)) end
+            if R_Collect then SafeFire(R_Collect, math.floor(GetPos().X/3), math.floor(GetPos().Z/3)) end
         end
         
         if State.AutoClear then
             local pos = GetPos()
             local tx, tz = math.floor(pos.X/State.TileSize), math.floor(pos.Z/State.TileSize)
             for x=-2,2 do for z=-2,2 do
-                if R_Punch then Fire(R_Punch, tx+x, tz+z) end
+                if R_Punch then SafeFire(R_Punch, tx+x, tz+z) end
             end end
         end
 
         if State.Drop or State.FastDrop then
-            if R_Drop then for i=1,3 do Fire(R_Drop) end end
+            if R_Drop then for i=1,3 do SafeFire(R_Drop) end end
         end
         
         if State.AutoAvoid then
@@ -472,4 +419,4 @@ task.spawn(function()
     end
 end)
 
-print("[Growblox V16] Real Server-Side Bypass Loaded. Jangan kaget kalau agak lambat, ini demi keamanan.")
+print("[Growblox V17] Stealth Rate-Limiter Loaded. Execute aman, tidak akan langsung kick.")
