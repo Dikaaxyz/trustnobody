@@ -3,23 +3,22 @@ local UIS = game:GetService("UserInputService")
 local RS = game:GetService("ReplicatedStorage")
 local LP = Players.LocalPlayer
 local PG = LP:WaitForChild("PlayerGui")
-local OLD = PG:FindFirstChild("GrowV25")
-if OLD then OLD:Destroy() end
 
-task.wait(1) -- Wajib biar Xeno stabil
+local old = PG:FindFirstChild("GrowV26")
+if old then old:Destroy() end
 
--- === STATE ===
+task.wait(1)
+
 local S = {
     Tabs = {
-        Spam = {On=false}, PutBreak = {On=false, D=500, H=3}, Collect = {On=false, R=25}, Drop = {On=false},
-        Geiger = {On=false}, Ghost = {On=false}, Fishing = {On=false}, AutoFarm = {On=false, D=500, H=3},
-        AutoClear = {On=false}, AutoCollect = {On=false, R=25}, FastDrop = {On=false}, AutoAvoid = {On=true},
+        Spam = {On=false}, PutBreak = {On=false}, Collect = {On=false}, Drop = {On=false},
+        Geiger = {On=false}, Ghost = {On=false}, Fishing = {On=false}, AutoFarm = {On=false},
+        AutoClear = {On=false}, AutoCollect = {On=false}, FastDrop = {On=false}, AutoAvoid = {On=true},
         SpoofName = {On=false}, SpoofSkin = {On=false}
     },
     Blocks = {15}
 }
 
--- === REMOTES ===
 local R = {}
 for _,v in pairs(RS:GetDescendants()) do if v:IsA("RemoteEvent") then R[string.lower(v.Name)] = v end end
 local function Get(k) for n,v in pairs(R) do if n:find(k) then return v end end end
@@ -28,15 +27,16 @@ local RPunch = Get("punch") or Get("break")
 local RCollect = Get("collect") or Get("pickup")
 local RDrop = Get("drop")
 local RLeave = Get("leave") or Get("exit")
-local RWarop = Get("warp") or Get("join")
+local RWarp = Get("warp") or Get("join")
 
 local function Fire(r, ...)
     if r then pcall(function() r:FireServer(...) end) end
 end
 
--- === GUI ===
 local SG = Instance.new("ScreenGui")
-SG.Name = "GrowV25"; SG.ResetOnSpawn = false; SG.Parent = PG
+SG.Name = "GrowV26"; SG.ResetOnSpawn = false; SG.Parent = PG
+
+task.wait() -- Jeda anti crash
 
 local Main = Instance.new("Frame", SG)
 Main.Size = UDim2.new(0, 700, 0, 480)
@@ -45,18 +45,15 @@ Main.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 Main.Active = true; Main.Draggable = true
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 4)
 
--- KIRI (TABS)
 local L = Instance.new("Frame", Main)
 L.Size = UDim2.new(0, 150, 1, 0); L.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 local LScroll = Instance.new("ScrollingFrame", L)
 LScroll.Size = UDim2.new(1, 0, 1, 0); LScroll.BackgroundTransparency = 1; LScroll.ScrollBarThickness = 2
 Instance.new("UIListLayout", LScroll)
 
--- TENGAH (SETTINGS)
 local M = Instance.new("Frame", Main)
 M.Size = UDim2.new(0, 320, 1, 0); M.Position = UDim2.new(0, 150, 0, 0); M.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 
--- KANAN (GRID)
 local RPanel = Instance.new("Frame", Main)
 RPanel.Size = UDim2.new(0, 230, 1, 0); RPanel.Position = UDim2.new(0, 470, 0, 0); RPanel.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 
@@ -64,6 +61,8 @@ local Grid = Instance.new("UIGridLayout", RPanel)
 Grid.CellSize = UDim2.new(0, 30, 0, 30); Grid.CellPadding = UDim2.new(0, 4, 0, 4)
 Instance.new("UIPadding", RPanel).PaddingLeft = UDim.new(0, 25)
 Instance.new("UIPadding", RPanel).PaddingTop = UDim.new(0, 25)
+
+task.wait() -- Jeda anti crash
 
 local Slots = {}
 for i=1,25 do
@@ -78,13 +77,12 @@ for i=1,25 do
         if not f then table.insert(S.Blocks, i) end
         Slt.BackgroundColor3 = f and Color3.fromRGB(255,255,255) or Color3.fromRGB(255,20,20)
     end)
+    if i % 5 == 0 then task.wait() end -- Jeda tiap 5 kotak
 end
 Slots[15].BackgroundColor3 = Color3.fromRGB(255,20,20)
 
--- === TAB LOGIC ===
 local Pages = {}
 local Btns = {}
-local CurrentTab = "PutBreak"
 
 local function CreatePage(name)
     local P = Instance.new("Frame", M)
@@ -112,6 +110,8 @@ local function CreatePage(name)
         T.BackgroundColor3 = S.Tabs[name].On and Color3.fromRGB(0,200,0) or Color3.fromRGB(200,30,30)
         T.Text = name .. ": " .. (S.Tabs[name].On and "ON" or "OFF")
     end)
+    
+    task.wait() -- Jeda tiap bikin tab
 end
 
 for name, _ in pairs(S.Tabs) do
@@ -120,10 +120,10 @@ for name, _ in pairs(S.Tabs) do
     B.Text = "  "..name; B.TextColor3 = Color3.fromRGB(200,200,200); B.TextXAlignment = Enum.TextXAlignment.Left
     B.Font = Enum.Font.Gotham; B.TextSize = 13
     Btns[name] = B
+    
     CreatePage(name)
     
     B.MouseButton1Click:Connect(function()
-        CurrentTab = name
         for n, btn in pairs(Btns) do
             btn.BackgroundColor3 = n==name and Color3.fromRGB(255,20,20) or Color3.fromRGB(28,28,28)
             Pages[n].Visible = n==name
@@ -133,7 +133,6 @@ end
 Btns["PutBreak"].BackgroundColor3 = Color3.fromRGB(255,20,20)
 Pages["PutBreak"].Visible = true
 
--- === LOGIC LOOP ===
 task.spawn(function()
     while task.wait(0.5) do
         local c = LP.Character
@@ -147,8 +146,7 @@ task.spawn(function()
             task.wait(0.3)
             for _, id in ipairs(S.Blocks) do
                 if RPlace then Fire(RPlace, tx, tz, id) end
-                local hits = S.Tabs.PutBreak.On and S.Tabs.PutBreak.H or S.Tabs.AutoFarm.H
-                for i=1, hits do if RPunch then Fire(RPunch, tx, tz) end end
+                for i=1, 3 do if RPunch then Fire(RPunch, tx, tz) end end
             end
             task.wait(0.5)
         end
