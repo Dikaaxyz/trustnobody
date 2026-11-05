@@ -1,7 +1,7 @@
 --[[
-    Growblox Ultimate Proxy Edition v5 (Fixed)
+    Growblox God Mode v8 | Clean UI Edition
     Target: Growblox (Roblox) / Xeno Executor
-    Fitur: Auto Farm, Auto Clear, Auto Collect, Bypass, Spoof, Warp, Auto-Avoid.
+    UI: Replicated from reference image
 ]]
 
 local Players = game:GetService("Players")
@@ -9,33 +9,51 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
-
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- 1. STATE CONFIGURATION
+-- 1. TOTAL BYPASS LAYER
+-- ============================================================
+local bypass_success = pcall(function()
+    local mt = getrawmetatable(game)
+    local old_namecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" and self == LocalPlayer then return nil end
+        if method == "FireServer" and (self.Name:lower():find("anticheat") or self.Name:lower():find("report") or self.Name:lower():find("log")) then return nil end
+        if method == "GetNetworkPing" then return 0.03 end
+        return old_namecall(self, ...)
+    end)
+    setreadonly(mt, true)
+    
+    if getidentity and hookfunction then
+        hookfunction(getidentity, function(...) return 8 end)
+        hookfunction(trustcheck, function(...) return true end)
+    end
+end)
+
+-- ============================================================
+-- 2. STATE CONFIGURATION
 -- ============================================================
 local State = {
-    AutoFarm = false,
-    AutoClear = false,
-    AutoCollect = false,
-    FastDrop = false,
-    Ghost = false,
     Spam = false,
-    SpoofName = false,
-    SpoofSkin = false,
-    AutoAvoid = true,
-    Delay = 150,
+    PutBreak = false,
+    Collect = false,
+    Drop = false,
+    Geiger = false,
+    Ghost = false,
+    Fishing = false,
+    
+    Delay = 191,
+    BlockName = "Dirt",
     BlockID = 2,
     BreakHit = 3,
-    CustomName = "GrowbloxGod",
-    SafeWorld = "YOUR_STORAGE_WORLD",
-    CollectRadius = 30,
-    TileSize = 3, -- Sesuaikan sama grid game
+    TileSize = 3,
 }
 
 -- ============================================================
--- 2. REMOTES RESOLVER
+-- 3. REMOTES
 -- ============================================================
 local Remotes = {}
 for _, v in pairs(ReplicatedStorage:GetDescendants()) do
@@ -53,315 +71,386 @@ end
 
 local R_Place = R("place") or R("build") or R("set")
 local R_Punch = R("punch") or R("break") or R("hit")
-local R_Warp = R("warp") or R("join") or R("world") or R("travel")
-local R_Drop = R("drop") or R("trash")
 local R_Collect = R("collect") or R("pickup") or R("grab")
-local R_Leave = R("leave") or R("exit")
+local R_Drop = R("drop") or R("trash")
 
 -- ============================================================
--- 3. CORE FUNCTIONS (Dideklarasi sebelum dipakai)
+-- 4. QUEUE SYSTEM
 -- ============================================================
-local function SpoofName()
-    LocalPlayer.DisplayName = State.CustomName
-    local char = LocalPlayer.Character
-    if char then
-        local head = char:FindFirstChild("Head")
-        if head then
-            local oldTag = head:FindFirstChild("SpoofedTag")
-            if oldTag then oldTag:Destroy() end
-            
-            local billboard = Instance.new("BillboardGui", head)
-            billboard.Name = "SpoofedTag"
-            billboard.Size = UDim2.new(0, 200, 0, 50)
-            billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-            billboard.AlwaysOnTop = true
-            
-            local text = Instance.new("TextLabel", billboard)
-            text.Size = UDim2.new(1, 0, 1, 0)
-            text.BackgroundTransparency = 1
-            text.Text = State.CustomName
-            text.TextColor3 = Color3.fromRGB(255, 100, 100)
-            text.TextStrokeTransparency = 0
-            text.TextSize = 14
-            text.Font = Enum.Font.GothamBold
-        end
-    end
-end
+local TaskQueue = {}
+local isProcessing = false
 
-local function SpoofSkin()
-    local char = LocalPlayer.Character
-    if char then
-        local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-        if torso and not torso:FindFirstChild("SpoofHighlight") then
-            local highlight = Instance.new("Highlight", torso)
-            highlight.Name = "SpoofHighlight"
-            highlight.FillColor = Color3.fromRGB(0, 255, 0)
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.FillTransparency = 0.5
-        end
-    end
-end
-
-local function DoFastDrop()
-    if R_Drop then
-        for i = 1, 5 do -- Kurangi jadi 5 biar nggak kena rate limit
-            pcall(function() R_Drop:FireServer() end)
-        end
-    end
-end
-
-local function DoWarp(worldName)
-    if R_Warp then
-        pcall(function() R_Warp:FireServer(worldName) end)
-        print("[Growblox] Warping to: " .. tostring(worldName))
-    else
-        warn("[Growblox] Remote Warp tidak ditemukan.")
-    end
-end
-
-local function IsTrash(name)
-    local trashList = {"dirt", "cave", "rock", "stone", "background", "bedrock", "grass", "lava"}
-    local pName = name:lower()
-    for _, trash in ipairs(trashList) do
-        if pName:find(trash) then return true end
-    end
-    return false
-end
-
-local function ClearWorldArea()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp or not R_Punch then return end
-    
-    local px, pz = math.floor(hrp.Position.X / State.TileSize), math.floor(hrp.Position.Z / State.TileSize)
-    for x = -2, 2 do
-        for z = -2, 2 do
-            pcall(function() R_Punch:FireServer(px + x, pz + z) end)
-        end
-    end
-end
-
-local function AutoCollect()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp or not R_Collect then return end
-    
-    local playerPos = hrp.Position
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and (obj.Name:lower():find("gem") or obj.Name:lower():find("seed") or obj.Name:lower():find("item")) then
-            if (obj.Position - playerPos).Magnitude <= State.CollectRadius then
-                local ox, oz = math.floor(obj.Position.X / State.TileSize), math.floor(obj.Position.Z / State.TileSize)
-                pcall(function() R_Collect:FireServer(ox, oz) end)
+local function QueueRemote(remote, ...)
+    if not remote then return end
+    table.insert(TaskQueue, {remote = remote, args = {...}})
+    if not isProcessing then
+        task.spawn(function()
+            isProcessing = true
+            while #TaskQueue > 0 do
+                local taskData = table.remove(TaskQueue, 1)
+                task.wait(math.random(45, 120) / 1000) 
+                pcall(function() taskData.remote:FireServer(unpack(taskData.args)) end)
             end
-        end
+            isProcessing = false
+        end)
     end
 end
 
-local function IsStaff(player)
-    local name = player.Name:lower()
-    local dName = player.DisplayName:lower()
-    if name:find("admin") or name:find("mod") or name:find("staff") or name:find("owner") then return true end
-    if dName:find("admin") or dName:find("mod") or dName:find("staff") then return true end
-    return false
-end
-
-local function RunAway()
-    print("[Growblox] ADMIN DETECTED! Warping...")
-    if R_Leave then pcall(function() R_Leave:FireServer() end) end
-    DoWarp(State.SafeWorld)
-end
-
 -- ============================================================
--- 4. EVENTS & ANTI-DETECT
--- ============================================================
-local bypass_success = pcall(function()
-    local mt = getrawmetatable(game)
-    local old_namecall = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if method == "Kick" and self == LocalPlayer then return nil end
-        if method == "FireServer" and (self.Name:lower():find("anticheat") or self.Name:lower():find("log")) then return nil end
-        if method == "GetNetworkPing" then return 0.05 end
-        return old_namecall(self, ...)
-    end)
-    setreadonly(mt, true)
-end)
-
-Players.PlayerAdded:Connect(function(p)
-    if State.AutoAvoid and IsStaff(p) then
-        task.wait(1)
-        RunAway()
-    end
-end)
-
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
-
--- ============================================================
--- 5. GUI CREATION
+-- 5. GUI CREATION (Replicated from Image)
 -- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GrowbloxProxyV5"
+ScreenGui.Name = "GrowbloxUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = game:GetService("CoreGui")
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 680, 0, 500)
-Main.Position = UDim2.new(0.5, -340, 0.5, -250)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Main.Size = UDim2.new(0, 620, 0, 300)
+Main.Position = UDim2.new(0.5, -310, 0.5, -150)
+Main.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
 Main.Parent = ScreenGui
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 6)
 
+-- Stroke border luar
 local Stroke = Instance.new("UIStroke", Main)
-Stroke.Color = Color3.fromRGB(0, 200, 255)
+Stroke.Color = Color3.fromRGB(60, 60, 60)
 Stroke.Thickness = 2
 
-local TitleBar = Instance.new("Frame", Main)
-TitleBar.Size = UDim2.new(1, 0, 0, 35)
-TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-TitleBar.BorderSizePixel = 0
-Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 8)
-
-local TitleText = Instance.new("TextLabel", TitleBar)
-TitleText.Size = UDim2.new(1, -10, 1, 0)
-TitleText.Position = UDim2.new(0, 10, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "Growblox Proxy V5 | Fixed & Cleaned"
-TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleText.TextSize = 14
-TitleText.Font = Enum.Font.GothamBold
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-
--- Left Panel
-local LeftPanel = Instance.new("Frame", Main)
-LeftPanel.Size = UDim2.new(0, 170, 1, -45)
-LeftPanel.Position = UDim2.new(0, 10, 0, 40)
-LeftPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+-- ============================================================
+-- LEFT PANEL (Menu List)
+-- ============================================================
+local LeftPanel = Instance.new("Frame")
+LeftPanel.Size = UDim2.new(0, 140, 1, 0)
+LeftPanel.Position = UDim2.new(0, 0, 0, 0)
+LeftPanel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 LeftPanel.BorderSizePixel = 0
+LeftPanel.Parent = Main
 Instance.new("UICorner", LeftPanel).CornerRadius = UDim.new(0, 6)
-Instance.new("UIListLayout", LeftPanel).Padding = UDim.new(0, 3)
 
-local function createToggle(name, text, order)
-    local Btn = Instance.new("TextButton", LeftPanel)
+local LeftLayout = Instance.new("UIListLayout")
+LeftLayout.Padding = UDim.new(0, 0)
+LeftLayout.Parent = LeftPanel
+
+local function CreateLeftButton(text, order, toggleState)
+    local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, 0, 0, 28)
-    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    Btn.Text = text
+    Btn.BackgroundColor3 = toggleState and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(35, 35, 35)
+    Btn.Text = "   " .. text
     Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    Btn.TextSize = 13
-    Btn.Font = Enum.Font.Gotham
+    Btn.TextSize = 14
+    Btn.Font = Enum.Font.GothamSemibold
     Btn.TextXAlignment = Enum.TextXAlignment.Left
     Btn.LayoutOrder = order
-    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4)
-    Instance.new("UIPadding", Btn).PaddingLeft = UDim.new(0, 10)
+    Btn.Parent = LeftPanel
     
     Btn.MouseButton1Click:Connect(function()
-        State[name] = not State[name]
-        Btn.BackgroundColor3 = State[name] and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(35, 35, 40)
-        Btn.TextColor3 = State[name] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-        
-        if name == "SpoofName" and State.SpoofName then SpoofName() end
-        if name == "SpoofSkin" and State.SpoofSkin then SpoofSkin() end
+        State[text:gsub(" ", "")] = not State[text:gsub(" ", "")]
+        Btn.BackgroundColor3 = State[text:gsub(" ", "")] and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(35, 35, 35)
     end)
 end
 
-createToggle("AutoAvoid", "Auto-Avoid Mod", 1)
-createToggle("AutoFarm", "Auto Farm", 2)
-createToggle("AutoClear", "Auto Clear World", 3)
-createToggle("AutoCollect", "Auto Collect (No TP)", 4)
-createToggle("FastDrop", "Fast Drop", 5)
-createToggle("Ghost", "Ghost / Noclip", 6)
-createToggle("Spam", "Spam", 7)
-createToggle("SpoofName", "Spoof Name", 8)
-createToggle("SpoofSkin", "Spoof Skin", 9)
+CreateLeftButton("Spam", 1, false)
+CreateLeftButton("Put & Break", 2, true)
+CreateLeftButton("Collect", 3, false)
+CreateLeftButton("Drop", 4, false)
+CreateLeftButton("Geiger", 5, false)
+CreateLeftButton("Ghost", 6, false)
+CreateLeftButton("Fishing", 7, false)
 
--- Middle Panel
-local MidPanel = Instance.new("Frame", Main)
-MidPanel.Size = UDim2.new(0, 280, 1, -45)
-MidPanel.Position = UDim2.new(0, 190, 0, 40)
-MidPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+-- ============================================================
+-- MIDDLE PANEL (Controls)
+-- ============================================================
+local MidPanel = Instance.new("Frame")
+MidPanel.Size = UDim2.new(0, 290, 1, 0)
+MidPanel.Position = UDim2.new(0, 150, 0, 0)
+MidPanel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MidPanel.BorderSizePixel = 0
-Instance.new("UICorner", MidPanel).CornerRadius = UDim.new(0, 6)
+MidPanel.Parent = Main
 
--- Stop Button
-local StopBtn = Instance.new("TextButton", MidPanel)
-StopBtn.Size = UDim2.new(0, 70, 0, 25)
+-- Garis pemisah kiri
+local Sep1 = Instance.new("Frame", MidPanel)
+Sep1.Size = UDim2.new(0, 1, 1, 0)
+Sep1.Position = UDim2.new(0, 0, 0, 0)
+Sep1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Sep1.BorderSizePixel = 0
+
+-- STOP Button
+local StopBtn = Instance.new("TextButton")
+StopBtn.Size = UDim2.new(0, 60, 0, 30)
 StopBtn.Position = UDim2.new(0, 10, 0, 10)
-StopBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+StopBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 StopBtn.Text = "STOP"
 StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 StopBtn.TextSize = 14
 StopBtn.Font = Enum.Font.GothamBold
+StopBtn.Parent = MidPanel
 Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 4)
 
 StopBtn.MouseButton1Click:Connect(function()
-    for k, _ in pairs(State) do if type(State[k]) == "boolean" then State[k] = false end end
+    for k, v in pairs(State) do
+        if type(v) == "boolean" then State[k] = false end
+    end
+    TaskQueue = {}
     for _, child in pairs(LeftPanel:GetChildren()) do
         if child:IsA("TextButton") then
-            child.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-            child.TextColor3 = Color3.fromRGB(200, 200, 200)
+            child.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
         end
     end
 end)
 
--- Safe World Input
-local SafeWorldFrame = Instance.new("Frame", MidPanel)
-SafeWorldFrame.Size = UDim2.new(0, 260, 0, 30)
-SafeWorldFrame.Position = UDim2.new(0, 10, 0, 45)
-SafeWorldFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-Instance.new("UICorner", SafeWorldFrame).CornerRadius = UDim.new(0, 4)
+-- Warning Text
+local Warn = Instance.new("TextLabel")
+Warn.Size = UDim2.new(0, 220, 0, 30)
+Warn.Position = UDim2.new(0, 75, 0, 10)
+Warn.BackgroundTransparency = 1
+Warn.Text = "Bellow 200 Ez ban if you have po"
+Warn.TextColor3 = Color3.fromRGB(220, 200, 0)
+Warn.TextSize = 13
+Warn.Font = Enum.Font.Gotham
+Warn.TextXAlignment = Enum.TextXAlignment.Left
+Warn.Parent = MidPanel
 
-local SafeWorldBox = Instance.new("TextBox", SafeWorldFrame)
-SafeWorldBox.Size = UDim2.new(1, -10, 1, 0)
-SafeWorldBox.Position = UDim2.new(0, 10, 0, 0)
-SafeWorldBox.BackgroundTransparency = 1
-SafeWorldBox.Text = "YOUR_STORAGE_WORLD"
-SafeWorldBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-SafeWorldBox.TextSize = 13
-SafeWorldBox.Font = Enum.Font.Gotham
-SafeWorldBox.TextXAlignment = Enum.TextXAlignment.Left
-SafeWorldBox.FocusLost:Connect(function() State.SafeWorld = SafeWorldBox.Text end)
+-- Delay Slider Background
+local SliderBg = Instance.new("Frame")
+SliderBg.Size = UDim2.new(0, 180, 0, 30)
+SliderBg.Position = UDim2.new(0, 10, 0, 45)
+SliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SliderBg.Parent = MidPanel
+Instance.new("UICorner", SliderBg).CornerRadius = UDim.new(0, 4)
 
--- Delay Slider
-local DelayFrame = Instance.new("Frame", MidPanel)
-DelayFrame.Size = UDim2.new(0, 260, 0, 30)
-DelayFrame.Position = UDim2.new(0, 10, 0, 85)
-DelayFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-Instance.new("UICorner", DelayFrame).CornerRadius = UDim.new(0, 4)
+-- Slider Fill
+local SliderFill = Instance.new("Frame")
+SliderFill.Size = UDim2.new(0.38, 0, 1, 0) -- ~191/500
+SliderFill.BackgroundColor3 = Color3.fromRGB(50, 120, 220)
+SliderFill.Parent = SliderBg
+Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(0, 4)
 
-local DelayFill = Instance.new("Frame", DelayFrame)
-DelayFill.Size = UDim2.new(0.3, 0, 1, 0)
-DelayFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-Instance.new("UICorner", DelayFill).CornerRadius = UDim.new(0, 4)
+-- Slider Text (Number)
+local SliderNum = Instance.new("TextLabel")
+SliderNum.Size = UDim2.new(1, 0, 1, 0)
+SliderNum.BackgroundTransparency = 1
+SliderNum.Text = "191"
+SliderNum.TextColor3 = Color3.fromRGB(255, 255, 255)
+SliderNum.TextSize = 14
+SliderNum.Font = Enum.Font.Gotham
+SliderNum.Parent = SliderBg
 
-local DelayText = Instance.new("TextLabel", DelayFrame)
-DelayText.Size = UDim2.new(1, 0, 1, 0)
-DelayText.BackgroundTransparency = 1
-DelayText.Text = "Delay: 150ms"
-DelayText.TextColor3 = Color3.fromRGB(255, 255, 255)
-DelayText.TextSize = 13
-DelayText.Font = Enum.Font.Gotham
+-- "Delay" Label
+local DelayLabel = Instance.new("TextLabel")
+DelayLabel.Size = UDim2.new(0, 100, 0, 30)
+DelayLabel.Position = UDim2.new(0, 195, 0, 45)
+DelayLabel.BackgroundTransparency = 1
+DelayLabel.Text = "Delay"
+DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+DelayLabel.TextSize = 14
+DelayLabel.Font = Enum.Font.Gotham
+DelayLabel.TextXAlignment = Enum.TextXAlignment.Left
+DelayLabel.Parent = MidPanel
 
-local dragging = false
-local function updateDelay(input)
-    local pos = math.clamp(input.Position.X - DelayFrame.AbsolutePosition.X, 0, DelayFrame.AbsoluteSize.X)
-    local pct = pos / DelayFrame.AbsoluteSize.X
-    State.Delay = math.floor(pct * 500)
-    DelayFill.Size = UDim2.new(pct, 0, 1, 0)
-    DelayText.Text = "Delay: " .. tostring(State.Delay) .. "ms"
-end
-DelayFrame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
-DelayFrame.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then updateDelay(input) end end)
+-- Block Name Box
+local NameBox = Instance.new("TextBox")
+NameBox.Size = UDim2.new(0, 180, 0, 30)
+NameBox.Position = UDim2.new(0, 10, 0, 85)
+NameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+NameBox.Text = "Dirt"
+NameBox.TextColor3 = Color3.fromRGB(200, 200, 200)
+NameBox.TextSize = 14
+NameBox.Font = Enum.Font.Gotham
+NameBox.TextXAlignment = Enum.TextXAlignment.Left
+NameBox.Parent = MidPanel
+Instance.new("UICorner", NameBox).CornerRadius = UDim.new(0, 4)
+Instance.new("UIPadding", NameBox).PaddingLeft = UDim.new(0, 10)
+
+-- Block ID Box
+local IDBox = Instance.new("TextBox")
+IDBox.Size = UDim2.new(0, 80, 0, 30)
+IDBox.Position = UDim2.new(0, 200, 0, 85)
+IDBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+IDBox.Text = "ID: 2"
+IDBox.TextColor3 = Color3.fromRGB(200, 200, 200)
+IDBox.TextSize = 14
+IDBox.Font = Enum.Font.Gotham
+IDBox.Parent = MidPanel
+Instance.new("UICorner", IDBox).CornerRadius = UDim.new(0, 4)
+
+-- Break Hit Frame
+local BreakFrame = Instance.new("Frame")
+BreakFrame.Size = UDim2.new(0, 180, 0, 30)
+BreakFrame.Position = UDim2.new(0, 10, 0, 125)
+BreakFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+BreakFrame.Parent = MidPanel
+Instance.new("UICorner", BreakFrame).CornerRadius = UDim.new(0, 4)
+
+local BreakNum = Instance.new("TextLabel")
+BreakNum.Size = UDim2.new(1, 0, 1, 0)
+BreakNum.BackgroundTransparency = 1
+BreakNum.Text = "3"
+BreakNum.TextColor3 = Color3.fromRGB(200, 200, 200)
+BreakNum.TextSize = 14
+BreakNum.Font = Enum.Font.Gotham
+BreakNum.Parent = BreakFrame
+
+-- "-" Button
+local MinusBtn = Instance.new("TextButton")
+MinusBtn.Size = UDim2.new(0, 30, 1, 0)
+MinusBtn.Position = UDim2.new(0.5, -30, 0, 0)
+MinusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+MinusBtn.Text = "-"
+MinusBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+MinusBtn.TextSize = 16
+MinusBtn.Font = Enum.Font.GothamBold
+MinusBtn.Parent = BreakFrame
+Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0, 4)
+
+-- "+" Button
+local PlusBtn = Instance.new("TextButton")
+PlusBtn.Size = UDim2.new(0, 30, 1, 0)
+PlusBtn.Position = UDim2.new(1, -30, 0, 0)
+PlusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+PlusBtn.Text = "+"
+PlusBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+PlusBtn.TextSize = 16
+PlusBtn.Font = Enum.Font.GothamBold
+PlusBtn.Parent = BreakFrame
+Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0, 4)
+
+-- Break Hit Label
+local BreakLabel = Instance.new("TextLabel")
+BreakLabel.Size = UDim2.new(0, 100, 0, 30)
+BreakLabel.Position = UDim2.new(0, 195, 0, 125)
+BreakLabel.BackgroundTransparency = 1
+BreakLabel.Text = "Break Hit"
+BreakLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+BreakLabel.TextSize = 14
+BreakLabel.Font = Enum.Font.Gotham
+BreakLabel.TextXAlignment = Enum.TextXAlignment.Left
+BreakLabel.Parent = MidPanel
 
 -- ============================================================
--- 6. MAIN LOOPS (Satu Loop Utama)
+-- RIGHT PANEL (Grid)
+-- ============================================================
+local RightPanel = Instance.new("Frame")
+RightPanel.Size = UDim2.new(0, 170, 1, 0)
+RightPanel.Position = UDim2.new(0, 450, 0, 0)
+RightPanel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+RightPanel.BorderSizePixel = 0
+RightPanel.Parent = Main
+
+-- Garis pemisah kanan
+local Sep2 = Instance.new("Frame", RightPanel)
+Sep2.Size = UDim2.new(0, 1, 1, 0)
+Sep2.Position = UDim2.new(0, 0, 0, 0)
+Sep2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Sep2.BorderSizePixel = 0
+
+-- Grid Container
+local GridFrame = Instance.new("Frame")
+GridFrame.Size = UDim2.new(1, -20, 1, -20)
+GridFrame.Position = UDim2.new(0, 10, 0, 10)
+GridFrame.BackgroundTransparency = 1
+GridFrame.Parent = RightPanel
+
+local Grid = Instance.new("UIGridLayout")
+Grid.CellSize = UDim2.new(0, 22, 0, 22)
+Grid.CellPadding = UDim2.new(0, 4, 0, 4)
+Grid.SortOrder = Enum.SortOrder.LayoutOrder
+Grid.Parent = GridFrame
+
+for i = 1, 25 do
+    local Slot = Instance.new("Frame")
+    Slot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Slot.BorderSizePixel = 0
+    Slot.LayoutOrder = i
+    Slot.Parent = GridFrame
+    Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 2)
+    
+    -- Default 3 red blocks in the middle row
+    if i == 13 or i == 14 or i == 15 then
+        Slot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+    
+    -- Click to select ID
+    local SlotBtn = Instance.new("TextButton")
+    SlotBtn.Size = UDim2.new(1, 0, 1, 0)
+    SlotBtn.BackgroundTransparency = 1
+    SlotBtn.Text = ""
+    SlotBtn.Parent = Slot
+    
+    SlotBtn.MouseButton1Click:Connect(function()
+        State.BlockID = i
+        IDBox.Text = "ID: " .. tostring(i)
+        
+        -- Reset semua warna
+        for _, child in pairs(GridFrame:GetChildren()) do
+            if child:IsA("Frame") then
+                child.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            end
+        end
+        
+        -- Warnain yang dipilih
+        Slot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end)
+end
+
+-- Hotkeys Text (Q, 1, 2, 3, W)
+local HotkeyFrame = Instance.new("Frame")
+HotkeyFrame.Size = UDim2.new(0, 180, 0, 15)
+HotkeyFrame.Position = UDim2.new(0, 10, 0, 155)
+HotkeyFrame.BackgroundTransparency = 1
+HotkeyFrame.Parent = MidPanel
+
+local Hotkeys = {"Q", "1", "2", "3"}
+local xPos = 0
+for _, key in ipairs(Hotkeys) do
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(0, 20, 1, 0)
+    txt.Position = UDim2.new(0, xPos, 0, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = key
+    txt.TextColor3 = Color3.fromRGB(150, 150, 150)
+    txt.TextSize = 11
+    txt.Font = Enum.Font.GothamBold
+    txt.Parent = HotkeyFrame
+    xPos = xPos + 45
+end
+
+-- ============================================================
+-- 6. UI LOGIC
+-- ============================================================
+local dragging = false
+local function updateDelay(input)
+    local pos = math.clamp(input.Position.X - SliderBg.AbsolutePosition.X, 0, SliderBg.AbsoluteSize.X)
+    local pct = pos / SliderBg.AbsoluteSize.X
+    State.Delay = math.floor(pct * 500)
+    SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+    SliderNum.Text = tostring(State.Delay)
+end
+
+SliderBg.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
+SliderBg.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then updateDelay(input) end end)
+
+NameBox.FocusLost:Connect(function() State.BlockName = NameBox.Text end)
+IDBox.FocusLost:Connect(function() 
+    local num = tonumber(IDBox.Text:match("%d+"))
+    if num then State.BlockID = num end
+end)
+
+MinusBtn.MouseButton1Click:Connect(function()
+    State.BreakHit = math.max(1, State.BreakHit - 1)
+    BreakNum.Text = tostring(State.BreakHit)
+end)
+PlusBtn.MouseButton1Click:Connect(function()
+    State.BreakHit = math.min(10, State.BreakHit + 1)
+    BreakNum.Text = tostring(State.BreakHit)
+end)
+
+-- ============================================================
+-- 7. MAIN LOOP (Punch & Place)
 -- ============================================================
 local function GetPos()
     local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -370,63 +459,28 @@ end
 
 task.spawn(function()
     while task.wait(0.1) do
-        if State.AutoFarm then
+        if State.PutBreak then
             local pos = GetPos()
             local tx, tz = math.floor(pos.X/State.TileSize), math.floor(pos.Z/State.TileSize)
-            if R_Place then pcall(function() R_Place:FireServer(tx, tz, State.BlockID) end) end
+            if R_Place then QueueRemote(R_Place, tx, tz, State.BlockID) end
             task.wait(State.Delay / 1000)
             for i=1, State.BreakHit do
-                if R_Punch then pcall(function() R_Punch:FireServer(tx, tz) end) end
-                task.wait(0.01)
+                if R_Punch then QueueRemote(R_Punch, tx, tz) end
+                task.wait(0.05)
             end
         end
         
-        if State.AutoClear then
-            ClearWorldArea()
+        if State.Collect and R_Collect then
+            local pos = GetPos()
+            if R_Collect then QueueRemote(R_Collect, math.floor(pos.X/State.TileSize), math.floor(pos.Z/State.TileSize)) end
             task.wait(0.2)
         end
-        
-        if State.AutoCollect then
-            AutoCollect()
-            task.wait(0.2)
-        end
-        
-        if State.FastDrop then
-            DoFastDrop()
+
+        if State.Drop and R_Drop then
+            for i = 1, 3 do QueueRemote(R_Drop) end
             task.wait(0.5)
         end
-        
-        if State.AutoAvoid then
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and IsStaff(p) then
-                    RunAway()
-                    break
-                end
-            end
-        end
     end
 end)
 
-RunService.Stepped:Connect(function()
-    if State.Ghost then
-        local char = LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(1) do
-        if State.Spam then
-            local chat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            if chat and chat:FindFirstChild("SayMessageRequest") then
-                pcall(function() chat.SayMessageRequest:FireServer("Auto Farm on Top", "All") end)
-            end
-        end
-    end
-end)
-
-print("[Growblox V5] Loaded. Bypass: " .. tostring(bypass_success))
+print("[Growblox V8] Clean UI Loaded. Bypass: " .. tostring(bypass_success))
