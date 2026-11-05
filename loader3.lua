@@ -1,5 +1,5 @@
 --[[
-    Growblox God Mode v21 | Pure PlayerGui Fix
+    Growblox God Mode v22 | Sandbox Bypass (Xeno Fix)
     Target: Growblox (Roblox) / Xeno Executor
 ]]
 
@@ -46,16 +46,29 @@ local function Fire(remote, ...)
 end
 
 -- ============================================================
--- 3. GUI CREATION (PURE PLAYERGUI - NO GETHUI)
+-- 3. GUI CREATION (PROTECTED)
 -- ============================================================
 -- Hapus GUI lama kalau ada
-local oldGui = LocalPlayer.PlayerGui:FindFirstChild("GrowbloxV21")
-if oldGui then oldGui:Destroy() end
+if LocalPlayer:FindFirstChild("PlayerGui") then
+    local oldGui = LocalPlayer.PlayerGui:FindFirstChild("GrowbloxV22")
+    if oldGui then oldGui:Destroy() end
+end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GrowbloxV21"
+ScreenGui.Name = "GrowbloxV22"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") -- PURE PLAYERGUI
+
+-- FUNGSI PROTECT GUI (Buat nge-bypass sandbox Xeno)
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = game:GetService("CoreGui")
+elseif protectgui then
+    protectgui(ScreenGui)
+    ScreenGui.Parent = game:GetService("CoreGui")
+else
+    -- Fallback terakhir kalau nggak ada protect
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 700, 0, 480)
@@ -355,4 +368,4 @@ task.spawn(function()
     end
 end)
 
-print("[Growblox V21] Pure PlayerGui Loaded.")
+print("[Growblox V22] Protected GUI Loaded.")
