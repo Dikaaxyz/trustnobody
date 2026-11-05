@@ -1,5 +1,5 @@
 --[[
-    Growblox God Mode v20 | Final UI Fix
+    Growblox God Mode v21 | Pure PlayerGui Fix
     Target: Growblox (Roblox) / Xeno Executor
 ]]
 
@@ -46,19 +46,16 @@ local function Fire(remote, ...)
 end
 
 -- ============================================================
--- 3. GUI CREATION (100% MUNCUL)
+-- 3. GUI CREATION (PURE PLAYERGUI - NO GETHUI)
 -- ============================================================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GrowbloxV20"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Hapus GUI lama kalau ada
+local oldGui = LocalPlayer.PlayerGui:FindFirstChild("GrowbloxV21")
+if oldGui then oldGui:Destroy() end
 
--- Nentuin Parent biar aman
-if gethui and gethui() then
-    ScreenGui.Parent = gethui()
-else
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GrowbloxV21"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") -- PURE PLAYERGUI
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 700, 0, 480)
@@ -358,4 +355,4 @@ task.spawn(function()
     end
 end)
 
-print("[Growblox V20] Safe UI + Legit Walk Loaded.")
+print("[Growblox V21] Pure PlayerGui Loaded.")
