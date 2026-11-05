@@ -1,5 +1,5 @@
 --[[
-    Growblox God Mode v19 | Legit Walk Bypass (Anti-267)
+    Growblox God Mode v20 | Final UI Fix
     Target: Growblox (Roblox) / Xeno Executor
 ]]
 
@@ -18,7 +18,7 @@ local State = {
     Delay = 500, 
     SelectedBlocks = {15}, 
     BreakHit = 3,
-    TileSize = 3, SafeWorld = "STORAGE_WORLD"
+    TileSize = 3
 }
 
 -- ============================================================
@@ -41,24 +41,24 @@ local R_Drop = R("drop") or R("trash")
 local R_Collect = R("collect") or R("pickup") or R("grab")
 local R_Leave = R("leave") or R("exit")
 
--- ============================================================
--- 3. SAFE EXECUTION (Tanpa Metatable / Hook)
--- ============================================================
 local function Fire(remote, ...)
     if remote then pcall(function() remote:FireServer(...) end) end
 end
 
 -- ============================================================
--- 4. GUI CREATION (PlayerGui biar aman)
+-- 3. GUI CREATION (100% MUNCUL)
 -- ============================================================
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local old = PlayerGui:FindFirstChild("GrowbloxV19")
-if old then old:Destroy() end
-
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GrowbloxV19"
+ScreenGui.Name = "GrowbloxV20"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = PlayerGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Nentuin Parent biar aman
+if gethui and gethui() then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 700, 0, 480)
@@ -309,7 +309,7 @@ MinusBtn.MouseButton1Click:Connect(function() State.BreakHit = math.max(1, State
 PlusBtn.MouseButton1Click:Connect(function() State.BreakHit = math.min(10, State.BreakHit + 1); BreakNum.Text = tostring(State.BreakHit) end)
 
 -- ============================================================
--- 5. LEGIT WALK & AUTO FARM LOOP (SERVER-SIDE SAFE)
+-- 4. MAIN LOOP (Legit Walk)
 -- ============================================================
 local function GetChar()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -326,21 +326,17 @@ task.spawn(function()
         if State.PutBreak or State.AutoFarm then
             local pos = hrp.Position
             local tx, tz = math.floor(pos.X / 3), math.floor(pos.Z / 3)
-            
-            -- Jalan ke tile block pake Humanoid:MoveTo (BUKAN teleport)
             local targetPos = Vector3.new(tx * 3, pos.Y, tz * 3)
-            hum:MoveTo(targetPos)
-            task.wait(0.3) -- Tunggu sampai bot jalan dikit
             
-            -- Pas udah deket, baru mukul
+            hum:MoveTo(targetPos)
+            task.wait(0.3)
+            
             for _, blockID in ipairs(State.SelectedBlocks) do
                 if R_Place then Fire(R_Place, tx, tz, blockID) end
                 for i=1, State.BreakHit do
                     if R_Punch then Fire(R_Punch, tx, tz) end
                 end
             end
-            
-            -- Delay biar aman
             task.wait(State.Delay / 1000)
         end
         
@@ -362,4 +358,4 @@ task.spawn(function()
     end
 end)
 
-print("[Growblox V19] Legit Walk Bypass Loaded.")
+print("[Growblox V20] Safe UI + Legit Walk Loaded.")
